@@ -394,6 +394,79 @@ class TorchMLPModel(nn.Module):
         return out
 
 
+class TorchRNNModel(nn.Module):
+    def __init__(self, n_input, n_class, loss_func, bool_cnn=True, cnn_act_func=None, cnn_ks=5, cnn_stride=3,
+                 bool_cnn_dropout=False, cnn_dropout=0.5, n_rnn_layer=2, rnn_dim=32, bool_bidirectional=True,
+                 rnn_dropout=0.5, bool_final_dropout=True, final_dropout=0.5):
+        super().__init__()
+
+        # initialize the fields
+        self.n_input = n_input
+        self.n_class = n_class
+        self.loss_func = loss_func
+
+        # cnn preprocessing layer parameters
+        self.bool_cnn = bool_cnn
+        self.cnn_act_func = cnn_act_func
+        self.cnn_ks = cnn_ks
+        self.cnn_stride = cnn_stride
+        self.bool_cnn_dropout = bool_cnn_dropout
+        self.cnn_dropout = cnn_dropout
+
+        # rnn layer parameters
+        self.self.n_rnn_layer = n_rnn_layer
+        self.rnn_dim = rnn_dim
+        self.bool_bidirectional = bool_bidirectional
+        self.multi = 2 if bool_bidirectional else 1
+        self.rnn_dropout = rnn_dropout
+
+        # output layer parameters
+        self.bool_final_dropout = bool_final_dropout
+        self.final_dropout = final_dropout
+
+        # initialize the CNN layers
+        self.conv1d = nn.Conv1d(in_channels=n_input, out_channels=self.rnn_dim,
+                                kernel_size=self.cnn_ks, stride=self.cnn_stride)
+        self.cnn_dropout = nn.Dropout(self.cnn_dropout)
+
+        # initialize the RNN layers
+        self.biGRU = nn.GRU(input_size=self.rnn_dim, hidden_size=self.rnn_dim, num_layers=self.n_layer,
+                            bidirectional=self.bool_bidirectional, dropout=self.dropout)
+
+        # initialize the final output layer
+        self.output = nn.Linear(self.rnn_dim * self.multi, self.n_class)
+        self.final_dropout = nn.Dropout(self.final_dropout)
+
+    def forward(self, x):
+        # forward pass
+        # if choose to optionally use CNN preprocessing
+        if self.bool_cnn:
+            # input data in format (batch_size, n_time, n_channel)
+            x = x.permute(0, 2, 1)  # now in format (batch_size, n_channel, n_time)
+            x = self.conv1d(x)   # preprocessing kernel in time
+            if self.cnn_act_func is not None:
+                x = self.cnn_act_func(x)
+            if self.bool_cnn_dropout:
+                x = self.cnn_dropout(x)
+
+            x = x.permute(2, 0, 1)  # now in format (n_time, batch_size, n_channel)
+        else:
+            x = x.permute(1, 0, 2)  # now in format (n_time, batch_size, n_channel)
+
+        # RNN processing - need hidden state for classification
+        _, x = self.BiGRU(x)
+        x = x.contiguous()[-self.mult:, :, :]   # now shape (self.multi, batch_size, rnn_dim)
+
+        # output layer
+        x = x.permute(1, 0, 2)  # now in format (batch_size, self.multi, rnn_dim)
+        x = x.contiguous().view(-1, self.rnn_dim * self.multi)  # now in format (batch_size, self.multi * rnn_dim)
+        if self.bool_final_dropout:
+            x = self.final_dropout(x)
+        out = self.output(x)
+
+        return out
+
+
 # @ray.remote(num_gpus=0.25)
 class MLPModelWrapper(PyTorchModelWrapper):
     def __init__(self, n_input, n_class, n_layer=3, hidden_size=32, dropout=0.5, lam=1e-5, str_act='relu',
