@@ -1,6 +1,6 @@
 import numpy as np
 import ray
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, KFold
 from sklearn.metrics import confusion_matrix, accuracy_score, f1_score, roc_curve, roc_auc_score
 from easydict import EasyDict as edict
 
@@ -35,12 +35,13 @@ def kfold_cv_training(features_sub, y_class, y_stim, n_class=4, n_fold=10, str_m
                       random_seed=0):
     # create the training and test sets
     skf = StratifiedKFold(n_splits=n_fold, shuffle=True, random_state=random_seed)
+    # skf = KFold(n_splits=n_fold, shuffle=True, random_state=random_seed)
 
     # create hashmap in advance from most general label
     hashmap = create_hashmap(y_class, y_stim)
 
     # check if validation data is needed
-    bool_torch = True if str_model == 'MLP' else False
+    bool_torch = True if str_model in ['MLP', 'RNN'] else False
 
     # create list for holding the various variables
     vec_acc = []
@@ -115,8 +116,13 @@ def kfold_cv_sfs_search_sin_pb(features, pb, idx_train, idx_test, idx_used, y_cl
         features_train = features_sub_train[:, None]
         features_test = features_sub_test[:, None]
 
+    # include dynamcis if needed
+    if len(features_train.shape) == 3:
+        features_train = features_train.reshape(features_train.shape[0], -1)
+        features_test = features_test.reshape(features_test.shape[0], -1)
+
     # check if validation data is needed
-    bool_torch = True if str_model == 'MLP' else False
+    bool_torch = True if str_model in ['MLP', 'RNN'] else False
 
     # now form the training and validation sets
     features_train, y_class_train, features_valid, y_class_valid = \
@@ -144,6 +150,7 @@ def kfold_cv_sfs_search(features, idx_peak, idx_used, y_class, y_stim, idx_break
                         random_seed=0):
     # set up for k-fold cross validation
     skf = StratifiedKFold(n_splits=n_fold, shuffle=True, random_state=random_seed)
+    # skf = KFold(n_splits=n_fold, shuffle=True, random_state=random_seed)
     vec_pb_full = get_all_pb(idx_peak, max_width, idx_break, features.shape[1])
 
     # create output structure first
@@ -159,10 +166,6 @@ def kfold_cv_sfs_search(features, idx_peak, idx_used, y_class, y_stim, idx_break
 
     # start the training
     for idx_train, idx_test in skf.split(features, y_class):
-        # throw in exception for unimplemented dynamics yet
-        if len(features.shape) == 3:
-            raise NotImplementedError('This function is not yet implemented for temporal dynamics')
-
         y_class_train = y_class[idx_train, ...]
         y_class_test = y_class[idx_test, ...]
         y_stim_test = y_stim[idx_test, ...]
@@ -205,16 +208,34 @@ def train_model(features_train, features_test, y_class_train, y_class_test, y_st
     # TODO: make sure model params is not hard coded
     bool_torch = False
     train_params = None
-    if str_model == 'QDA':
+    if str_model == 'LDA':
+        if len(features_train.shape) > 2:
+            features_train = features_train.reshape(features_train.shape[0], -1)
+            features_test = features_test.reshape(features_test.shape[0], -1)
+        model_params = {}
+    elif str_model == 'QDA':
         model_params = {'tol': 1e-9}
     elif str_model == 'SVM':
         model_params = {'probability': True}
     elif str_model == 'RF':
-        model_params = {'max_depth': 5, 'n_estimators': 300}
+        # model_params = {'max_depth': 3, 'n_estimators': 300}
+        model_params = {'n_estimators': 300}
     elif str_model == 'MLP':
-        model_params = {'n_input': features_train.shape[1], 'n_class': len(np.unique(y_class_train)), 'n_layer': 2,
-                        'dropout': 0.4, 'str_act': 'leaky_relu', 'lr': 5e-4, 'lam': 1e-5}
-        train_params = {'n_epoch': 100, 'batch_size': 64, 'bool_verbose': False}
+        model_params = {'n_input': features_train.shape[1], 'n_class': len(np.unique(y_class_train)), 'n_layer': 3,
+                        'dropout': 0.35, 'str_act': 'leaky_relu', 'lr': 5e-4, 'lam': 1e-5, 'hidden_size': 128}
+        train_params = {'n_epoch': 100, 'batch_size': 128, 'bool_verbose': False}
+        bool_torch = True
+    elif str_model == 'RNN':
+        # TODO: remove hardcoding
+        if len(features_train.shape) == 2:
+            features_train = np.expand_dims(features_train, axis=1)
+            features_valid = np.expand_dims(features_valid, axis=1)
+            features_test = np.expand_dims(features_test, axis=1)
+
+        model_params = {'n_input': features_train.shape[-1], 'n_class': len(np.unique(y_class_train)),
+                        'bool_cnn': False, 'cnn_act_func': 'identity', 'n_rnn_layer': 2, 'rnn_dim': 16,
+                        'rnn_dropout': 0.6, 'final_dropout': 0.4, 'lr': 5e-4, 'lam': 0}
+        train_params = {'n_epoch': 100, 'batch_size': 128, 'bool_verbose': False}
         bool_torch = True
     else:
         model_params = {}
@@ -222,17 +243,28 @@ def train_model(features_train, features_test, y_class_train, y_class_test, y_st
     # now define the model
     if bool_torch:
         model = get_model_ray(str_model, model_params)
+        # model.train.remote(features_train, y_class_train, valid_data=features_valid, valid_label=y_class_valid,
+        #                    **train_params)
         model.train(features_train, y_class_train, valid_data=features_valid, valid_label=y_class_valid, **train_params)
+
+        # next generate the predictions
+        # y_class_pred = ray.get(model.predict.remote(features_test))
+        y_class_pred = model.predict(features_test)
+        if y_class_pred.ndim > 1:
+            y_class_pred = np.argmax(y_class_pred, axis=1)
+        # acc = ray.get(model.get_accuracy.remote(features_test, y_class_test))
+        acc = model.get_accuracy(features_test, y_class_test)
+        f1 = f1_score(y_class_test, y_class_pred)
+
     else:
         model = get_model(str_model, model_params)
         model.train(features_train, y_class_train)
 
-    # next generate the predictions
-    y_class_pred = model.predict(features_test)
-    if y_class_pred.ndim > 1:
-        y_class_pred = np.argmax(y_class_pred, axis=1)
-    acc = model.get_accuracy(features_test, y_class_test)
-    f1 = f1_score(y_class_test, y_class_pred)
+        y_class_pred = model.predict(features_test)
+        if y_class_pred.ndim > 1:
+            y_class_pred = np.argmax(y_class_pred, axis=1)
+        acc = model.get_accuracy(features_test, y_class_test)
+        f1 = f1_score(y_class_test, y_class_pred)
 
     # create the big confusion matrix
     full_label_test, _ = combine_labels(y_class_test, y_stim_test, hashmap=hashmap)
@@ -241,7 +273,11 @@ def train_model(features_train, features_test, y_class_train, y_class_test, y_st
     assert np.all(np.array(conf_mat.shape) == n_class), 'Confusion matrix is not the right size'
 
     # estimate the ROC curve
-    y_class_pred_scores = model.predict_proba(features_test)
+    if bool_torch:
+        # y_class_pred_scores = ray.get(model.predict_proba.remote(features_test))
+        y_class_pred_scores = model.predict_proba(features_test)
+    else:
+        y_class_pred_scores = model.predict_proba(features_test)
     roc = roc_curve(y_class_test, y_class_pred_scores)
     auc = roc_auc_score(y_class_test, y_class_pred_scores)
 
