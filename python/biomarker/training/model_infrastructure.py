@@ -42,11 +42,16 @@ def get_model(str_model, model_params=MappingProxyType(dict()), adaboost_params=
     return model
 
 
-def get_model_ray(str_model, model_params=MappingProxyType(dict()), gpu_per_model=0.25):
+def get_model_ray(str_model, model_params=MappingProxyType(dict()), gpu_per_model=1):
     n_models = np.floor(1 / gpu_per_model)
     if str_model == 'MLP':
         model = MLPModelWrapper(**model_params)
-        # model = [ray.remote(num_gpus=gpu_per_model)(MLPModelWrapper(**model_params)) for _ in range(n_models)]
+        # model = [MLPModelWrapper.remote(**model_params) for _ in range(n_models)]
+
+        # model = MLPModelWrapper.remote(**model_params)
+    elif str_model == 'RNN':
+        model = RNNModelWrapper(**model_params)
+
     else:
         raise NotImplementedError
 
@@ -338,7 +343,10 @@ class PyTorchModelWrapper(BaseModel):
 
     def get_regularizer(self):
         if self.str_reg == 'L2':
-            reg_params = {'weight_decay': self.lam}
+            if self.lam != 0:
+                reg_params = {'weight_decay': self.lam}
+            else:
+                reg_params = {}
         else:
             raise NotImplementedError
 
@@ -414,7 +422,7 @@ class TorchRNNModel(nn.Module):
         self.cnn_dropout = cnn_dropout
 
         # rnn layer parameters
-        self.self.n_rnn_layer = n_rnn_layer
+        self.n_rnn_layer = n_rnn_layer
         self.rnn_dim = rnn_dim
         self.bool_bidirectional = bool_bidirectional
         self.multi = 2 if bool_bidirectional else 1
@@ -427,15 +435,16 @@ class TorchRNNModel(nn.Module):
         # initialize the CNN layers
         self.conv1d = nn.Conv1d(in_channels=n_input, out_channels=self.rnn_dim,
                                 kernel_size=self.cnn_ks, stride=self.cnn_stride)
-        self.cnn_dropout = nn.Dropout(self.cnn_dropout)
+        self.cnn_dropout_layer = nn.Dropout(self.cnn_dropout)
 
         # initialize the RNN layers
-        self.biGRU = nn.GRU(input_size=self.rnn_dim, hidden_size=self.rnn_dim, num_layers=self.n_layer,
-                            bidirectional=self.bool_bidirectional, dropout=self.dropout)
+        input_size_rnn = n_input if not self.bool_cnn else self.rnn_dim
+        self.biGRU = nn.GRU(input_size=input_size_rnn, hidden_size=self.rnn_dim, num_layers=self.n_rnn_layer,
+                            bidirectional=self.bool_bidirectional, dropout=self.rnn_dropout)
 
         # initialize the final output layer
         self.output = nn.Linear(self.rnn_dim * self.multi, self.n_class)
-        self.final_dropout = nn.Dropout(self.final_dropout)
+        self.final_dropout_layer = nn.Dropout(self.final_dropout)
 
     def forward(self, x):
         # forward pass
@@ -447,27 +456,27 @@ class TorchRNNModel(nn.Module):
             if self.cnn_act_func is not None:
                 x = self.cnn_act_func(x)
             if self.bool_cnn_dropout:
-                x = self.cnn_dropout(x)
+                x = self.cnn_dropout_layer(x)
 
             x = x.permute(2, 0, 1)  # now in format (n_time, batch_size, n_channel)
         else:
             x = x.permute(1, 0, 2)  # now in format (n_time, batch_size, n_channel)
 
         # RNN processing - need hidden state for classification
-        _, x = self.BiGRU(x)
-        x = x.contiguous()[-self.mult:, :, :]   # now shape (self.multi, batch_size, rnn_dim)
+        _, x = self.biGRU(x)
+        x = x.contiguous()[-self.multi:, :, :]   # now shape (self.multi, batch_size, rnn_dim)
 
         # output layer
         x = x.permute(1, 0, 2)  # now in format (batch_size, self.multi, rnn_dim)
         x = x.contiguous().view(-1, self.rnn_dim * self.multi)  # now in format (batch_size, self.multi * rnn_dim)
         if self.bool_final_dropout:
-            x = self.final_dropout(x)
+            x = self.final_dropout_layer(x)
         out = self.output(x)
 
         return out
 
 
-# @ray.remote(num_gpus=0.25)
+# @ray.remote(num_gpus=0.125)
 class MLPModelWrapper(PyTorchModelWrapper):
     def __init__(self, n_input, n_class, n_layer=3, hidden_size=32, dropout=0.5, lam=1e-5, str_act='relu',
                  str_reg='L2', str_loss='CrossEntropy', str_opt='Adam', lr=1e-4, transform=None, target_transform=None):
@@ -479,6 +488,14 @@ class MLPModelWrapper(PyTorchModelWrapper):
         self.n_layer = n_layer
         self.hidden_size = hidden_size
         self.dropout = dropout
+        self.lam = lam
+        self.str_act = str_act
+        self.str_reg = str_reg
+        self.str_loss = str_loss
+        self.str_opt = str_opt
+        self.lr = lr
+        self.transform = transform
+        self.target_transform = target_transform
 
         # initialize the model
         self.model = TorchMLPModel(n_input, n_class, self.get_activation(), self.get_loss(), n_layer,
@@ -501,5 +518,63 @@ class MLPModelWrapper(PyTorchModelWrapper):
         # ensure that data is in the right format
         if data.ndim == 3:
             raise NotImplementedError('Dynamics data not supported yet')
+
+        return super().predict(data)
+
+
+class RNNModelWrapper(PyTorchModelWrapper):
+    def __init__(self, n_input, n_class, bool_cnn=True, cnn_act_func=None, cnn_ks=5, cnn_stride=3,
+                 bool_cnn_dropout=False, cnn_dropout=0.5, n_rnn_layer=2, rnn_dim=32, bool_bidirectional=True,
+                 rnn_dropout=0.5, bool_final_dropout=True, final_dropout=0.5, lam=1e-5,
+                 str_reg='L2', str_loss='CrossEntropy', str_opt='Adam', lr=1e-4, transform=None, target_transform=None):
+
+        # initialize the base model
+        super().__init__(n_class, str_loss, cnn_act_func, str_reg, lam, str_opt, lr, transform, target_transform)
+
+        # initialize fields for RNN params
+        self.n_input = n_input
+        self.bool_cnn = bool_cnn
+        self.cnn_act_func = cnn_act_func
+        self.cnn_ks = cnn_ks
+        self.cnn_stride = cnn_stride
+        self.bool_cnn_dropout = bool_cnn_dropout
+        self.cnn_dropout = cnn_dropout
+        self.n_rnn_layer = n_rnn_layer
+        self.rnn_dim = rnn_dim
+        self.bool_bidirectional = bool_bidirectional
+        self.rnn_dropout = rnn_dropout
+        self.bool_final_dropout = bool_final_dropout
+        self.final_dropout = final_dropout
+        self.lam = lam
+        self.str_reg = str_reg
+        self.str_loss = str_loss
+        self.str_opt = str_opt
+        self.lr = lr
+        self.transform = transform
+        self.target_transform = target_transform
+
+        # initialize the model
+        self.model = TorchRNNModel(n_input, n_class, self.get_loss(), bool_cnn, self.get_activation(), cnn_ks,
+                                   cnn_stride, bool_cnn_dropout, cnn_dropout, n_rnn_layer,
+                                   rnn_dim, bool_bidirectional, rnn_dropout, bool_final_dropout, final_dropout)
+
+        self.model = self.model.to(ptu.device)
+
+    def train(self, train_data, train_label, valid_data=None, valid_label=None, batch_size=32, n_epoch=100,
+              bool_early_stopping=True, es_patience=5, es_delta=1e-5, bool_shuffle=True, bool_verbose=True):
+        # ensure that data is in the right format
+        if train_data.ndim != 3:
+            raise ValueError('Has to be 3D data for RNN model')
+
+        vec_avg_loss, vec_avg_valid_loss = super().train(train_data, train_label, valid_data, valid_label,
+                                                         batch_size, n_epoch, bool_early_stopping,
+                                                         es_patience, es_delta, bool_shuffle, bool_verbose)
+
+        return vec_avg_loss, vec_avg_valid_loss
+
+    def predict(self, data: np.ndarray):
+        # ensure that data is in the right format
+        if data.ndim != 3:
+            raise ValueError('Has to be 3D data for RNN model')
 
         return super().predict(data)

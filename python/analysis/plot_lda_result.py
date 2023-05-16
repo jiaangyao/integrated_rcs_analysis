@@ -12,7 +12,7 @@ import scipy.stats as stats
 def plot_lda_results():
     # hard code all paths
     p_output = pathlib.Path('/home/jyao/Downloads/')
-    f_output_python = 'RCS02_R_med_level_acc_LDA.pkl'
+    f_output_python = 'RCS02_R_med_level_auc_LDA.pkl'
     # f_output_python = 'RCS02_R_med_level_auc_LDA.pkl'
     # f_output_python = 'RCS02_R_med_level_acc_SVM.pkl'
     # f_output_python = 'RCS02_R_med_level_acc_QDA.pkl'
@@ -150,6 +150,7 @@ def plot_lda_results():
     f_output_python_RF = 'RCS02_R_med_level_acc_RF.pkl'
     # f_output_python_GP = 'RCS02_R_med_level_auc_GP.pkl'
     f_output_python_MLP = 'RCS02_R_med_level_auc_MLP.pkl'
+    f_output_python_RNN = 'RCS02_R_med_level_auc_RNN.pkl'
 
     output_QDA = pickle.load(open(str(p_output / f_output_python_QDA), 'rb'))
     auc_python_full_sfs_QDA = np.stack([output_QDA.sfsPB[i].vec_auc[:5] for i in range(len(output_QDA.sfsPB))], axis=1).T
@@ -165,6 +166,9 @@ def plot_lda_results():
     #
     output_MLP = pickle.load(open(str(p_output / f_output_python_MLP), 'rb'))
     auc_python_full_sfs_MLP = np.stack([output_MLP.sfsPB[i].vec_auc[:5] for i in range(len(output_MLP.sfsPB))], axis=1).T
+
+    output_RNN = pickle.load(open(str(p_output / f_output_python_RNN), 'rb'))
+    auc_python_full_sfs_RNN = np.stack([output_RNN.sfsPB[i].vec_auc[:5] for i in range(len(output_RNN.sfsPB))], axis=1).T
 
     fig = plt.figure()
     idx = np.arange(1, 6, 1)
@@ -192,6 +196,11 @@ def plot_lda_results():
     plt.fill_between(idx, np.mean(auc_python_full_sfs_MLP, axis=0) - np.std(auc_python_full_sfs_MLP, axis=0),
                      np.mean(auc_python_full_sfs_MLP, axis=0) + np.std(auc_python_full_sfs_MLP, axis=0),
                      color='b', alpha=0.2)
+
+    plt.plot(idx, np.mean(auc_python_full_sfs_RNN, axis=0), 'c', label='RNN')
+    plt.fill_between(idx, np.mean(auc_python_full_sfs_RNN, axis=0) - np.std(auc_python_full_sfs_RNN, axis=0),
+                        np.mean(auc_python_full_sfs_RNN, axis=0) + np.std(auc_python_full_sfs_RNN, axis=0),
+                        color='c', alpha=0.2)
 
     plt.xlabel('Number of Power Bands Included')
     plt.ylabel('AUC with Algorithms')
