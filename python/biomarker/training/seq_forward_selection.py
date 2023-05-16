@@ -61,6 +61,12 @@ def seq_forward_selection(features, y_class, y_stim, labels_cell, n_pass=5, n_fo
 
         # loop through the features
         str_model_cv = 'LDA' if str_model == 'QDA' and n_iter == 1 else str_model
+        # if n_iter == 1:
+        #     vec_output = []
+        #     for i in range(features.shape[1]):
+        #         vec_output.append(sfs_feature_sweep(features, y_class, y_stim, i, idx_used, n_class, n_fold,
+        #                                             n_iter, str_model_cv, random_seed))
+        # else:
         feature_handle = [sfs_feature_sweep.remote(features, y_class, y_stim, i, idx_used, n_class, n_fold,
                                                    n_iter, str_model_cv, random_seed) for i in range(features.shape[1])]
         vec_output = ray.get(feature_handle)

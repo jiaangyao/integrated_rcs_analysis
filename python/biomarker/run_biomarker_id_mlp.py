@@ -8,6 +8,7 @@ from easydict import EasyDict as edict
 from biomarker.training.prepare_data import prepare_data
 from biomarker.training.seq_forward_selection import seq_forward_selection
 from utils.parse_datetime import parse_dt_w_tz
+from utils import torch_utils as ptu
 
 # hardcode path to the RCS02 step 3 data for now
 p_project = pathlib.Path('/home/jyao/local/data/starrlab/Structured_aDBS_pipeline/')
@@ -25,6 +26,7 @@ data_R['time'] = parse_dt_w_tz(data_R['time'], dt_fmt='%d-%b-%Y %H:%M:%S.%f', tz
 # initialize ray
 # ray.init(ignore_reinit_error=True, logging_level=40, include_dashboard=True)
 ray.init(log_to_driver=False)
+ptu.init_gpu(use_gpu=False)
 
 # now set out to perform cv-based biomarker identification
 stim_level = edict(); stim_level.L = [1.7, 2.5]; stim_level.R = [3, 3.4]
