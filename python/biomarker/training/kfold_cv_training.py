@@ -269,7 +269,10 @@ def train_model(features_train, features_test, y_class_train, y_class_test, y_st
     # create the big confusion matrix
     full_label_test, _ = combine_labels(y_class_test, y_stim_test, hashmap=hashmap)
     full_label_pred, _ = combine_labels(y_class_pred, y_stim_test, hashmap=hashmap)
-    conf_mat = confusion_matrix(full_label_test, full_label_pred)
+    if hashmap is not None:
+        conf_mat = confusion_matrix(full_label_test, full_label_pred, labels=list(hashmap.values()))
+    else:
+        conf_mat = confusion_matrix(full_label_test, full_label_pred)
     assert np.all(np.array(conf_mat.shape) == n_class), 'Confusion matrix is not the right size'
 
     # estimate the ROC curve

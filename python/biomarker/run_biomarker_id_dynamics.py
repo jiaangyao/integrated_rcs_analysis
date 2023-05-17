@@ -28,34 +28,45 @@ ray.init(log_to_driver=False)
 
 # now set out to perform cv-based biomarker identification
 stim_level = edict(); stim_level.L = [1.7, 2.5]; stim_level.R = [3, 3.4]
-output_full_level = edict(); output_full_level.sinPB = []; output_full_level.sfsPB = []
-for idx_rep in range(5):
+output_full_level = edict(); output_full_level.sinPB = {}; output_full_level.sfsPB = {}
+
+# loop through the signal dynamics first
+for n_dynamics in range(1, 7):
+    # setting up the variable for storing output
+    print('\n=====================================')
+    print('LENGTH OF DYNAMICS: {}\n'.format(n_dynamics))
     output_med_level = edict()
     output_med_level.sinPB = []
     output_med_level.sfsPB = []
-    for i in range(2, 6):
+
+    # obtain the features
+    features, y_class, y_stim, labels_cell, _ = prepare_data(data_R, stim_level, str_side='R', label_type='med',
+                                                                bool_use_dynamics=True, n_dynamics=n_dynamics)
+    print('')
+
+    # now perform the repetitions for the current dynamics length
+    for idx_rep in range(5):
         print('\nrep {}'.format(idx_rep + 1))
 
-        # obtain the features
-        features, y_class, y_stim, labels_cell, _ = prepare_data(data_R, stim_level, str_side='R', label_type='med',
-                                                                 bool_use_dynamics=True, n_dynamics=i)
-
-        # perform the SFS
+        # perform the sequential forward selection
         output_fin, output_init, iter_used, orig_metric = seq_forward_selection(features, y_class, y_stim, labels_cell,
-                                                                                str_model='LDA', random_seed=None,
-                                                                                bool_force_sfs_acc=False)
+                                                                        str_model='LDA', random_seed=None, # type: ignore
+                                                                        bool_force_sfs_acc=False)
 
         # append to outer list
-        output_med_level.sinPB.append(output_init)
-        output_med_level.sfsPB.append(output_fin)
+        output_med_level.sinPB.append(output_init) # type: ignore
+        output_med_level.sfsPB.append(output_fin) # type: ignore
         print('\nHighest SinPB auc: {:.4f}'.format(output_init['vec_auc'][0]))
         print('Highest SFS auc: {:.4f}'.format(output_fin['vec_auc'][-1]))
         print('Done with rep {}'.format(idx_rep + 1))
 
     # append to outer list
-    output_full_level.sinPB.append(output_med_level.sinPB)
-    output_full_level.sfsPB.append(output_med_level.sfsPB)
-
+    # initialize the dictionary if not already done
+    if 'n_dynmamics_{}'.format(n_dynamics) not in output_full_level.sinPB.keys(): # type: ignore
+        output_full_level.sinPB['n_dynmamics_{}'.format(n_dynamics)] = [] # type: ignore
+        output_full_level.sfsPB['n_dynmamics_{}'.format(n_dynamics)] = [] # type: ignore
+    output_full_level.sinPB['n_dynmamics_{}'.format(n_dynamics)].append(output_med_level.sinPB) # type: ignore
+    output_full_level.sfsPB['n_dynmamics_{}'.format(n_dynamics)].append(output_med_level.sfsPB) # type: ignore
 
 # shutdown ray
 ray.shutdown()

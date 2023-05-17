@@ -1,3 +1,4 @@
+# pylint: disable=no-member
 import copy
 
 import numpy as np
@@ -28,14 +29,32 @@ def sfs_feature_sweep(features, y_class, y_stim, idx_feature, idx_used, n_class,
     return output
 
 
-def seq_forward_selection(features, y_class, y_stim, labels_cell, n_pass=5, n_fold=10, n_ch=3, width=5,
-                          max_width=10, top_k=10, top_best=5, str_model='LDA', str_metric='avg_auc', random_seed=10,
-                          bool_force_sfs_acc=False):
+def sfs_feature_sweep_noray(features, y_class, y_stim, idx_feature, idx_used, n_class, n_fold, n_iter, str_model,
+                            random_seed):
+    # organize the features for the individual power bands
+    features_sub = features[:, idx_feature, ...][:, None]
+    if len(idx_used) > 0:
+        features_used_sub = []
+        for j in range(len(idx_used)):
+            features_used_sub.append(np.sum(features[:, idx_used[j], ...], axis=1, keepdims=True))
+        features_used_sub = np.concatenate(features_used_sub, axis=1)
+
+        features_sub = np.concatenate([features_used_sub, features_sub], axis=1)
+    assert features_sub.shape[1] == n_iter
+
+    output = kfold_cv_training(features_sub, y_class, y_stim, n_class=n_class, n_fold=n_fold,
+                               str_model=str_model, random_seed=random_seed)
+    return output
+
+
+
+def seq_forward_selection(features, y_class, y_stim, labels_cell, n_pass=5, n_fold=10, n_ch=3, width=5, max_width=10, top_k=10, 
+                          top_best=5, str_model='LDA', str_metric='avg_auc', random_seed=10, bool_force_sfs_acc=False):
 
     # define initial variables
     idx_ch = (np.arange(n_ch)[:, None] + np.zeros((int(features.shape[1] / n_ch, )))[None, :]).reshape(-1).astype(
-        np.int)
-    bool_used = np.zeros(features.shape[1], dtype=np.bool)
+        dtype=np.int_)
+    bool_used = np.zeros(features.shape[1], dtype=np.bool_)
     iter_used = np.zeros(features.shape[1])
     idx_all = np.arange(features.shape[1])
     idx_used = []
@@ -56,7 +75,7 @@ def seq_forward_selection(features, y_class, y_stim, labels_cell, n_pass=5, n_fo
     # start the main loop
     print('Sequential Forward Selection', end='')
     n_iter = 1
-    while len(output_fin.vec_pb_ord) < n_pass:
+    while len(output_fin.vec_pb_ord) < n_pass: # type: ignore
         print('.', end='')
 
         # loop through the features
@@ -64,15 +83,15 @@ def seq_forward_selection(features, y_class, y_stim, labels_cell, n_pass=5, n_fo
         # if n_iter == 1:
         #     vec_output = []
         #     for i in range(features.shape[1]):
-        #         vec_output.append(sfs_feature_sweep(features, y_class, y_stim, i, idx_used, n_class, n_fold,
+        #         vec_output.append(sfs_feature_sweep_noray(features, y_class, y_stim, i, idx_used, n_class, n_fold,
         #                                             n_iter, str_model_cv, random_seed))
         # else:
         feature_handle = [sfs_feature_sweep.remote(features, y_class, y_stim, i, idx_used, n_class, n_fold,
-                                                   n_iter, str_model_cv, random_seed) for i in range(features.shape[1])]
+                                                n_iter, str_model_cv, random_seed) for i in range(features.shape[1])]
         vec_output = ray.get(feature_handle)
 
         # obtain the initial AUC from first pass
-        if len(output_fin.vec_pb_ord) == 0:
+        if len(output_fin.vec_pb_ord) == 0: # type: ignore
             orig_metric = combine_struct_by_field(vec_output, str_metric)
 
         # find breaks in spectra based on past bands
@@ -94,7 +113,7 @@ def seq_forward_selection(features, y_class, y_stim, labels_cell, n_pass=5, n_fo
         idx_sort = np.argsort(vec_metric_sfs)[::-1]
         vec_output_sfs = [vec_output_sfs[i] for i in idx_sort]
 
-        if len(output_fin.vec_pb_ord) == 0:
+        if len(output_fin.vec_pb_ord) == 0: # type: ignore
             output_init.vec_pb_ord = [idx_all[vec_output_sfs[i].pb_best] for i in range((len(vec_output_sfs)))]
             output_init.vec_acc = [vec_output_sfs[i].avg_acc for i in range((len(vec_output_sfs)))]
             output_init.vec_f1 = [vec_output_sfs[i].avg_f1 for i in range((len(vec_output_sfs)))]
@@ -102,11 +121,11 @@ def seq_forward_selection(features, y_class, y_stim, labels_cell, n_pass=5, n_fo
             output_init.vec_auc = [vec_output_sfs[i].avg_auc for i in range((len(vec_output_sfs)))]
 
         # combine the power bands
-        output_fin.vec_pb_ord.append(idx_all[vec_output_sfs[0].pb_best])
-        output_fin.vec_acc.append(vec_output_sfs[0].avg_acc)
-        output_fin.vec_f1.append(vec_output_sfs[0].avg_f1)
-        output_fin.vec_conf_mat.append(vec_output_sfs[0].avg_conf_mat)
-        output_fin.vec_auc.append(vec_output_sfs[0].avg_auc)
+        output_fin.vec_pb_ord.append(idx_all[vec_output_sfs[0].pb_best]) # type: ignore
+        output_fin.vec_acc.append(vec_output_sfs[0].avg_acc) # type: ignore
+        output_fin.vec_f1.append(vec_output_sfs[0].avg_f1) # type: ignore
+        output_fin.vec_conf_mat.append(vec_output_sfs[0].avg_conf_mat) # type: ignore
+        output_fin.vec_auc.append(vec_output_sfs[0].avg_auc) # type: ignore
 
         # update the boolean mask for keeping track of used features
         iter_used[idx_all[vec_output_sfs[0].pb_best]] = n_iter
@@ -120,10 +139,10 @@ def seq_forward_selection(features, y_class, y_stim, labels_cell, n_pass=5, n_fo
         n_iter += 1
 
     # organize the output
-    pb_lim = np.stack([[output_fin.vec_pb_ord[i][0], output_fin.vec_pb_ord[i][-1]]
-                       for i in range(len(output_fin.vec_pb_ord))], axis=0)
+    pb_lim = np.stack([[output_fin.vec_pb_ord[i][0], output_fin.vec_pb_ord[i][-1]] # type: ignore
+                       for i in range(len(output_fin.vec_pb_ord))], axis=0) # type: ignore
     n_pb_lim = 5 if top_k > 5 else top_k
-    pb_init_lim = np.stack([[output_init.vec_pb_ord[i][0], output_init.vec_pb_ord[i][-1]]
+    pb_init_lim = np.stack([[output_init.vec_pb_ord[i][0], output_init.vec_pb_ord[i][-1]] # type: ignore
                             for i in range(n_pb_lim)], axis=0)
 
     # parse the power band labels
@@ -134,7 +153,7 @@ def seq_forward_selection(features, y_class, y_stim, labels_cell, n_pass=5, n_fo
     # obtain the final power bands
     output_init.sinPB = []
     output_fin.sfsPB = []
-    for i in range(len(output_fin.vec_pb_ord)):
+    for i in range(len(output_fin.vec_pb_ord)): # type: ignore
         # form the SFS PB and the single PB
         sinPB_curr = [vec_str_ch[pb_init_lim[i, 0]], vec_pb[pb_init_lim[i, 0]] - pb_width/2,
                       vec_pb[pb_init_lim[i, 1]] + pb_width/2]
@@ -143,8 +162,8 @@ def seq_forward_selection(features, y_class, y_stim, labels_cell, n_pass=5, n_fo
         assert (vec_str_ch[pb_lim[i, 0]] == vec_str_ch[pb_lim[i, 1]]), 'Channels do not match!'
         assert (vec_str_ch[pb_init_lim[i, 0]] == vec_str_ch[pb_init_lim[i, 1]]), 'Channels do not match!'
 
-        output_init.sinPB.append(sinPB_curr)
-        output_fin.sfsPB.append(sfsPB_curr)
+        output_init.sinPB.append(sinPB_curr) # type: ignore
+        output_fin.sfsPB.append(sfsPB_curr) # type: ignore
 
     # return the outputs
     return output_fin, output_init, iter_used, orig_metric
