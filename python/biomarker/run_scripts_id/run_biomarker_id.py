@@ -41,8 +41,8 @@ for idx_rep in range(5):
                                                                             bool_force_sfs_acc=False)
 
     # append to outer list
-    output_med_level.sinPB.append(output_init)
-    output_med_level.sfsPB.append(output_fin)
+    output_med_level.sinPB.append(output_init) # type: ignore
+    output_med_level.sfsPB.append(output_fin) # type: ignore
     print('\nHighest SinPB auc: {:.4f}'.format(output_init['vec_auc'][0]))
     print('Highest SFS auc: {:.4f}'.format(output_fin['vec_auc'][-1]))
     print('Done with rep {}'.format(idx_rep + 1))
