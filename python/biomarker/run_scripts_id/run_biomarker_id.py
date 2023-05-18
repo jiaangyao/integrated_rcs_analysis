@@ -13,7 +13,7 @@ from utils.parse_datetime import parse_dt_w_tz
 # hardcode path to the RCS02 step 3 data for now
 p_project = pathlib.Path('/home/jyao/local/data/starrlab/Structured_aDBS_pipeline/')
 p_data = p_project / 'Data/RCS02/Step3_in_clinic_neural_recordings/'
-p_output = pathlib.Path('/home/jyao/Downloads/')
+p_output = pathlib.Path('/home/jyao/Downloads/biomarker_id/model_id/')
 f_data_L = 'rcs02_L_table.csv'
 f_data_R = 'rcs02_R_table.csv'
 
@@ -30,8 +30,8 @@ ray.init(log_to_driver=False)
 # now set out to perform cv-based biomarker identification
 stim_level = dict(); stim_level['L'] = [1.7, 2.5]; stim_level['R'] = [3, 3.4]
 output_med_level = dict(); output_med_level['sinPB'] = []; output_med_level['sfsPB'] = []
-for idx_rep in tqdm.trange(5, leave=False, bar_format="{desc:<1.5}{percentage:3.0f}%|{bar:15}{r_bar}"):
-    print('\nrep {}'.format(idx_rep + 1))
+for idx_rep in tqdm.trange(5, leave=False, desc='SFS REP', bar_format="{desc:<2.5}{percentage:3.0f}%|{bar:15}{r_bar}"):
+    print('\n')
 
     # obtain the features
     features, y_class, y_stim, labels_cell, _ = prepare_data(data_R, stim_level, str_side='R', label_type='med')

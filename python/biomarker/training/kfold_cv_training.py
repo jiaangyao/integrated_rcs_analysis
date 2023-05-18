@@ -96,7 +96,7 @@ def kfold_cv_training(features_sub, y_class, y_stim, n_class=4, n_fold=10, str_m
     return output
 
 
-@ray.remote
+@ ray.remote # type: ignore
 def kfold_cv_sfs_search_sin_pb(features, pb, idx_train, idx_test, idx_used, y_class_train, y_class_test, y_stim_test,
                                str_model, hashmap, n_class, n_fold, random_seed):
     # get the features for the current power band (also sum over the power axis)

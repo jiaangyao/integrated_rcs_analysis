@@ -76,12 +76,12 @@ def seq_forward_selection(features, y_class, y_stim, labels_cell, n_pass=5, n_fo
 
     # start the main loop
     print('Sequential Forward Selection')
-    for n_iter in tqdm.trange(1, n_pass + 1, leave=False, bar_format="{desc:<1.5}{percentage:3.0f}%|{bar:15}{r_bar}"):
+    for n_iter in tqdm.trange(1, n_pass + 1, leave=False, desc='ITER', bar_format="{desc:<2.5}{percentage:3.0f}%|{bar:15}{r_bar}"):
 
         # loop through the features
         str_model_cv = 'LDA' if str_model == 'QDA' and n_iter == 1 else str_model
         if bool_use_ray:
-            feature_handle = [sfs_feature_sweep_ray.remote(features, y_class, y_stim, i, idx_used, n_class, n_fold,
+            feature_handle = [sfs_feature_sweep_ray.remote(features, y_class, y_stim, i, idx_used, n_class, n_fold, # type: ignore
                                                            n_iter, str_model_cv, random_seed) for i in range(features.shape[1])]
             vec_output = ray.get(feature_handle)
 
