@@ -70,16 +70,20 @@ def calc_high_res_spectra(data_label, label_time_domain, fs, interval, update_ra
             if j == 0:
                 lab_cell_stim = lab_cell_curr
             else:
+                assert lab_cell_stim is not None, 'Should be initialized'
                 lab_cell_stim = None if not all(x == y for x, y in zip(lab_cell_stim, lab_cell_curr)) else lab_cell_curr
 
+            # quick sanity check
+            assert(lab_cell_stim is not None), 'Difference in stim settings'
+            
             # now append the class labels for classification and the times
             vec_times_stim.append(times_curr)
-            vec_labels_stim.append((np.ones(features_curr.shape[1]) * j).astype(np.int))
+            vec_labels_stim.append((np.ones(features_curr.shape[1]) * j).astype(np.int_))
 
         # concatenate into a single array
         vec_features_stim = np.concatenate(vec_features_stim, axis=1)
         vec_labels_stim = np.concatenate(vec_labels_stim, axis=0)
-        vec_labels_class_curr = (np.ones(vec_features_stim.shape[1]) * i).astype(np.int)
+        vec_labels_class_curr = (np.ones(vec_features_stim.shape[1]) * i).astype(np.int_)
 
         # now append everything to outer loop
         vec_features_full.append(vec_features_stim)
@@ -88,6 +92,8 @@ def calc_high_res_spectra(data_label, label_time_domain, fs, interval, update_ra
         if i == 0:
             labels_cell_full = lab_cell_stim
         else:
+            assert labels_cell_full is not None, 'Should be initialized'
+            assert lab_cell_stim is not None, 'Should be initialized'
             labels_cell_full = None if not all(x == y for x, y in zip(labels_cell_full, lab_cell_stim)) else lab_cell_stim
         vec_times_full.append(vec_times_stim)
 
@@ -96,6 +102,9 @@ def calc_high_res_spectra(data_label, label_time_domain, fs, interval, update_ra
     vec_labels_class_full = np.concatenate(vec_labels_class_full, axis=0)
     vec_labels_stim_full = np.concatenate(vec_labels_stim_full, axis=0)
     print('')
+
+    # sanity check
+    assert(labels_cell_full is not None), 'Difference in stim settings'
 
     return vec_features_full, vec_labels_class_full, vec_labels_stim_full, labels_cell_full, vec_times_full
 

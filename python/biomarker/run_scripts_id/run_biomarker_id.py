@@ -2,6 +2,7 @@ import pathlib
 import pickle
 
 import ray
+import tqdm
 import pandas as pd
 from easydict import EasyDict as edict
 
@@ -27,9 +28,9 @@ data_R['time'] = parse_dt_w_tz(data_R['time'], dt_fmt='%d-%b-%Y %H:%M:%S.%f', tz
 ray.init(log_to_driver=False)
 
 # now set out to perform cv-based biomarker identification
-stim_level = edict(); stim_level.L = [1.7, 2.5]; stim_level.R = [3, 3.4]
-output_med_level = edict(); output_med_level.sinPB = []; output_med_level.sfsPB = []
-for idx_rep in range(5):
+stim_level = dict(); stim_level['L'] = [1.7, 2.5]; stim_level['R'] = [3, 3.4]
+output_med_level = dict(); output_med_level['sinPB'] = []; output_med_level['sfsPB'] = []
+for idx_rep in tqdm.trange(5, leave=False, bar_format="{desc:<1.5}{percentage:3.0f}%|{bar:15}{r_bar}"):
     print('\nrep {}'.format(idx_rep + 1))
 
     # obtain the features
@@ -41,11 +42,12 @@ for idx_rep in range(5):
                                                                             bool_force_sfs_acc=False)
 
     # append to outer list
-    output_med_level.sinPB.append(output_init) # type: ignore
-    output_med_level.sfsPB.append(output_fin) # type: ignore
+    output_med_level['sinPB'].append(output_init)
+    output_med_level['sfsPB'].append(output_fin)
     print('\nHighest SinPB auc: {:.4f}'.format(output_init['vec_auc'][0]))
     print('Highest SFS auc: {:.4f}'.format(output_fin['vec_auc'][-1]))
     print('Done with rep {}'.format(idx_rep + 1))
+    print('')
 
 
 # shutdown ray

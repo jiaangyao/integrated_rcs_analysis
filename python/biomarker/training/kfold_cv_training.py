@@ -1,10 +1,15 @@
+# pylint: disable=no-member
+import typing as tp
+
 import numpy as np
+import numpy.typing as npt
 import ray
 from sklearn.model_selection import StratifiedKFold, KFold
 from sklearn.metrics import confusion_matrix, accuracy_score, f1_score, roc_curve, roc_auc_score
 from easydict import EasyDict as edict
 
-from biomarker.training.model_infrastructure import get_model, get_model_ray
+from biomarker.training.model_infrastructure import get_model
+from biomarker.training.torch_model_infrastructure import get_model_ray
 from utils.combine_labels import combine_labels, create_hashmap
 from utils.combine_struct import combine_struct_by_field
 from utils.get_all_pb import get_all_pb
@@ -80,13 +85,13 @@ def kfold_cv_training(features_sub, y_class, y_stim, n_class=4, n_fold=10, str_m
     vec_f1 = np.stack(vec_f1, axis=0)
 
     # create the output structure
-    output = edict()
-    output.avg_acc = np.mean(vec_acc)
-    output.avg_conf_mat = np.sum(vec_conf_mat, axis=0) / np.sum(vec_conf_mat)
-    output.avg_f1 = np.mean(vec_f1)
-    output.avg_auc = np.mean(vec_auc)
-    output.std_f1 = np.std(vec_f1)
-    output.std_auc = np.std(vec_auc)
+    output = dict()
+    output['avg_acc'] = np.mean(vec_acc)
+    output['avg_conf_mat'] = np.sum(vec_conf_mat, axis=0) / np.sum(vec_conf_mat)
+    output['avg_f1'] = float(np.mean(vec_f1))
+    output['avg_auc'] = float(np.mean(vec_auc))
+    output['std_f1'] = float(np.std(vec_f1))
+    output['std_auc'] = float(np.std(vec_auc))
 
     return output
 
@@ -134,12 +139,12 @@ def kfold_cv_sfs_search_sin_pb(features, pb, idx_train, idx_test, idx_used, y_cl
                                               str_model, hashmap, n_class, features_valid, y_class_valid)
 
     # define output structure
-    output = edict()
-    output.acc = acc
-    output.f1 = f1
-    output.conf_mat = conf_mat
-    output.auc = auc
-    output.roc = roc
+    output = dict()
+    output['acc'] = acc
+    output['f1'] = f1
+    output['conf_mat'] = conf_mat
+    output['auc'] = auc
+    output['roc'] = roc
 
     return output
 
@@ -154,12 +159,12 @@ def kfold_cv_sfs_search(features, idx_peak, idx_used, y_class, y_stim, idx_break
     vec_pb_full = get_all_pb(idx_peak, max_width, idx_break, features.shape[1])
 
     # create output structure first
-    output = edict()
-    output.vec_acc = []
-    output.vec_f1 = []
-    output.vec_conf_mat = []
-    output.vec_auc = []
-    output.vec_pb_best = []
+    output = dict()
+    output['vec_acc'] = []
+    output['vec_f1'] = []
+    output['vec_conf_mat'] = []
+    output['vec_auc'] = []
+    output['vec_pb_best'] = []
 
     # create hashmap in advance from most general label
     hashmap = create_hashmap(y_class, y_stim)
@@ -186,28 +191,29 @@ def kfold_cv_sfs_search(features, idx_peak, idx_used, y_class, y_stim, idx_break
         # now obtain the best power band
         idx_max_metric = np.argsort(eval(str_metric))[::-1][:top_best]
         vec_pb_best_currk = [vec_pb_full[i] for i in idx_max_metric]
-        output.vec_pb_best.append(vec_pb_best_currk)
-        output.vec_acc.append(np.stack(avg_acc, axis=0)[idx_max_metric])
-        output.vec_f1.append(np.stack(avg_f1, axis=0)[idx_max_metric])
-        output.vec_conf_mat.append(np.stack(avg_conf_mat, axis=0)[idx_max_metric, ...])
-        output.vec_auc.append(np.stack(avg_auc, axis=0)[idx_max_metric])
+        output['vec_pb_best'].append(vec_pb_best_currk)
+        output['vec_acc'].append(avg_acc[idx_max_metric])
+        output['vec_f1'].append(avg_f1[idx_max_metric])
+        output['vec_conf_mat'].append(avg_conf_mat[idx_max_metric, ...])
+        output['vec_auc'].append(avg_auc[idx_max_metric])            
 
     # now organize the accuracy data
-    _, output.pb_best = combine_hist(output.vec_pb_best)
-    output.avg_acc = np.mean(np.stack([output.vec_acc[i][0] for i in range(len(output.vec_acc))], axis=0))
-    output.avg_f1 = np.mean(np.stack([output.vec_f1[i][0] for i in range(len(output.vec_f1))], axis=0))
-    output.avg_conf_mat = np.mean(
-        np.stack([output.vec_conf_mat[i][0, ...] for i in range(len(output.vec_conf_mat))], axis=0), axis=0)
-    output.avg_auc = np.mean(np.stack([output.vec_auc[i][0] for i in range(len(output.vec_auc))], axis=0))
+    _, output['pb_best'] = combine_hist(output['vec_pb_best'])
+    output['avg_acc'] = np.mean(np.stack([output['vec_acc'][i][0] for i in range(len(output['vec_acc']))], axis=0))
+    output['avg_f1'] = np.mean(np.stack([output['vec_f1'][i][0] for i in range(len(output['vec_f1']))], axis=0))
+    output['avg_conf_mat'] = np.mean(
+        np.stack([output['vec_conf_mat'][i][0, ...] for i in range(len(output['vec_conf_mat']))], axis=0), axis=0)
+    output['avg_auc'] = np.mean(np.stack([output['vec_auc'][i][0] for i in range(len(output['vec_auc']))], axis=0))
 
     return output
 
 
 def train_model(features_train, features_test, y_class_train, y_class_test, y_stim_test,
-                str_model='LDA', hashmap=None, n_class=4, features_valid=None, y_class_valid=None):
+                str_model='LDA', hashmap=None, n_class=4, features_valid: tp.Optional[npt.NDArray]=None, 
+                y_class_valid: tp.Optional[npt.NDArray]=None):
     # TODO: make sure model params is not hard coded
     bool_torch = False
-    train_params = None
+    train_params = dict[str, tp.Any]()
     if str_model == 'LDA':
         if len(features_train.shape) > 2:
             features_train = features_train.reshape(features_train.shape[0], -1)
@@ -229,7 +235,7 @@ def train_model(features_train, features_test, y_class_train, y_class_test, y_st
         # TODO: remove hardcoding
         if len(features_train.shape) == 2:
             features_train = np.expand_dims(features_train, axis=1)
-            features_valid = np.expand_dims(features_valid, axis=1)
+            features_valid = np.expand_dims(features_valid, axis=1) if features_valid is not None else features_valid
             features_test = np.expand_dims(features_test, axis=1)
 
         model_params = {'n_input': features_train.shape[-1], 'n_class': len(np.unique(y_class_train)),

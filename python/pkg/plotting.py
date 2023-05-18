@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import pandas as pd
-from statannot import add_stat_annotation
+# from statannot import add_stat_annotation
 from scipy import stats
 
 def plot_PKG_NF_time_series(df_pkg_valid, df_pkg_avg_valid, df_night_forms_interp_avg_valid, str_side,

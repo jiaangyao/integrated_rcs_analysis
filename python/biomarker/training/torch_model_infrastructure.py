@@ -18,10 +18,11 @@ from biomarker.training.model_infrastructure import BaseModel
 from biomarker.training.torch_dataset import NeuralDataset, NeuralDatasetTest
 
 
-def get_model_ray(str_model, model_params=MappingProxyType(dict()) | dict, gpu_per_model=1):
+def get_model_ray(str_model, model_params: dict|MappingProxyType=MappingProxyType(dict()), gpu_per_model=1):
     n_models = np.floor(1 / gpu_per_model)
 
     if str_model == 'MLP':
+        # TODO: look into args and kwargs
         model = MLPModelWrapper(**model_params) # type: ignore
         # model = [MLPModelWrapper.remote(**model_params) for _ in range(n_models)]
 

@@ -5,6 +5,7 @@ from types import MappingProxyType
 import numpy as np
 import numpy.typing as npt
 
+from sklearn.dummy import DummyClassifier
 from sklearn.svm import SVC
 from sklearn.gaussian_process import GaussianProcessClassifier
 from sklearn.gaussian_process.kernels import RBF
@@ -12,7 +13,7 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis, QuadraticD
 from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier, GradientBoostingClassifier, BaggingClassifier
 
 
-def get_model(str_model, model_params=MappingProxyType(dict()) | dict, adaboost_params=MappingProxyType(dict()) | dict):
+def get_model(str_model, model_params: MappingProxyType|dict=MappingProxyType(dict()), adaboost_params: MappingProxyType|dict=MappingProxyType(dict())):
     if str_model == 'LDA':
         model = LDAModel(model_params)
     elif str_model == 'QDA':
@@ -57,22 +58,23 @@ class SKLearnModel(BaseModel):
 
         # initiate the fields
         self.n_class = None
+        self.model = DummyClassifier()
 
     def train(self, data, label):
         # train the model
         data = self._check_input(data)
         self.n_class = len(np.unique(label))
-        self.model.fit(data, label) # type: ignore
+        self.model.fit(data, label)
 
     def predict(self, data):
         # generate the predictions
         data =self._check_input(data)
-        return self.model.predict(data) # type: ignore
+        return self.model.predict(data)
 
     def get_accuracy(self, data, label):
         # generate the accuracy
         data = self._check_input(data)
-        return self.model.score(data, label) # type: ignore
+        return self.model.score(data, label)
 
     def predict_proba(self, data):
         # generate the prediction probabilities
@@ -80,9 +82,10 @@ class SKLearnModel(BaseModel):
         if self.n_class == 2:
             scores = self.model.predict_proba(data)[:, 1] # type: ignore
         else:
-            scores = self.model.predict_proba(data) # type: ignore
+            scores = self.model.predict_proba(data)
 
         return scores
+
 
 
 class LDAModel(SKLearnModel):

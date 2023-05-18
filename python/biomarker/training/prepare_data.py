@@ -45,7 +45,7 @@ def prepare_data(data, stim_level, str_side='L', label_type='med', interval=0.05
         raise NotImplementedError
 
     # now calculate the high resolution spectra
-    stim_level_side = getattr(stim_level, str_side)
+    stim_level_side = stim_level[str_side] if isinstance(stim_level, dict) else getattr(stim_level, str_side)
     vec_features_full, y_class, y_stim, labels_cell_full, vec_times_full = \
         calc_high_res_spectra(data_label, label_time_domain, fs, interval, update_rate, stim_level_side, ch2use)
 
