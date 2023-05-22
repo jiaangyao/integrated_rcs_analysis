@@ -30,6 +30,22 @@ def correct_data_dim(str_model, vec_features):
     return vec_features_out
 
 
+def correct_sfs_sweep_feature_dim(features, idx_feature, idx_used, n_iter):
+
+    # organize the features for the individual power bands
+    features_sub = features[:, idx_feature, ...][:, None]
+    if len(idx_used) > 0:
+        features_used_sub = []
+        for j in range(len(idx_used)):
+            features_used_sub.append(np.sum(features[:, idx_used[j], ...], axis=1, keepdims=True))
+        features_used_sub = np.concatenate(features_used_sub, axis=1)
+
+        features_sub = np.concatenate([features_used_sub, features_sub], axis=1)
+    assert features_sub.shape[1] == n_iter
+
+    return features_sub
+
+
 def get_valid_data(features_train, y_class_train, features_test, y_class_test, 
                    bool_torch, n_fold, bool_use_strat_kfold, random_seed):
     
