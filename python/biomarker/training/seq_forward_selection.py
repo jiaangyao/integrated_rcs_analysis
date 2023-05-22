@@ -48,10 +48,9 @@ def sfs_feature_sweep_ray(*args, **kwargs):
 
 
 def seq_forward_selection(features, y_class, y_stim, labels_cell, n_pass=5, n_fold=10, n_ch=3, width=5, 
-                          max_width=10, top_k=10, top_best=5, str_model='LDA', str_metric='avg_auc', 
-                          random_seed: tp.Optional[int]=None, 
-                          bool_force_sfs_acc=False, 
-                          bool_use_ray=True):
+                          max_width=10, top_k=10, top_best=5, str_model='LDA', str_metric='avg_auc',  
+                          bool_force_sfs_acc=False, bool_use_ray=True,
+                          random_seed: tp.Optional[int]=None):
 
     # define initial variables
     idx_ch = (np.arange(n_ch)[:, None] + np.zeros((int(features.shape[1] / n_ch, )))[None, :]).reshape(-1).astype(
@@ -114,7 +113,7 @@ def seq_forward_selection(features, y_class, y_stim, labels_cell, n_pass=5, n_fo
                                                     idx_break, n_class=n_class, n_fold=n_fold, width=width,
                                                     max_width=max_width, top_k=top_k, top_best=top_best,
                                                     str_model=str_model_sfs, str_metric=str_metric_sfs,
-                                                    random_seed=random_seed)
+                                                    bool_use_ray=bool_use_ray, random_seed=random_seed)
 
         # find the best feature
         vec_metric_sfs = combine_struct_by_field(vec_output_sfs, str_metric)

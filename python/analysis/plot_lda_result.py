@@ -11,12 +11,14 @@ import scipy.stats as stats
 
 def plot_lda_results():
     # hard code all paths
-    p_output = pathlib.Path('/home/jyao/Downloads/')
+    p_output = pathlib.Path('/home/jyao/Downloads/biomarker_id/model_id/')
     f_output_python = 'RCS02_R_med_level_auc_LDA.pkl'
     # f_output_python = 'RCS02_R_med_level_auc_LDA.pkl'
     # f_output_python = 'RCS02_R_med_level_acc_SVM.pkl'
     # f_output_python = 'RCS02_R_med_level_acc_QDA.pkl'
     f_output_matlab = 'RCS02_R_med_level_stats.mat'
+
+    p_figure_output = pathlib.Path('/home/jyao/Downloads/biomarker_id/figures/model_id/')
 
     # load in the python values
     output = pickle.load(open(str(p_output / f_output_python), 'rb'))
@@ -67,7 +69,7 @@ def plot_lda_results():
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
 
-    fig.savefig(str(p_output / 'RCS02_R_med_level_auc_LDA.png'), dpi=300)
+    fig.savefig(str(p_figure_output / 'RCS02_R_med_level_auc_LDA.png'), dpi=300)
     plt.close(fig)
 
     # plot the figure for accuracy
@@ -87,7 +89,7 @@ def plot_lda_results():
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
 
-    fig.savefig(str(p_output / 'RCS02_R_med_level_acc_LDA.png'), dpi=300)
+    fig.savefig(str(p_figure_output / 'RCS02_R_med_level_acc_LDA.png'), dpi=300)
     plt.close(fig)
 
     # now plot the line plots for the top5 auc
@@ -112,7 +114,7 @@ def plot_lda_results():
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
 
-    fig.savefig(str(p_output / 'RCS02_R_med_level_auc_LDA_top5.png'), dpi=300)
+    fig.savefig(str(p_figure_output / 'RCS02_R_med_level_auc_LDA_top5.png'), dpi=300)
     plt.close(fig)
 
     '''
@@ -140,7 +142,7 @@ def plot_lda_results():
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
 
-    fig.savefig(str(p_output / 'RCS02_R_med_level_auc_LDA_top5_combo.png'), dpi=300)
+    fig.savefig(str(p_figure_output / 'RCS02_R_med_level_auc_LDA_top5_combo.png'), dpi=300)
     plt.close(fig)
 
 
@@ -153,18 +155,22 @@ def plot_lda_results():
     f_output_python_RNN = 'RCS02_R_med_level_auc_RNN.pkl'
 
     output_QDA = pickle.load(open(str(p_output / f_output_python_QDA), 'rb'))
+    auc_python_full_QDA = np.stack([output_QDA.sinPB[i].vec_auc[:5] for i in range(len(output_QDA.sinPB))], axis=1).T
     auc_python_full_sfs_QDA = np.stack([output_QDA.sfsPB[i].vec_auc[:5] for i in range(len(output_QDA.sfsPB))], axis=1).T
 
     output_SVM = pickle.load(open(str(p_output / f_output_python_SVM), 'rb'))
+    auc_python_full_SVM = np.stack([output_SVM.sinPB[i].vec_auc[:5] for i in range(len(output_SVM.sinPB))], axis=1).T
     auc_python_full_sfs_SVM = np.stack([output_SVM.sfsPB[i].vec_auc[:5] for i in range(len(output_SVM.sfsPB))], axis=1).T
 
     output_RF = pickle.load(open(str(p_output / f_output_python_RF), 'rb'))
+    auc_python_full_RF = np.stack([output_RF.sinPB[i].vec_auc[:5] for i in range(len(output_RF.sinPB))], axis=1).T
     auc_python_full_sfs_RF = np.stack([output_RF.sfsPB[i].vec_auc[:5] for i in range(len(output_RF.sfsPB))], axis=1).T
 
     # output_GP = pickle.load(open(str(p_output / f_output_python_GP), 'rb'))
     # auc_python_full_sfs_GP = np.stack([output_GP.sfsPB[i].vec_auc[:5] for i in range(len(output_GP.sfsPB))], axis=1).T
     #
     output_MLP = pickle.load(open(str(p_output / f_output_python_MLP), 'rb'))
+    auc_python_full_MLP = np.stack([output_MLP.sinPB[i].vec_auc[:5] for i in range(len(output_MLP.sinPB))], axis=1).T
     auc_python_full_sfs_MLP = np.stack([output_MLP.sfsPB[i].vec_auc[:5] for i in range(len(output_MLP.sfsPB))], axis=1).T
 
     output_RNN = pickle.load(open(str(p_output / f_output_python_RNN), 'rb'))
@@ -213,7 +219,7 @@ def plot_lda_results():
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
 
-    fig.savefig(str(p_output / 'RCS02_R_med_level_auc_comp_top5_combo.png'), dpi=300)
+    fig.savefig(str(p_figure_output / 'RCS02_R_med_level_auc_comp_top5_combo.png'), dpi=300)
     plt.close(fig)
 
     t1 = 1

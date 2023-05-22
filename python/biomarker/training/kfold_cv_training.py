@@ -8,6 +8,8 @@ from sklearn.model_selection import StratifiedKFold, KFold
 from sklearn.metrics import confusion_matrix, accuracy_score, f1_score, roc_curve, roc_auc_score
 from easydict import EasyDict as edict
 
+from biomarker.training.get_model_params import get_model_params
+from biomarker.training.correct_data_dim import correct_data_dim, get_valid_data
 from biomarker.training.model_infrastructure import get_model
 from biomarker.training.torch_model_infrastructure import get_model_ray
 from utils.combine_labels import combine_labels, create_hashmap
@@ -17,30 +19,13 @@ from utils.beam_search import beam_search
 from utils.combine_hist import combine_hist
 
 
-def get_valid_data(features_train, y_class_train, bool_torch, n_fold, random_seed):
-    if bool_torch:
-        skf_valid = StratifiedKFold(n_splits=n_fold - 1, shuffle=True, random_state=random_seed)
-        train_idx, valid_idx = next(skf_valid.split(features_train, y_class_train))
-
-        # obtain data for train set and valid set
-        features_valid = features_train[valid_idx, ...]
-        y_class_valid = y_class_train[valid_idx, ...]
-
-        # obtain data for valid set
-        features_train = features_train[train_idx, ...]
-        y_class_train = y_class_train[train_idx, ...]
-    else:
-        features_valid = None
-        y_class_valid = None
-
-    return features_train, y_class_train, features_valid, y_class_valid
-
-
 def kfold_cv_training(features_sub, y_class, y_stim, n_class=4, n_fold=10, str_model='LDA',
-                      random_seed=0):
+                      bool_use_ray=True, bool_use_strat_kfold=True, random_seed=0):
     # create the training and test sets
-    skf = StratifiedKFold(n_splits=n_fold, shuffle=True, random_state=random_seed)
-    # skf = KFold(n_splits=n_fold, shuffle=True, random_state=random_seed)
+    if bool_use_strat_kfold:
+        skf = StratifiedKFold(n_splits=n_fold, shuffle=True, random_state=random_seed)
+    else:
+        skf = KFold(n_splits=n_fold, shuffle=True, random_state=random_seed)
 
     # create hashmap in advance from most general label
     hashmap = create_hashmap(y_class, y_stim)
@@ -65,8 +50,9 @@ def kfold_cv_training(features_sub, y_class, y_stim, n_class=4, n_fold=10, str_m
         y_class_test = y_class[test_idx, ...]
         y_stim_test = y_stim[test_idx, ...]
 
-        features_train, y_class_train, features_valid, y_class_valid = \
-            get_valid_data(features_train, y_class_train, bool_torch, n_fold, random_seed)
+        # organize the various features for training
+        vec_features, vec_y_class = get_valid_data(features_train, y_class_train, features_test, y_class_test,
+                                                   bool_torch, n_fold, bool_use_strat_kfold, random_seed)
 
         # now define and train the model
         acc, f1, conf_mat, roc, auc = train_model(features_train, features_test, y_class_train, y_class_test, y_stim_test,
@@ -208,47 +194,28 @@ def kfold_cv_sfs_search(features, idx_peak, idx_used, y_class, y_stim, idx_break
     return output
 
 
-def train_model(features_train, features_test, y_class_train, y_class_test, y_stim_test,
-                str_model='LDA', hashmap=None, n_class=4, features_valid: tp.Optional[npt.NDArray]=None, 
-                y_class_valid: tp.Optional[npt.NDArray]=None):
-    # TODO: make sure model params is not hard coded
-    bool_torch = False
-    train_params = dict[str, tp.Any]()
-    if str_model == 'LDA':
-        if len(features_train.shape) > 2:
-            features_train = features_train.reshape(features_train.shape[0], -1)
-            features_test = features_test.reshape(features_test.shape[0], -1)
-        model_params = {}
-    elif str_model == 'QDA':
-        model_params = {'tol': 1e-9}
-    elif str_model == 'SVM':
-        model_params = {'probability': True}
-    elif str_model == 'RF':
-        # model_params = {'max_depth': 3, 'n_estimators': 300}
-        model_params = {'n_estimators': 300}
-    elif str_model == 'MLP':
-        model_params = {'n_input': features_train.shape[1], 'n_class': len(np.unique(y_class_train)), 'n_layer': 3,
-                        'dropout': 0.35, 'str_act': 'leaky_relu', 'lr': 5e-4, 'lam': 1e-5, 'hidden_size': 128}
-        train_params = {'n_epoch': 100, 'batch_size': 128, 'bool_verbose': False}
-        bool_torch = True
-    elif str_model == 'RNN':
-        # TODO: remove hardcoding
-        if len(features_train.shape) == 2:
-            features_train = np.expand_dims(features_train, axis=1)
-            features_valid = np.expand_dims(features_valid, axis=1) if features_valid is not None else features_valid
-            features_test = np.expand_dims(features_test, axis=1)
+def train_model(vec_features: list[npt.NDArray], vec_y_class: list[npt.NDArray], 
+                y_stim_test: npt.NDArray, n_class: int=4, str_model: str='LDA', 
+                hashmap: dict[str, int]|None=None), bool_use_ray) -> dict[str, npt.NDArray]:
+    
+    # obtain the dimensionality
+    n_input = vec_features[0].shape[1]
+    n_class_model = len(np.unique(vec_y_class[0]))
 
-        model_params = {'n_input': features_train.shape[-1], 'n_class': len(np.unique(y_class_train)),
-                        'bool_cnn': False, 'cnn_act_func': 'identity', 'n_rnn_layer': 2, 'rnn_dim': 16,
-                        'rnn_dropout': 0.6, 'final_dropout': 0.4, 'lr': 5e-4, 'lam': 0}
-        train_params = {'n_epoch': 100, 'batch_size': 128, 'bool_verbose': False}
-        bool_torch = True
-    else:
-        model_params = {}
+    # now define the model parameters and correct the feature dimensionality
+    model_params, train_params, bool_torch = get_model_params(str_model, n_input, n_class_model)
+    vec_features = correct_data_dim(str_model, vec_features)
+
+    # obtain the parameters for training and append it to the configuraiton
 
     # now define the model
     if bool_torch:
+        # unpack the features first
+        features_train, features_valid, features_test = vec_features
+
+        # now start the model training
         model = get_model_ray(str_model, model_params)
+
         # model.train.remote(features_train, y_class_train, valid_data=features_valid, valid_label=y_class_valid,
         #                    **train_params)
         model.train(features_train, y_class_train, valid_data=features_valid, valid_label=y_class_valid, **train_params)
