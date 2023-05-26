@@ -21,7 +21,7 @@ _VEC_STR_METRIC = tp.Literal['avg_auc', 'avg_acc', 'avg_f1']
 
 
 # TODO: combine into a single function with biomarker id
-def gen_config(p_data: pathlib.Path, 
+def gen_config_dyna(p_data: pathlib.Path, 
                f_data: str, 
                p_output: pathlib.Path,
                str_subject: _VEC_STR_SUBJECT='RCS02', 
@@ -169,9 +169,10 @@ class BiomarkerIDDynamicsTrainer(BiomarkerIDTrainer):
             output_med_level['sfsPB'] = []
 
             # obtain the features
-            features, y_class, y_stim, labels_cell, _ = \
-                prepare_data(data_hemi, stim_level, str_side=str_side, label_type=label_type)
-            print('')
+            features, y_class, y_stim, labels_cell, _ \
+                = prepare_data(data_hemi, stim_level, str_side='R', label_type='med',
+                               bool_use_dynamics=True, n_dynamics=n_dynamics)
+            # print('')
 
             # iterate through the repetitions
             for idx_rep in tqdm.trange(n_rep, leave=False, desc='SFS REP', \
@@ -179,6 +180,7 @@ class BiomarkerIDDynamicsTrainer(BiomarkerIDTrainer):
 
 
                 # perform the SFS
+                print('\n')
                 output_fin, output_init, iter_used, orig_metric = \
                     seq_forward_selection(features, y_class, y_stim, labels_cell, str_model=str_model, 
                                         bool_force_sfs_acc=bool_force_sfs_acc, 

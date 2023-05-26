@@ -54,14 +54,17 @@ def correct_sfs_feature_dim(features: npt.NDArray,
 
     # obtain the next candidate power band
     if isinstance(idx_feature, int):
-        features_sub = features[:, [idx_feature], ...][:, None]
+        features_sub = features[:, [idx_feature], ...]
+        features_sub = np.expand_dims(features_sub, axis=1) if len(features.shape) == 2 else features_sub
+
     else:
         if len(idx_feature) == 1:
-            features_sub = features[:, idx_feature, ...][:, None]
+            features_sub = features[:, idx_feature, ...]
+            features_sub = np.expand_dims(features_sub, axis=1) if len(features_sub.shape) == 2 else features_sub
         else:
-            features_sub = np.sum(features[:, idx_feature, ...], axis=1, keepdims=True)[:, None]
-
-        assert 2 <= len(features_sub.shape) <= 3, 'Features should not be more than 3D'
+            features_sub = np.sum(features[:, idx_feature, ...], axis=1, keepdims=True)
+            features_sub = np.expand_dims(features_sub, axis=1) if len(features_sub.shape) == 2 else features_sub
+    assert 2 <= len(features_sub.shape) <= 3, 'Features should not be more than 3D'
     
     # now loop through existing power bands already selected
     if len(idx_used) > 0:
@@ -72,9 +75,12 @@ def correct_sfs_feature_dim(features: npt.NDArray,
 
         if len(features_used_sub.shape) == 2:
             features_used_sub = np.expand_dims(features_used_sub, axis=-1)
+        assert 2 <= len(features_used_sub.shape) <= 3, 'Features should not be more than 3D'
 
         features_sub = np.concatenate([features_used_sub, features_sub], axis=1)
+
     assert features_sub.shape[1] == n_iter
+    assert 2 <= len(features_sub.shape) <= 3, 'Features should not be more than 3D'
 
     return features_sub
 

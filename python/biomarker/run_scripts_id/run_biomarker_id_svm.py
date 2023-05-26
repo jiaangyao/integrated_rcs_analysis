@@ -13,11 +13,11 @@ if __name__ == '__main__':
     stim_level = dict(); stim_level['L'] = [1.7, 2.5]; stim_level['R'] = [3, 3.4]
 
     # generate the config
-    cfg = gen_config(p_data, f_data_R, p_output, str_subject='RCS02', str_side='R', 
-                    stim_level=stim_level, label_type='med', 
-                    str_model='SVM', str_metric='avg_auc',
-                    n_rep=5, bool_debug=False, bool_use_ray=True, 
-                    bool_use_gpu=False, bool_force_sfs_acc=False, random_seed=None)
+    cfg = gen_config(p_data, f_data_R, p_output, str_subject='RCS02', str_side='R',
+                     stim_level=stim_level, label_type='med',
+                     str_model='SVM', str_metric='avg_auc',
+                     n_rep=5, bool_debug=False, bool_use_ray=True, 
+                     bool_use_gpu=False, bool_force_sfs_acc=False, random_seed=None)
 
     # initialize training
     trainer = BiomarkerIDTrainer(cfg)
