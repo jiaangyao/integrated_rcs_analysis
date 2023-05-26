@@ -9,6 +9,20 @@ import scipy.io as sio
 import scipy.stats as stats
 
 
+def load_model_id_results(output):
+    acc_python_full = np.stack([output['sinPB'][i]['vec_acc'][:5] for i in range(len(output['sinPB']))], axis=1).T
+    auc_python_full = np.stack([output['sinPB'][i]['vec_auc'][:5] for i in range(len(output['sinPB']))], axis=1).T
+    acc_python_top = [output['sinPB'][i]['vec_acc'][0] for i in range(len(output['sinPB']))]
+    auc_python_top = [output['sinPB'][i]['vec_auc'][0] for i in range(len(output['sinPB']))]
+
+    acc_python_full_sfs = np.stack([output['sfsPB'][i]['vec_acc'][:5] for i in range(len(output['sfsPB']))], axis=1).T
+    auc_python_full_sfs = np.stack([output['sfsPB'][i]['vec_auc'][:5] for i in range(len(output['sfsPB']))], axis=1).T
+    acc_python_top_sfs = [output['sfsPB'][i]['vec_acc'][0] for i in range(len(output['sfsPB']))]
+    auc_python_top_sfs = [output['sfsPB'][i]['vec_auc'][0] for i in range(len(output['sfsPB']))]
+
+    return acc_python_full, auc_python_full, acc_python_top, auc_python_top, acc_python_full_sfs, auc_python_full_sfs, acc_python_top_sfs, auc_python_top_sfs
+
+
 def plot_lda_results():
     # hard code all paths
     p_output = pathlib.Path('/home/jyao/Downloads/biomarker_id/model_id/')
@@ -22,15 +36,9 @@ def plot_lda_results():
 
     # load in the python values
     output = pickle.load(open(str(p_output / f_output_python), 'rb'))
-    acc_python_full = np.stack([output.sinPB[i].vec_acc[:5] for i in range(len(output.sinPB))], axis=1).T
-    auc_python_full = np.stack([output.sinPB[i].vec_auc[:5] for i in range(len(output.sinPB))], axis=1).T
-    acc_python_top = [output.sinPB[i].vec_acc[0] for i in range(len(output.sinPB))]
-    auc_python_top = [output.sinPB[i].vec_auc[0] for i in range(len(output.sinPB))]
-
-    acc_python_full_sfs = np.stack([output.sfsPB[i].vec_acc[:5] for i in range(len(output.sfsPB))], axis=1).T
-    auc_python_full_sfs = np.stack([output.sfsPB[i].vec_auc[:5] for i in range(len(output.sfsPB))], axis=1).T
-    acc_python_top_sfs = [output.sfsPB[i].vec_acc[0] for i in range(len(output.sfsPB))]
-    auc_python_top_sfs = [output.sfsPB[i].vec_auc[0] for i in range(len(output.sfsPB))]
+    acc_python_full, auc_python_full, acc_python_top, auc_python_top, \
+        acc_python_full_sfs, auc_python_full_sfs, acc_python_top_sfs, auc_python_top_sfs = \
+            load_model_id_results(output)
 
     # load in the matlab values
     matlab_results = sio.loadmat(str(p_output / f_output_matlab))

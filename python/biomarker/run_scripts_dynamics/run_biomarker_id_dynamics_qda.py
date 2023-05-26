@@ -28,6 +28,8 @@ if __name__ == "__main__":
         label_type="med",
         str_model="QDA",
         str_metric="avg_auc",
+        interval=0.05,
+        update_rate=30,
         n_rep=5,
         n_dyna_start=1,
         n_dyna_end=7,
@@ -35,6 +37,7 @@ if __name__ == "__main__":
         bool_use_ray=True,
         bool_use_gpu=False,
         bool_force_sfs_acc=False,
+        bool_use_strat_kfold=False,
         random_seed=None,
     )
 
