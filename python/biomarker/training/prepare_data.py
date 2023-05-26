@@ -4,9 +4,9 @@ import numpy as np
 from biomarker.signal_processing.calc_high_res_spectra import calc_high_res_spectra
 
 
-def prepare_data(data, stim_level, str_side='L', label_type='med', interval=0.05, update_rate=30,
+def prepare_data(data, stim_level:dict, str_side='L', label_type='med', interval=0.05, update_rate=30,
                  low_lim=2, high_lim=100, bool_use_dynamics=False, n_dynamics=3):
-    print('Calculating High Resolution Spectra', end='')
+    print('\nCalculating High Resolution Spectra', end='')
     # first hardcode the side of the data and side of the opposite side
     str_contra_side = 'R' if str_side.lower() == 'l' else 'L'
 

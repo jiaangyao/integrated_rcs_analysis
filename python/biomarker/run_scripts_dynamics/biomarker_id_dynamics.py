@@ -8,6 +8,7 @@ import ray
 import tqdm
 import pandas as pd
 
+from biomarker.run_scripts_id.biomarker_id import BiomarkerIDTrainer
 from biomarker.training.prepare_data import prepare_data
 from biomarker.training.seq_forward_selection import seq_forward_selection
 from utils.parse_datetime import parse_dt_w_tz
@@ -19,6 +20,7 @@ _VEC_MED_LEVEL = tp.Literal['med']
 _VEC_STR_METRIC = tp.Literal['avg_auc', 'avg_acc', 'avg_f1']
 
 
+# TODO: combine into a single function with biomarker id
 def gen_config(p_data: pathlib.Path, 
                f_data: str, 
                p_output: pathlib.Path,
@@ -29,6 +31,8 @@ def gen_config(p_data: pathlib.Path,
                str_model: str='LDA', 
                str_metric: _VEC_STR_METRIC='avg_auc', 
                n_rep: int=5, 
+               n_dyna_start: int=1,
+               n_dyna_end: int=7,
                bool_debug: bool=False, 
                bool_use_ray: bool=True, 
                bool_use_gpu: bool=False, 
@@ -86,21 +90,18 @@ def gen_config(p_data: pathlib.Path,
     assert not(str_metric == 'avg_acc' and not bool_force_sfs_acc)
     assert not(str_metric == 'avg_acc' and bool_force_sfs_acc)
 
+    # unpack the dynamics related flags
+    cfg['n_dyna_start'] = n_dyna_start
+    cfg['n_dyna_end'] = n_dyna_end
+
     return cfg
 
 
-class BiomarkerIDTrainer():
+class BiomarkerIDDynamicsTrainer(BiomarkerIDTrainer):
     def __init__(self, cfg) -> None:
-        self.cfg = cfg
+        super().__init__(cfg)
 
     def train_side(self):
-
-        """Biomarker identification script
-
-        Args:
-            cfg (dict): dictionary holding the configurations for the biomarker identification
-        """
-
         # obtain the config dictionary
         cfg = self.cfg
 
@@ -130,6 +131,10 @@ class BiomarkerIDTrainer():
         assert not(str_metric == 'avg_acc' and bool_force_sfs_acc)
         if bool_debug: Warning('Debug mode is on, only 1 rep will be run'); n_rep = 1
 
+        # unpack the dynamics related flags
+        n_dyna_start = cfg['n_dyna_start']
+        n_dyna_end = cfg['n_dyna_end']
+
         # load the data from the desginated side
         data_hemi = pd.read_csv(str(p_data / f_data), header=0)
 
@@ -148,47 +153,69 @@ class BiomarkerIDTrainer():
                 ray.init(log_to_driver=False, num_gpus=1)
 
         # initialize the output variable
-        output_label = dict()
-        output_label['sinPB'] = []
-        output_label['sfsPB'] = []
+        output_full_level = dict()
+        output_full_level['sinPB'] = dict()
+        output_full_level['sfsPB'] = dict()
 
-        # iterate through the repetitions
-        for idx_rep in tqdm.trange(n_rep, leave=False, desc='SFS REP', \
-                                bar_format="{desc:<2.5}{percentage:3.0f}%|{bar:15}{r_bar}"):
+        # loop through the various dynamics lengths first
+        for n_dynamics in tqdm.trange(n_dyna_start, n_dyna_end, leave=False, desc='N DYNA', 
+                                      bar_format="{desc:<2.5}{percentage:3.0f}%|{bar:15}{r_bar}"):
+
+            # setting up the variable for storing output
+            print('\n=====================================')
+            print('LENGTH OF DYNAMICS: {}\n'.format(n_dynamics))
+            output_med_level = dict()
+            output_med_level['sinPB'] = []
+            output_med_level['sfsPB'] = []
+
             # obtain the features
             features, y_class, y_stim, labels_cell, _ = \
                 prepare_data(data_hemi, stim_level, str_side=str_side, label_type=label_type)
-
-            # perform the SFS
-            output_fin, output_init, iter_used, orig_metric = \
-                seq_forward_selection(features, y_class, y_stim, labels_cell, str_model=str_model, 
-                                    bool_force_sfs_acc=bool_force_sfs_acc, 
-                                    bool_use_ray=bool_use_ray,
-                                    random_seed=random_seed)
-
-            # append to outer list
-            output_label['sinPB'].append(output_init)
-            output_label['sfsPB'].append(output_fin)
-            print('\nHighest SinPB auc: {:.4f}'.format(output_init['vec_auc'][0]))
-            print('Highest SFS auc: {:.4f}'.format(output_fin['vec_auc'][-1]))
-            print('Done with rep {}'.format(idx_rep + 1))
             print('')
 
+            # iterate through the repetitions
+            for idx_rep in tqdm.trange(n_rep, leave=False, desc='SFS REP', \
+                                    bar_format="{desc:<2.5}{percentage:3.0f}%|{bar:15}{r_bar}"):
+
+
+                # perform the SFS
+                output_fin, output_init, iter_used, orig_metric = \
+                    seq_forward_selection(features, y_class, y_stim, labels_cell, str_model=str_model, 
+                                        bool_force_sfs_acc=bool_force_sfs_acc, 
+                                        bool_use_ray=bool_use_ray,
+                                        random_seed=random_seed)
+
+                # append to outer list
+                output_med_level['sinPB'].append(output_init)
+                output_med_level['sfsPB'].append(output_fin)
+                print('\nHighest SinPB auc: {:.4f}'.format(output_init['vec_auc'][0]))
+                print('Highest SFS auc: {:.4f}'.format(output_fin['vec_auc'][-1]))
+                print('Done with rep {}'.format(idx_rep + 1))
+                print('')
+
+            # append to outer list
+            # initialize the dictionary if not already done
+            if 'n_dynamics_{}'.format(n_dynamics) not in output_full_level['sinPB'].keys():
+                output_full_level['sinPB']['n_dynamics_{}'.format(n_dynamics)] = []
+                output_full_level['sfsPB']['n_dynamics_{}'.format(n_dynamics)] = []
+            output_full_level['sinPB']['n_dynamics_{}'.format(n_dynamics)].append(output_med_level['sinPB'])
+            output_full_level['sfsPB']['n_dynamics_{}'.format(n_dynamics)].append(output_med_level['sfsPB'])
 
         # shutdown ray in case of using it
         if bool_use_ray:
             ray.shutdown()
 
+
         # save the output file
-        output_label['cfg'] = cfg
-        f_output = '{}_{}_{}_{}_{}.pkl'.format(str_subject, str_side, label_type, str_metric, str_model)
+        output_full_level['cfg'] = cfg
+        f_output = '{}_{}_{}_{}_{}_dynamics.pkl'.format(str_subject, str_side, label_type, str_metric, str_model)
         with open(str(p_output / f_output), 'wb') as f:
-            pickle.dump(output_label, f)
+            pickle.dump(output_full_level, f)
 
         # final print statement for breakpoint
         if bool_debug:
             print('Debug breakpoint')
-    
+
 
 if __name__ == '__main__':
     raise RuntimeError('Cannot run this script directly, must be called by separate run scripts')

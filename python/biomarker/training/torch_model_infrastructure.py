@@ -18,6 +18,13 @@ from biomarker.training.model_infrastructure import BaseModel
 from biomarker.training.torch_dataset import NeuralDataset, NeuralDatasetTest
 
 
+_VEC_MODEL_DYNAMICS_ONLY = ['RNN']
+
+
+def get_dynamics_model() -> list:
+    return _VEC_MODEL_DYNAMICS_ONLY
+
+
 def get_model_ray(str_model, model_params: dict|MappingProxyType=MappingProxyType(dict()), gpu_per_model=1):
     n_models = np.floor(1 / gpu_per_model)
 

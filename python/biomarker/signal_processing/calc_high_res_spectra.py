@@ -63,6 +63,7 @@ def calc_high_res_spectra(data_label, label_time_domain, fs, interval, update_ra
             times_curr = [x for x, y in zip(vec_time_chunk_label_full, bool_stim_match) if y]
 
             # now try to extract the frequency features
+            # TODO: veritfy the validity of this calculation
             features_curr, lab_cell_curr = extract_freq_features(sigs_curr, fs, T, str_ch, NFFT, interval)
 
             # now append the features and labels
