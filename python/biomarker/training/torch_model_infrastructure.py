@@ -18,24 +18,29 @@ from biomarker.training.model_infrastructure import BaseModel
 from biomarker.training.torch_dataset import NeuralDataset, NeuralDatasetTest
 
 
-_VEC_MODEL_DYNAMICS_ONLY = ['RNN']
+_VEC_MODEL_DYNAMICS_ONLY = ["RNN"]
 
 
 def get_dynamics_model() -> list:
     return _VEC_MODEL_DYNAMICS_ONLY
 
 
-def get_model_ray(str_model, model_params: dict|MappingProxyType=MappingProxyType(dict()), gpu_per_model=1):
+def get_model_ray(
+    str_model,
+    model_params: dict | MappingProxyType = MappingProxyType(dict()),
+    gpu_per_model=1,
+):
+    # use GPU hard limit to compute parallelizable model
     n_models = np.floor(1 / gpu_per_model)
 
-    if str_model == 'MLP':
+    if str_model == "MLP":
         # TODO: look into args and kwargs
-        model = MLPModelWrapper(**model_params) # type: ignore
+        model = MLPModelWrapper(**model_params)  # type: ignore
         # model = [MLPModelWrapper.remote(**model_params) for _ in range(n_models)]
 
         # model = MLPModelWrapper.remote(**model_params)
-    elif str_model == 'RNN':
-        model = RNNModelWrapper(**model_params) # type: ignore
+    elif str_model == "RNN":
+        model = RNNModelWrapper(**model_params)  # type: ignore
 
     else:
         raise NotImplementedError
@@ -44,7 +49,18 @@ def get_model_ray(str_model, model_params: dict|MappingProxyType=MappingProxyTyp
 
 
 class PyTorchModelWrapper(BaseModel):
-    def __init__(self, n_class, str_loss, str_act, str_reg, lam, str_opt, lr, transform, target_transform):
+    def __init__(
+        self,
+        n_class,
+        str_loss,
+        str_act,
+        str_reg,
+        lam,
+        str_opt,
+        lr,
+        transform,
+        target_transform,
+    ):
         super().__init__()
 
         # initiate the model fields
@@ -68,26 +84,50 @@ class PyTorchModelWrapper(BaseModel):
         self.transform = transform
         self.target_transform = target_transform
 
-    def train(self, train_data, train_label, valid_data: npt.NDArray | None, valid_label: npt.NDArray | None, batch_size=32, n_epoch=100,
-              bool_early_stopping=True, es_patience=5, es_delta=1e-5, bool_shuffle=True, bool_verbose=True):
+    def train(
+        self,
+        train_data,
+        train_label,
+        valid_data: npt.NDArray | None,
+        valid_label: npt.NDArray | None,
+        batch_size=32,
+        n_epoch=100,
+        bool_early_stopping=True,
+        es_patience=5,
+        es_delta=1e-5,
+        bool_shuffle=True,
+        bool_verbose=True,
+    ):
         # initialize dataset and dataloader for training set
-        train_dataset = NeuralDataset(train_data, train_label, transform=self.transform,
-                                      target_transform=self.target_transform)
-        train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=bool_shuffle)
+        train_dataset = NeuralDataset(
+            train_data,
+            train_label,
+            transform=self.transform,
+            target_transform=self.target_transform,
+        )
+        train_dataloader = DataLoader(
+            train_dataset, batch_size=batch_size, shuffle=bool_shuffle
+        )
 
         # initialize the dataset and dataloader for validation set
         bool_run_validation = valid_data is not None and valid_label is not None
         valid_dataset = NeuralDataset(valid_data, valid_label)
-        valid_dataloader = DataLoader(valid_dataset, batch_size=len(valid_dataset), shuffle=False)
-        early_stopper = EarlyStopping(patience=es_patience, delta=es_delta, verbose=bool_verbose,
-                                      bool_save_checkpoint=False)
+        valid_dataloader = DataLoader(
+            valid_dataset, batch_size=len(valid_dataset), shuffle=False
+        )
+        early_stopper = EarlyStopping(
+            patience=es_patience,
+            delta=es_delta,
+            verbose=bool_verbose,
+            bool_save_checkpoint=False,
+        )
 
         # housekeeping and declare optimizer
         optimizer = self.get_optimizer()
         loss_fn = self.get_loss()
 
         # train the model
-        assert self.model is not None, 'Make sure you have initialized the model'
+        assert self.model is not None, "Make sure you have initialized the model"
         vec_avg_loss = []
         vec_avg_valid_loss = []
         for epoch in range(n_epoch):
@@ -98,7 +138,9 @@ class PyTorchModelWrapper(BaseModel):
 
             # iterate through the dataset
             for idx_batch, (x, y) in enumerate(train_dataloader):
-                assert self.model.training, 'make sure your network is in train mode with `.train()`'
+                assert (
+                    self.model.training
+                ), "make sure your network is in train mode with `.train()`"
 
                 # zero the parameter gradients
                 optimizer.zero_grad()
@@ -123,10 +165,12 @@ class PyTorchModelWrapper(BaseModel):
             valid_loss = 0
             if bool_run_validation:
                 # initialize the loss and set model to eval mode
-                self.model.eval() # type: ignore
+                self.model.eval()  # type: ignore
                 with torch.no_grad():
                     for _, (x_valid, y_valid) in enumerate(valid_dataloader):
-                        assert not self.model.training, 'make sure your network is in eval mode with `.eval()`'
+                        assert (
+                            not self.model.training
+                        ), "make sure your network is in eval mode with `.eval()`"
 
                         # forward pass
                         y_valid_pred = self.model(x_valid)
@@ -138,18 +182,20 @@ class PyTorchModelWrapper(BaseModel):
                     # obtain the average loss
                     valid_loss = np.mean(np.stack(vec_valid_loss, axis=0))
                     vec_avg_valid_loss.append(valid_loss)
-                    str_valid_loss = ', Valid Loss: {:.4f}'.format(valid_loss)
+                    str_valid_loss = ", Valid Loss: {:.4f}".format(valid_loss)
 
             # print the loss
             if bool_verbose:
-                print('Epoch: {}, Loss: {:.4f}{}'.format(epoch + 1, loss, str_valid_loss))
+                print(
+                    "Epoch: {}, Loss: {:.4f}{}".format(epoch + 1, loss, str_valid_loss)
+                )
 
             # call early stopping
             if bool_run_validation and bool_early_stopping:
                 early_stopper(valid_loss, self.model)
                 if early_stopper.early_stop:
                     if bool_verbose:
-                        print('Early stopping')
+                        print("Early stopping")
                     break
 
         # load the last checkpoint with the best model
@@ -162,14 +208,18 @@ class PyTorchModelWrapper(BaseModel):
     def predict(self, data: np.ndarray):
         # initialize the dataset and dataloader for testing set
         test_dataset = NeuralDatasetTest(data)
-        test_dataloader = DataLoader(test_dataset, batch_size=data.shape[0], shuffle=False)
+        test_dataloader = DataLoader(
+            test_dataset, batch_size=data.shape[0], shuffle=False
+        )
 
         # initialize the loss and set model to eval mode
         self.model.eval()
         vec_y_pred = []
         with torch.no_grad():
             for _, x_test in enumerate(test_dataloader):
-                assert not self.model.training, 'make sure your network is in eval mode with `.eval()`'
+                assert (
+                    not self.model.training
+                ), "make sure your network is in eval mode with `.eval()`"
 
                 # forward pass
                 y_test_pred = self.model(x_test)
@@ -201,7 +251,7 @@ class PyTorchModelWrapper(BaseModel):
         return class_prob
 
     def get_loss(self):
-        if self.str_loss == 'CrossEntropy':
+        if self.str_loss == "CrossEntropy":
             loss = torch.nn.CrossEntropyLoss()
         else:
             raise NotImplementedError
@@ -218,9 +268,9 @@ class PyTorchModelWrapper(BaseModel):
         return act
 
     def get_regularizer(self):
-        if self.str_reg == 'L2':
+        if self.str_reg == "L2":
             if self.lam != 0:
-                reg_params = {'weight_decay': self.lam}
+                reg_params = {"weight_decay": self.lam}
             else:
                 reg_params = {}
         else:
@@ -233,8 +283,10 @@ class PyTorchModelWrapper(BaseModel):
         reg_params = self.get_regularizer()
 
         # initialize the optimizer
-        if self.str_opt == 'Adam':
-            optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr, **reg_params)
+        if self.str_opt == "Adam":
+            optimizer = torch.optim.Adam(
+                self.model.parameters(), lr=self.lr, **reg_params
+            )
         else:
             raise NotImplementedError
 
@@ -242,7 +294,16 @@ class PyTorchModelWrapper(BaseModel):
 
 
 class TorchMLPModel(nn.Module):
-    def __init__(self, n_input, n_class, act_func, loss_func, n_layer=3, hidden_size=32, dropout=0.5):
+    def __init__(
+        self,
+        n_input,
+        n_class,
+        act_func,
+        loss_func,
+        n_layer=3,
+        hidden_size=32,
+        dropout=0.5,
+    ):
         super().__init__()
 
         # initialize the fields
@@ -279,9 +340,24 @@ class TorchMLPModel(nn.Module):
 
 
 class TorchRNNModel(nn.Module):
-    def __init__(self, n_input, n_class, loss_func, bool_cnn=True, cnn_act_func=None, cnn_ks=5, cnn_stride=3,
-                 bool_cnn_dropout=False, cnn_dropout=0.5, n_rnn_layer=2, rnn_dim=32, bool_bidirectional=True,
-                 rnn_dropout=0.5, bool_final_dropout=True, final_dropout=0.5):
+    def __init__(
+        self,
+        n_input,
+        n_class,
+        loss_func,
+        bool_cnn=True,
+        cnn_act_func=None,
+        cnn_ks=5,
+        cnn_stride=3,
+        bool_cnn_dropout=False,
+        cnn_dropout=0.5,
+        n_rnn_layer=2,
+        rnn_dim=32,
+        bool_bidirectional=True,
+        rnn_dropout=0.5,
+        bool_final_dropout=True,
+        final_dropout=0.5,
+    ):
         super().__init__()
 
         # initialize the fields
@@ -309,14 +385,23 @@ class TorchRNNModel(nn.Module):
         self.final_dropout = final_dropout
 
         # initialize the CNN layers
-        self.conv1d = nn.Conv1d(in_channels=n_input, out_channels=self.rnn_dim,
-                                kernel_size=self.cnn_ks, stride=self.cnn_stride)
+        self.conv1d = nn.Conv1d(
+            in_channels=n_input,
+            out_channels=self.rnn_dim,
+            kernel_size=self.cnn_ks,
+            stride=self.cnn_stride,
+        )
         self.cnn_dropout_layer = nn.Dropout(self.cnn_dropout)
 
         # initialize the RNN layers
         input_size_rnn = n_input if not self.bool_cnn else self.rnn_dim
-        self.biGRU = nn.GRU(input_size=input_size_rnn, hidden_size=self.rnn_dim, num_layers=self.n_rnn_layer,
-                            bidirectional=self.bool_bidirectional, dropout=self.rnn_dropout)
+        self.biGRU = nn.GRU(
+            input_size=input_size_rnn,
+            hidden_size=self.rnn_dim,
+            num_layers=self.n_rnn_layer,
+            bidirectional=self.bool_bidirectional,
+            dropout=self.rnn_dropout,
+        )
 
         # initialize the final output layer
         self.output = nn.Linear(self.rnn_dim * self.multi, self.n_class)
@@ -325,10 +410,9 @@ class TorchRNNModel(nn.Module):
     def forward(self, x):
         # forward pass
         # if choose to optionally use CNN preprocessing
+        # input data in format (batch_size, n_channel, n_time)
         if self.bool_cnn:
-            # input data in format (batch_size, n_time, n_channel)
-            x = x.permute(0, 2, 1)  # now in format (batch_size, n_channel, n_time)
-            x = self.conv1d(x)   # preprocessing kernel in time
+            x = self.conv1d(x)  # preprocessing kernel in time
             if self.cnn_act_func is not None:
                 x = self.cnn_act_func(x)
             if self.bool_cnn_dropout:
@@ -336,15 +420,19 @@ class TorchRNNModel(nn.Module):
 
             x = x.permute(2, 0, 1)  # now in format (n_time, batch_size, n_channel)
         else:
-            x = x.permute(1, 0, 2)  # now in format (n_time, batch_size, n_channel)
+            x = x.permute(2, 0, 1)  # now in format (n_time, batch_size, n_channel)
 
         # RNN processing - need hidden state for classification
         _, x = self.biGRU(x)
-        x = x.contiguous()[-self.multi:, :, :]   # now shape (self.multi, batch_size, rnn_dim)
+        x = x.contiguous()[
+            -self.multi :, :, :
+        ]  # now shape (self.multi, batch_size, rnn_dim)
 
         # output layer
         x = x.permute(1, 0, 2)  # now in format (batch_size, self.multi, rnn_dim)
-        x = x.contiguous().view(-1, self.rnn_dim * self.multi)  # now in format (batch_size, self.multi * rnn_dim)
+        x = x.contiguous().view(
+            -1, self.rnn_dim * self.multi
+        )  # now in format (batch_size, self.multi * rnn_dim)
         if self.bool_final_dropout:
             x = self.final_dropout_layer(x)
         out = self.output(x)
@@ -354,10 +442,34 @@ class TorchRNNModel(nn.Module):
 
 # @ray.remote(num_gpus=0.125)
 class MLPModelWrapper(PyTorchModelWrapper):
-    def __init__(self, n_input, n_class, n_layer=3, hidden_size=32, dropout=0.5, lam=1e-5, str_act='relu',
-                 str_reg='L2', str_loss='CrossEntropy', str_opt='Adam', lr=1e-4, transform=None, target_transform=None):
+    def __init__(
+        self,
+        n_input,
+        n_class,
+        n_layer=3,
+        hidden_size=32,
+        dropout=0.5,
+        lam=1e-5,
+        str_act="relu",
+        str_reg="L2",
+        str_loss="CrossEntropy",
+        str_opt="Adam",
+        lr=1e-4,
+        transform=None,
+        target_transform=None,
+    ):
         # initialize the base model
-        super().__init__(n_class, str_loss, str_act, str_reg, lam, str_opt, lr, transform, target_transform)
+        super().__init__(
+            n_class,
+            str_loss,
+            str_act,
+            str_reg,
+            lam,
+            str_opt,
+            lr,
+            transform,
+            target_transform,
+        )
 
         # initialize fields for MLP params
         self.n_input = n_input
@@ -374,42 +486,96 @@ class MLPModelWrapper(PyTorchModelWrapper):
         self.target_transform = target_transform
 
         # initialize the model
-        self.model = TorchMLPModel(n_input, n_class, self.get_activation(), self.get_loss(), n_layer,
-                                   hidden_size, dropout)
+        self.model = TorchMLPModel(
+            n_input,
+            n_class,
+            self.get_activation(),
+            self.get_loss(),
+            n_layer,
+            hidden_size,
+            dropout,
+        )
         self.model = self.model.to(ptu.device)
-        
-    def train(self, train_data, train_label, 
-        valid_data: tp.Optional[npt.NDArray]=None, valid_label: tp.Optional[npt.NDArray]=None, 
-        batch_size: int=32, n_epoch: int=100,
-        bool_early_stopping: bool=True, es_patience: int=5, es_delta: float=1e-5, 
-        bool_shuffle: bool=True, bool_verbose: bool=True) -> tp.Tuple[npt.NDArray, npt.NDArray]:   
-        
+
+    def train(
+        self,
+        train_data,
+        train_label,
+        valid_data: tp.Optional[npt.NDArray] = None,
+        valid_label: tp.Optional[npt.NDArray] = None,
+        batch_size: int = 32,
+        n_epoch: int = 100,
+        bool_early_stopping: bool = True,
+        es_patience: int = 5,
+        es_delta: float = 1e-5,
+        bool_shuffle: bool = True,
+        bool_verbose: bool = True,
+    ) -> tp.Tuple[npt.NDArray, npt.NDArray]:
         # ensure that data is in the right format
         if train_data.ndim == 3:
-            raise ValueError('Need to convert to 2D data first')
+            raise ValueError("Need to convert to 2D data first")
 
-        vec_avg_loss, vec_avg_valid_loss = super().train(train_data, train_label, valid_data, valid_label,
-                                                         batch_size, n_epoch, bool_early_stopping,
-                                                         es_patience, es_delta, bool_shuffle, bool_verbose)
+        vec_avg_loss, vec_avg_valid_loss = super().train(
+            train_data,
+            train_label,
+            valid_data,
+            valid_label,
+            batch_size,
+            n_epoch,
+            bool_early_stopping,
+            es_patience,
+            es_delta,
+            bool_shuffle,
+            bool_verbose,
+        )
 
         return vec_avg_loss, vec_avg_valid_loss
 
     def predict(self, data: npt.NDArray) -> npt.NDArray:
         # ensure that data is in the right format
         if data.ndim == 3:
-            raise ValueError('Need to convert to 2D data first')
+            raise ValueError("Need to convert to 2D data first")
 
         return super().predict(data)
 
 
 class RNNModelWrapper(PyTorchModelWrapper):
-    def __init__(self, n_input, n_class, bool_cnn=True, cnn_act_func=None, cnn_ks=5, cnn_stride=3,
-                 bool_cnn_dropout=False, cnn_dropout=0.5, n_rnn_layer=2, rnn_dim=32, bool_bidirectional=True,
-                 rnn_dropout=0.5, bool_final_dropout=True, final_dropout=0.5, lam=1e-5,
-                 str_reg='L2', str_loss='CrossEntropy', str_opt='Adam', lr=1e-4, transform=None, target_transform=None):
-
+    def __init__(
+        self,
+        n_input,
+        n_class,
+        bool_cnn=True,
+        cnn_act_func=None,
+        cnn_ks=5,
+        cnn_stride=3,
+        bool_cnn_dropout=False,
+        cnn_dropout=0.5,
+        n_rnn_layer=2,
+        rnn_dim=32,
+        bool_bidirectional=True,
+        rnn_dropout=0.5,
+        bool_final_dropout=True,
+        final_dropout=0.5,
+        lam=1e-5,
+        str_reg="L2",
+        str_loss="CrossEntropy",
+        str_opt="Adam",
+        lr=1e-4,
+        transform=None,
+        target_transform=None,
+    ):
         # initialize the base model
-        super().__init__(n_class, str_loss, cnn_act_func, str_reg, lam, str_opt, lr, transform, target_transform)
+        super().__init__(
+            n_class,
+            str_loss,
+            cnn_act_func,
+            str_reg,
+            lam,
+            str_opt,
+            lr,
+            transform,
+            target_transform,
+        )
 
         # initialize fields for RNN params
         self.n_input = n_input
@@ -434,31 +600,63 @@ class RNNModelWrapper(PyTorchModelWrapper):
         self.target_transform = target_transform
 
         # initialize the model
-        self.model = TorchRNNModel(n_input, n_class, self.get_loss(), bool_cnn, self.get_activation(), cnn_ks,
-                                   cnn_stride, bool_cnn_dropout, cnn_dropout, n_rnn_layer,
-                                   rnn_dim, bool_bidirectional, rnn_dropout, bool_final_dropout, final_dropout)
+        self.model = TorchRNNModel(
+            n_input,
+            n_class,
+            self.get_loss(),
+            bool_cnn,
+            self.get_activation(),
+            cnn_ks,
+            cnn_stride,
+            bool_cnn_dropout,
+            cnn_dropout,
+            n_rnn_layer,
+            rnn_dim,
+            bool_bidirectional,
+            rnn_dropout,
+            bool_final_dropout,
+            final_dropout,
+        )
 
         self.model = self.model.to(ptu.device)
 
-    def train(self, train_data, train_label, 
-              valid_data: tp.Optional[npt.NDArray]=None, valid_label: tp.Optional[npt.NDArray]=None, 
-              batch_size: int=32, n_epoch: int=100,
-              bool_early_stopping: bool=True, es_patience: int=5, es_delta: float=1e-5, 
-              bool_shuffle: bool=True, bool_verbose: bool=True) -> tp.Tuple[npt.NDArray, npt.NDArray]:
-        
+    def train(
+        self,
+        train_data,
+        train_label,
+        valid_data: tp.Optional[npt.NDArray] = None,
+        valid_label: tp.Optional[npt.NDArray] = None,
+        batch_size: int = 32,
+        n_epoch: int = 100,
+        bool_early_stopping: bool = True,
+        es_patience: int = 5,
+        es_delta: float = 1e-5,
+        bool_shuffle: bool = True,
+        bool_verbose: bool = True,
+    ) -> tp.Tuple[npt.NDArray, npt.NDArray]:
         # ensure that data is in the right format
         if train_data.ndim != 3:
-            raise ValueError('Has to be 3D data for RNN model')
+            raise ValueError("Has to be 3D data for RNN model")
 
-        vec_avg_loss, vec_avg_valid_loss = super().train(train_data, train_label, valid_data, valid_label,
-                                                         batch_size, n_epoch, bool_early_stopping,
-                                                         es_patience, es_delta, bool_shuffle, bool_verbose)
+        vec_avg_loss, vec_avg_valid_loss = super().train(
+            train_data,
+            train_label,
+            valid_data,
+            valid_label,
+            batch_size,
+            n_epoch,
+            bool_early_stopping,
+            es_patience,
+            es_delta,
+            bool_shuffle,
+            bool_verbose,
+        )
 
         return vec_avg_loss, vec_avg_valid_loss
 
     def predict(self, data: npt.NDArray) -> npt.NDArray:
         # ensure that data is in the right format
         if data.ndim != 3:
-            raise ValueError('Has to be 3D data for RNN model')
+            raise ValueError("Has to be 3D data for RNN model")
 
         return super().predict(data)
