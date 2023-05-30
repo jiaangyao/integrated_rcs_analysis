@@ -1,6 +1,6 @@
 import pathlib
 
-from biomarker.run_scripts_id.biomarker_id import gen_config, BiomarkerIDTrainer
+from biomarker.training.biomarker_id import gen_config, BiomarkerIDTrainer
 
 
 if __name__ == "__main__":

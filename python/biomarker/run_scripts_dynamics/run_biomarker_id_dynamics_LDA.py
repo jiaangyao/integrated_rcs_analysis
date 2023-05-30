@@ -1,6 +1,6 @@
 import pathlib
 
-from biomarker.run_scripts_dynamics.biomarker_id_dynamics import (
+from biomarker.training.biomarker_id_dynamics import (
     gen_config_dyna,
     BiomarkerIDDynamicsTrainer,
 )
