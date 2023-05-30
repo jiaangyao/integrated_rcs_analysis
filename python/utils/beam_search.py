@@ -1,7 +1,12 @@
 import numpy as np
 
 
-def beam_search(vec_pb, vec_metric, min_len=2, beam_width=500):
+def beam_search(
+    vec_pb,
+    vec_metric,
+    min_len=2,
+    beam_width=500,
+):
     # empty variable to hold completed
     completed = []
 
@@ -37,6 +42,6 @@ def beam_search(vec_pb, vec_metric, min_len=2, beam_width=500):
 
         # now break if empty
         if len(beam) == 0:
-            raise ValueError('Beam search failed')
+            raise ValueError("Beam search failed")
 
     t1 = 1

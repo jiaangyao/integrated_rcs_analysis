@@ -3,7 +3,11 @@ from itertools import product
 import numpy as np
 
 
-def combine_labels(label1, label2, hashmap=None):
+def combine_labels(
+    label1,
+    label2,
+    hashmap=None,
+):
     """
     Combine two labels into one label, starting with 0
     :param label1: first label
@@ -27,7 +31,10 @@ def combine_labels(label1, label2, hashmap=None):
         return new_label, hashmap
 
 
-def create_hashmap(label1, label2):
+def create_hashmap(
+    label1,
+    label2,
+):
     # create the hashmap
     hashmap = dict()
 

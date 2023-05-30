@@ -8,9 +8,18 @@ import utils.torch_utils as ptu
 
 
 class NeuralDataset(Dataset):
-    def __init__(self, features: npt.NDArray | None, labels: npt.NDArray | None, transform=None, target_transform=None):
-        assert features is not None and labels is not None, 'Need to initialize with either features and labels'
-        
+    def __init__(
+        self,
+        features: npt.NDArray | None,
+        labels: npt.NDArray | None,
+        transform=None,
+        target_transform=None,
+    ):
+        # sanity check
+        assert (
+            features is not None and labels is not None
+        ), "Need to initialize with either features and labels"
+
         # obtain the features and labels
         self.features = ptu.from_numpy(features)
         self.labels = ptu.from_numpy(labels).long()

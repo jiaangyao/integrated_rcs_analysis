@@ -21,27 +21,42 @@ def get_model_params(str_model, n_input, n_class):
     train_params = dict[str, tp.Any]()
 
     # next test against the different model types to find proper parameters
-    if str_model == 'LDA':
+    if str_model == "LDA":
         model_params = {}
-    elif str_model == 'QDA':
-        model_params = {'tol': 1e-9}
-    elif str_model == 'SVM':
-        model_params = {'probability': True}
-    elif str_model == 'RF':
+    elif str_model == "QDA":
+        model_params = {"tol": 1e-9}
+    elif str_model == "SVM":
+        model_params = {"probability": True}
+    elif str_model == "RF":
         # model_params = {'max_depth': 3, 'n_estimators': 300}
-        model_params = {'n_estimators': 300}
-    elif str_model == 'MLP':
-        model_params = {'n_input': n_input, 'n_class': n_class, 'n_layer': 3,
-                        'dropout': 0.35, 'str_act': 'leaky_relu', 'lr': 5e-4, 'lam': 1e-5, 
-                        'hidden_size': 128}
-        train_params = {'n_epoch': 100, 'batch_size': 128, 'bool_verbose': False}
+        model_params = {"n_estimators": 300}
+    elif str_model == "MLP":
+        model_params = {
+            "n_input": n_input,
+            "n_class": n_class,
+            "n_layer": 3,
+            "dropout": 0.35,
+            "str_act": "leaky_relu",
+            "lr": 5e-4,
+            "lam": 1e-5,
+            "hidden_size": 128,
+        }
+        train_params = {"n_epoch": 100, "batch_size": 128, "bool_verbose": False}
         bool_torch = True
-    elif str_model == 'RNN':
-
-        model_params = {'n_input': n_input, 'n_class': n_class,
-                        'bool_cnn': False, 'cnn_act_func': 'identity', 'n_rnn_layer': 2, 'rnn_dim': 16,
-                        'rnn_dropout': 0.6, 'final_dropout': 0.4, 'lr': 5e-4, 'lam': 0}
-        train_params = {'n_epoch': 100, 'batch_size': 128, 'bool_verbose': False}
+    elif str_model == "RNN":
+        model_params = {
+            "n_input": n_input,
+            "n_class": n_class,
+            "bool_cnn": False,
+            "cnn_act_func": "identity",
+            "n_rnn_layer": 2,
+            "rnn_dim": 16,
+            "rnn_dropout": 0.6,
+            "final_dropout": 0.4,
+            "lr": 5e-4,
+            "lam": 0,
+        }
+        train_params = {"n_epoch": 100, "batch_size": 128, "bool_verbose": False}
         bool_torch = True
     else:
         model_params = {}

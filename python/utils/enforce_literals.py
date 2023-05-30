@@ -1,6 +1,7 @@
 from typing import Literal, get_args, get_origin
 from sys import _getframe
 
+
 def enforce_literals(function):
     """Enforces that arguments are in the specified Literal options
 
@@ -9,7 +10,7 @@ def enforce_literals(function):
 
     Raises:
         ValueError: raised if the argument is not in the Literal options
-    """    
+    """
     kwargs = _getframe(1).f_locals
     for name, type_ in function.__annotations__.items():
         value = kwargs.get(name)

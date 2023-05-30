@@ -11,15 +11,27 @@ from biomarker.training.correct_data_dim import correct_data_dim, get_valid_data
 from biomarker.training.model_training import train_model, test_if_torch_model
 from biomarker.training.correct_data_dim import correct_sfs_feature_dim
 from utils.combine_labels import create_hashmap
-from utils.combine_struct import combine_struct_by_field, create_output_struct, append_output_struct, arrayize_output_struct, comp_summary_output_struct
+from utils.combine_struct import (
+    combine_struct_by_field,
+    create_output_struct,
+    append_output_struct,
+    arrayize_output_struct,
+    comp_summary_output_struct,
+)
 
 from utils.beam_search import beam_search
 
 
-def kfold_cv_training(features_sub, y_class, y_stim, n_fold=10, str_model='LDA',
-                      bool_use_strat_kfold=True, 
-                      random_seed: int|None=0):
-    """The inner function for obtaining the initial cross-validated metric 
+def kfold_cv_training(
+    features_sub,
+    y_class,
+    y_stim,
+    n_fold=10,
+    str_model="LDA",
+    bool_use_strat_kfold=True,
+    random_seed: int | None = 0,
+):
+    """The inner function for obtaining the initial cross-validated metric
 
     Args:
         features_sub (_type_): _description_
@@ -66,16 +78,32 @@ def kfold_cv_training(features_sub, y_class, y_stim, n_fold=10, str_model='LDA',
         y_stim_test = y_stim[test_idx, ...]
 
         # organize the various features for training
-        vec_features, vec_y_class = get_valid_data(features_train, y_class_train, features_test, y_class_test,
-                                                   bool_torch, n_fold, bool_use_strat_kfold, random_seed)
+        vec_features, vec_y_class = get_valid_data(
+            features_train,
+            y_class_train,
+            features_test,
+            y_class_test,
+            bool_torch,
+            n_fold,
+            bool_use_strat_kfold,
+            random_seed,
+        )
 
         # now define and train the model
-        output_curr = train_model(vec_features, vec_y_class, y_stim_test,
-                                  n_class=n_class, str_model=str_model, hashmap=hashmap)
+        output_curr = train_model(
+            vec_features,
+            vec_y_class,
+            y_stim_test,
+            n_class=n_class,
+            str_model=str_model,
+            hashmap=hashmap,
+        )
 
         # append the variables to outer list
         if len(output.keys()) == 0:
-            output = append_output_struct(create_output_struct(output, output_curr), output_curr)
+            output = append_output_struct(
+                create_output_struct(output, output_curr), output_curr
+            )
         else:
             output = append_output_struct(output, output_curr)
 
@@ -88,7 +116,7 @@ def kfold_cv_training(features_sub, y_class, y_stim, n_fold=10, str_model='LDA',
     return output
 
 
-@ ray.remote
+@ray.remote
 def kfold_cv_training_ray(*args, **kwargs):
     """Ray wrapper for kfold_cv_training
 
@@ -103,4 +131,3 @@ def kfold_cv_training_ray(*args, **kwargs):
     output = kfold_cv_training(*args, **kwargs)
 
     return output
-

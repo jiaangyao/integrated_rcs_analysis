@@ -1,7 +1,12 @@
 import pandas as pd
 
 
-def parse_dt_w_tz(dt_str, dt_fmt='%Y-%m-%d %H:%M:%S', tz_str='America/Los_Angeles', to_pandas=True):
+def parse_dt_w_tz(
+    dt_str,
+    dt_fmt="%Y-%m-%d %H:%M:%S",
+    tz_str="America/Los_Angeles",
+    to_pandas=True,
+):
     """
     Parse a datetime string with a specified format and timezone
 
