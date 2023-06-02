@@ -32,29 +32,31 @@ def get_model_params(str_model, n_input, n_class):
         model_params = {"n_estimators": 300}
     elif str_model == "MLP":
         model_params = {
-            "n_input": n_input,
-            "n_class": n_class,
-            "n_layer": 3,
-            "dropout": 0.35,
-            "str_act": "leaky_relu",
-            "lr": 5e-4,
-            "lam": 1e-5,
-            "hidden_size": 128,
+            "args": [n_input, n_class],
+            "kwargs": {
+                "n_layer": 3,
+                "dropout": 0.35,
+                "str_act": "leaky_relu",
+                "lr": 5e-4,
+                "lam": 1e-5,
+                "hidden_size": 128,
+            },
         }
         train_params = {"n_epoch": 100, "batch_size": 128, "bool_verbose": False}
         bool_torch = True
     elif str_model == "RNN":
         model_params = {
-            "n_input": n_input,
-            "n_class": n_class,
-            "bool_cnn": False,
-            "cnn_act_func": "identity",
-            "n_rnn_layer": 2,
-            "rnn_dim": 16,
-            "rnn_dropout": 0.6,
-            "final_dropout": 0.4,
-            "lr": 5e-4,
-            "lam": 0,
+            "args": [n_input, n_class],
+            "kwargs": {
+                "bool_cnn": False,
+                "cnn_act_func": "identity",
+                "n_rnn_layer": 2,
+                "rnn_dim": 16,
+                "rnn_dropout": 0.6,
+                "final_dropout": 0.4,
+                "lr": 5e-4,
+                "lam": 0,
+            },
         }
         train_params = {"n_epoch": 100, "batch_size": 128, "bool_verbose": False}
         bool_torch = True

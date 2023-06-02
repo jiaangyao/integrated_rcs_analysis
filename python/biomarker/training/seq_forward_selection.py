@@ -7,7 +7,6 @@ import tqdm
 import numpy as np
 import numpy.typing as npt
 import scipy.stats as stats
-import scipy.signal as signal
 
 from biomarker.training.correct_data_dim import (
     correct_sfs_feature_dim,
@@ -28,6 +27,9 @@ def sfs_feature_sweep(
     n_fold: int,
     str_model: str,
     bool_use_strat_kfold: bool,
+    bool_use_gpu: bool,
+    n_cpu_per_process: int | float,
+    n_gpu_per_process: int | float,
     random_seed: int | None,
 ) -> list[dict]:
     """Set up SFS feature sweeping not using parallelization
@@ -38,6 +40,9 @@ def sfs_feature_sweep(
         n_fold (int): number of folds for cross validation
         str_model (str): name of the model to use, latest list in model_infrastructure and torch_model_infrastructure
         bool_use_strat_kfold (bool): whether to use stratified kfold as cross validation scheme
+        bool_use_gpu (bool): whether to use gpu for training
+        n_cpu_per_process (int | float): number of cpu per process, only used if using ray
+        n_gpu_per_process (int | float): number of gpu per process, only used if using ray
         random_seed (int | None): random seed for performing the cross validation, if None then no seed is used
 
     Returns:
@@ -57,8 +62,11 @@ def sfs_feature_sweep(
                 y_class,
                 y_stim,
                 n_fold=n_fold,
+                n_cpu_per_process=n_cpu_per_process,
+                n_gpu_per_process=n_gpu_per_process,
                 str_model=str_model,
                 bool_use_strat_kfold=bool_use_strat_kfold,
+                bool_use_gpu=bool_use_gpu,
                 random_seed=random_seed,
             )
         )
@@ -72,6 +80,9 @@ def sfs_feature_sweep_ray(
     n_fold: int,
     str_model: str,
     bool_use_strat_kfold: bool,
+    bool_use_gpu: bool,
+    n_cpu_per_process: int | float,
+    n_gpu_per_process: int | float,
     random_seed: int | None,
 ) -> list[dict]:
     """Set up SFS feature sweeping using Ray for parallelization
@@ -83,24 +94,56 @@ def sfs_feature_sweep_ray(
         n_fold (int): number of folds for cross validation
         str_model (str): name of the model to use, latest list in model_infrastructure and torch_model_infrastructure
         bool_use_strat_kfold (bool): whether to use stratified kfold as cross validation scheme
+        bool_use_gpu (bool): whether to use gpu for training
+        n_cpu_per_process (int | float): number of cpu per process
+        n_gpu_per_process (int | float): number of gpu per process
         random_seed (int | None): random seed for performing the cross validation, if None then no seed is used
 
     Returns:
         list[dict]: list of output dictionaries of same structure, each representing the output at a particular frequeney bin
-    """ """"""
+    """
 
-    feature_handle = [
-        kfold_cv_training_ray.remote(
-            features_sub, # type: ignore
-            y_class,
-            y_stim,  # type: ignore
-            n_fold=n_fold,
-            str_model=str_model,
-            bool_use_strat_kfold=bool_use_strat_kfold,
-            random_seed=random_seed,
-        )
-        for features_sub in vec_features_sub
-    ]
+    # ray handle for using gpu in training
+    if bool_use_gpu:
+        feature_handle = [
+            kfold_cv_training_ray.options(  # type: ignore
+                num_cpus=n_cpu_per_process,
+                num_gpus=n_gpu_per_process,
+            ).remote(
+                features_sub,  # type: ignore
+                y_class,
+                y_stim,  # type: ignore
+                n_fold=n_fold,
+                str_model=str_model,
+                bool_use_strat_kfold=bool_use_strat_kfold,
+                bool_use_gpu=bool_use_gpu,
+                n_cpu_per_process=n_cpu_per_process,
+                n_gpu_per_process=n_gpu_per_process,
+                random_seed=random_seed,
+            )
+            for features_sub in vec_features_sub
+        ]
+
+    # ray handle for not using gpu in training
+    else:
+        feature_handle = [
+            kfold_cv_training_ray.options(  # type: ignore
+                num_cpus=n_cpu_per_process,
+                num_gpus=0,
+            ).remote(
+                features_sub,  # type: ignore
+                y_class,
+                y_stim,  # type: ignore
+                n_fold=n_fold,
+                str_model=str_model,
+                bool_use_strat_kfold=bool_use_strat_kfold,
+                bool_use_gpu=bool_use_gpu,
+                n_cpu_per_process=n_cpu_per_process,
+                n_gpu_per_process=n_gpu_per_process,
+                random_seed=random_seed,
+            )
+            for features_sub in vec_features_sub
+        ]
     vec_output = ray.get(feature_handle)
 
     return vec_output
@@ -111,8 +154,11 @@ def sfs_pb_sweep(
     y_class,
     y_stim,
     n_fold,
+    n_cpu_per_process,
+    n_gpu_per_process,
     str_model,
     bool_use_strat_kfold,
+    bool_use_gpu,
     random_seed,
 ):
     vec_output_sfs = []
@@ -128,8 +174,11 @@ def sfs_pb_sweep(
                 y_class,
                 y_stim,
                 n_fold=n_fold,
+                n_cpu_per_process=n_cpu_per_process,
+                n_gpu_per_process=n_gpu_per_process,
                 str_model=str_model,
                 bool_use_strat_kfold=bool_use_strat_kfold,
+                bool_use_gpu=bool_use_gpu,
                 random_seed=random_seed,
             )
         )
@@ -142,22 +191,51 @@ def sfs_pb_sweep_ray(
     y_class,
     y_stim,
     n_fold,
+    n_cpu_per_process,
+    n_gpu_per_process,
     str_model,
     bool_use_strat_kfold,
+    bool_use_gpu,
     random_seed,
 ):
-    pb_handle = [
-        kfold_cv_training_ray.remote(
-            vec_features_pb_sub[i], # type: ignore
-            y_class,
-            y_stim,
-            n_fold=n_fold,
-            str_model=str_model,
-            bool_use_strat_kfold=bool_use_strat_kfold,
-            random_seed=random_seed,
-        )
-        for i in range(len(vec_features_pb_sub))
-    ]
+    if bool_use_gpu:
+        pb_handle = [
+            kfold_cv_training_ray.options( # type: ignore
+                num_cpus=n_cpu_per_process,
+                num_gpus=n_gpu_per_process,
+            ).remote(
+                vec_features_pb_sub[i],  # type: ignore
+                y_class,
+                y_stim,
+                n_fold=n_fold,
+                n_cpu_per_process=n_cpu_per_process,
+                n_gpu_per_process=n_gpu_per_process,
+                str_model=str_model,
+                bool_use_strat_kfold=bool_use_strat_kfold,
+                bool_use_gpu=bool_use_gpu,
+                random_seed=random_seed,
+            )
+            for i in range(len(vec_features_pb_sub))
+        ]
+    else:
+        pb_handle = [
+            kfold_cv_training_ray.options( # type: ignore
+                num_cpus=n_cpu_per_process,
+                num_gpus=0,
+            ).remote(
+                vec_features_pb_sub[i],  # type: ignore
+                y_class,
+                y_stim,
+                n_fold=n_fold,
+                n_cpu_per_process=n_cpu_per_process,
+                n_gpu_per_process=n_gpu_per_process,
+                str_model=str_model,
+                bool_use_strat_kfold=bool_use_strat_kfold,
+                bool_use_gpu=bool_use_gpu,
+                random_seed=random_seed,
+            )
+            for i in range(len(vec_features_pb_sub))
+        ]
     vec_output_sfs = ray.get(pb_handle)
 
     return vec_output_sfs
@@ -179,6 +257,9 @@ def seq_forward_selection(
     str_metric="avg_auc",
     bool_force_sfs_acc=False,
     bool_use_ray=True,
+    bool_use_gpu: bool = False,
+    n_cpu: int = 32,
+    n_gpu_per_process: float = 0.1,
     bool_use_strat_kfold=True,
     random_seed: int | None = None,
 ):
@@ -221,7 +302,6 @@ def seq_forward_selection(
         desc="ITER",
         bar_format="{desc:<2.5}{percentage:3.0f}%|{bar:15}{r_bar}",
     ):
-
         # loop through the features
         # first form the features vector
         str_model_cv = "LDA" if str_model == "QDA" and n_iter == 1 else str_model
@@ -229,9 +309,12 @@ def seq_forward_selection(
             correct_sfs_feature_dim(features, idx_feature, idx_used, n_iter)
             for idx_feature in range(features.shape[1])
         ]
-        
+
         # run parallelized version of feature sweep
         if bool_use_ray:
+            n_cpu_per_process = np.ceil(
+                n_cpu / np.ceil(1 / n_gpu_per_process)) if bool_use_gpu else 1
+            
             vec_output = sfs_feature_sweep_ray(
                 vec_features_sub,
                 y_class,
@@ -239,6 +322,9 @@ def seq_forward_selection(
                 n_fold=n_fold,
                 str_model=str_model_cv,
                 bool_use_strat_kfold=bool_use_strat_kfold,
+                bool_use_gpu=bool_use_gpu,
+                n_cpu_per_process=n_cpu_per_process,
+                n_gpu_per_process=n_gpu_per_process,
                 random_seed=random_seed,
             )
 
@@ -251,6 +337,9 @@ def seq_forward_selection(
                 n_fold=n_fold,
                 str_model=str_model_cv,
                 bool_use_strat_kfold=bool_use_strat_kfold,
+                bool_use_gpu=bool_use_gpu,
+                n_cpu_per_process=1,
+                n_gpu_per_process=n_gpu_per_process,
                 random_seed=random_seed,
             )
         # obtain the initial AUC from first pass
@@ -295,6 +384,9 @@ def seq_forward_selection(
                 n_fold=n_fold,
                 str_model=str_model_sfs,
                 bool_use_strat_kfold=bool_use_strat_kfold,
+                bool_use_gpu=bool_use_gpu,
+                n_cpu_per_process=1,
+                n_gpu_per_process=n_gpu_per_process,
                 random_seed=random_seed,
             )
 
@@ -307,6 +399,9 @@ def seq_forward_selection(
                 n_fold=n_fold,
                 str_model=str_model_sfs,
                 bool_use_strat_kfold=bool_use_strat_kfold,
+                bool_use_gpu=bool_use_gpu,
+                n_cpu_per_process=1,
+                n_gpu_per_process=n_gpu_per_process,
                 random_seed=random_seed,
             )
 

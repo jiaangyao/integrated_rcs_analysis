@@ -19,7 +19,7 @@ class NeuralDataset(Dataset):
         assert (
             features is not None and labels is not None
         ), "Need to initialize with either features and labels"
-
+                
         # obtain the features and labels
         self.features = ptu.from_numpy(features)
         self.labels = ptu.from_numpy(labels).long()

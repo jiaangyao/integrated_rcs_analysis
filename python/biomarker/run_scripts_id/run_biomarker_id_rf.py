@@ -25,11 +25,14 @@ if __name__ == "__main__":
         label_type="med",
         str_model="RF",
         str_metric="avg_auc",
+        interval=0.05,
+        update_rate=30,
         n_rep=5,
         bool_debug=False,
         bool_use_ray=True,
         bool_use_gpu=False,
         bool_force_sfs_acc=False,
+        bool_use_strat_kfold=True,
         random_seed=None,
     )
 

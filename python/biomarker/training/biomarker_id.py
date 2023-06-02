@@ -1,4 +1,5 @@
 from __future__ import print_function
+import os
 import pathlib
 import pickle
 import typing as tp
@@ -11,7 +12,7 @@ import pandas as pd
 from biomarker.training.prepare_data import prepare_data
 from biomarker.training.seq_forward_selection import seq_forward_selection
 from utils.parse_datetime import parse_dt_w_tz
-
+import utils.torch_utils as ptu
 
 _VEC_STR_SUBJECT = tp.Literal["RCS02"]
 _VEC_STR_SIDE = tp.Literal["L", "R"]
@@ -35,6 +36,9 @@ def gen_config(
     freq_low_lim: int = 2,
     freq_high_lim: int = 100,
     n_rep: int = 5,
+    n_cpu: int = 32,
+    n_gpu: int = 1,
+    n_gpu_per_process: float = 0.1,
     bool_debug: bool = False,
     bool_use_ray: bool = True,
     bool_use_gpu: bool = False,
@@ -58,6 +62,9 @@ def gen_config(
         freq_low_lim (int, optional): Lower frequency limit for the SFS search. Defaults to 2Hz.
         freq_high_lim (int, optional): Upper frequency limit for the SFS search. Defaults to 100Hz.
         n_rep (int, optional): Number of repetitions. Defaults to 5.
+        n_cpu (int, optional): Number of CPUs available for allocation. Defaults to 32.
+        n_gpu (int, optional): Number of GPUs available for allocation. Defaults to 1.
+        n_gpu_per_process (float, optional): Number of GPUs per process. Defaults to 0.1.
         bool_debug (bool, optional): Boolean flag for debug mode. Defaults to False.
         bool_use_ray (bool, optional): Boolean flag for using ray to parallelize the code. Defaults to True.
         bool_force_sfs_acc (bool, optional): Boolean flag for forcing to use acc as metric. Defaults to False.
@@ -97,6 +104,9 @@ def gen_config(
 
     # unpack the SFS training related flags
     cfg["n_rep"] = n_rep
+    cfg["n_cpu"] = n_cpu
+    cfg["n_gpu"] = n_gpu
+    cfg["n_gpu_per_process"] = n_gpu_per_process
     cfg["bool_debug"] = bool_debug
     cfg["bool_use_ray"] = bool_use_ray
     cfg["bool_use_gpu"] = bool_use_gpu
@@ -148,6 +158,9 @@ class BiomarkerIDTrainer:
 
         # unpack the SFS training related flags
         n_rep = cfg["n_rep"]
+        n_cpu = cfg["n_cpu"]
+        n_gpu = cfg["n_gpu"]
+        n_gpu_per_process = cfg["n_gpu_per_process"]
         bool_debug = cfg["bool_debug"]
         bool_use_ray = cfg["bool_use_ray"]
         bool_use_gpu = cfg["bool_use_gpu"]
@@ -173,14 +186,25 @@ class BiomarkerIDTrainer:
         )
 
         # initialize ray
-        # ray.init(ignore_reinit_error=True, logging_level=40, include_dashboard=True)
         if bool_use_ray:
             if not bool_use_gpu:
-                context = ray.init(log_to_driver=False)
-                print(context.dashboard_url)  # type: ignore
+                context = ray.init(
+                    log_to_driver=False,
+                    num_cpus=n_cpu,
+                    include_dashboard=True,
+                )
+                # ray.init(ignore_reinit_error=True, logging_level=40, include_dashboard=True)
+
             else:
-                raise NotImplementedError("GPU support not yet implemented")
-                ray.init(log_to_driver=False, num_gpus=1)
+                # initailize ray with GPU
+                ptu.init_gpu(use_gpu=True, bool_use_best_gpu=True)
+                os.environ["CUDA_VISIBLE_DEVICES"] = str(ptu.device.index)
+                context = ray.init(
+                    log_to_driver=True,
+                    num_cpus=n_cpu,
+                    num_gpus=n_gpu,
+                    include_dashboard=True,
+                )
 
         # initialize the output variable
         output_label = dict()
@@ -215,6 +239,8 @@ class BiomarkerIDTrainer:
                 str_model=str_model,
                 bool_force_sfs_acc=bool_force_sfs_acc,
                 bool_use_ray=bool_use_ray,
+                bool_use_gpu=bool_use_gpu,
+                n_gpu_per_process=n_gpu_per_process,
                 bool_use_strat_kfold=bool_use_strat_kfold,
                 random_seed=random_seed,
             )

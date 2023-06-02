@@ -32,12 +32,12 @@ if __name__ == "__main__":
         update_rate=30,
         n_rep=5,
         n_dyna_start=1,
-        n_dyna_end=7,
+        n_dyna_end=5,
         bool_debug=False,
         bool_use_ray=True,
         bool_use_gpu=False,
         bool_force_sfs_acc=False,
-        bool_use_strat_kfold=False,
+        bool_use_strat_kfold=True,
         random_seed=None,
     )
 

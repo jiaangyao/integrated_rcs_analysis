@@ -26,9 +26,12 @@ if __name__ == "__main__":
         str_model="RNN",
         str_metric="avg_auc",
         n_rep=5,
+        n_cpu=32,
+        n_gpu=1,
+        n_gpu_per_process=0.1,
         bool_debug=False,
         bool_use_ray=True,
-        bool_use_gpu=False,
+        bool_use_gpu=True,
         bool_force_sfs_acc=False,
         random_seed=None,
     )

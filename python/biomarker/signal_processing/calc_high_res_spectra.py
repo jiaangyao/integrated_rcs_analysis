@@ -68,13 +68,13 @@ def calc_high_res_spectra(
             True if x.shape[0] < NFFT * T else False for x in vec_sig_chunk_label_full
         ]
         vec_sig_chunk_label_full = [
-            x for x, y in zip(vec_sig_chunk_label_full, bool_too_short) if not y
+            x for x, y in zip(vec_sig_chunk_label_full, bool_too_short) if not y # type: ignore
         ]
         vec_time_chunk_label_full = [
-            x for x, y in zip(vec_time_chunk_label_full, bool_too_short) if not y
+            x for x, y in zip(vec_time_chunk_label_full, bool_too_short) if not y # type: ignore
         ]
         vec_stim_chunk_label_full = [
-            x for x, y in zip(vec_stim_chunk_label_full, bool_too_short) if not y
+            x for x, y in zip(vec_stim_chunk_label_full, bool_too_short) if not y # type: ignore
         ]
 
         # now loop through the stim level
@@ -88,10 +88,10 @@ def calc_high_res_spectra(
                 for x in vec_stim_chunk_label_full
             ]
             sigs_curr = [
-                x for x, y in zip(vec_sig_chunk_label_full, bool_stim_match) if y
+                x for x, y in zip(vec_sig_chunk_label_full, bool_stim_match) if y # type: ignore
             ]
             times_curr = [
-                x for x, y in zip(vec_time_chunk_label_full, bool_stim_match) if y
+                x for x, y in zip(vec_time_chunk_label_full, bool_stim_match) if y # type: ignore
             ]
 
             # now try to extract the frequency features
@@ -108,7 +108,7 @@ def calc_high_res_spectra(
                 assert lab_cell_stim is not None, "Should be initialized"
                 lab_cell_stim = (
                     None
-                    if not all(x == y for x, y in zip(lab_cell_stim, lab_cell_curr))
+                    if not all(x == y for x, y in zip(lab_cell_stim, lab_cell_curr)) # type: ignore
                     else lab_cell_curr
                 )
 
@@ -139,7 +139,7 @@ def calc_high_res_spectra(
             assert lab_cell_stim is not None, "Should be initialized"
             labels_cell_full = (
                 None
-                if not all(x == y for x, y in zip(labels_cell_full, lab_cell_stim))
+                if not all(x == y for x, y in zip(labels_cell_full, lab_cell_stim)) # type: ignore
                 else lab_cell_stim
             )
         vec_times_full.append(vec_times_stim)

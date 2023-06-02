@@ -55,7 +55,7 @@ def extract_freq_features(sig, fs, T, chLab, NFFT, interval):
             assert lab_cells_out is not None, "Should be initialized"
             lab_cells_out = (
                 None
-                if not all(x == y for x, y in zip(lab_cells, lab_cells_out))
+                if not all(x == y for x, y in zip(lab_cells, lab_cells_out)) # type: ignore
                 else lab_cells_out
             )
 

@@ -9,7 +9,7 @@ end
 
 
 % obtain the full accuracy
-p_output = '/home/jyao/Downloads/biomarker_id/model_id/R';
+p_output = '/home/jyao/Downloads/biomarker_id/model_id';
 f_output = 'RCS02_R_med_level_stats.mat';
 
 acc = [];

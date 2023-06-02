@@ -14,27 +14,27 @@ if __name__ == "__main__":
     stim_level["L"] = [1.7, 2.5]
     stim_level["R"] = [3, 3.4]
 
-    # # generate the config (UR=1.5s)
-    # cfg = gen_config(
-    #     p_data,
-    #     f_data_R,
-    #     p_output,
-    #     str_subject="RCS02",
-    #     str_side="R",
-    #     stim_level=stim_level,
-    #     label_type="med",
-    #     str_model="LDA",
-    #     str_metric="avg_auc",
-    #     interval=0.05,
-    #     update_rate=30,
-    #     n_rep=5,
-    #     bool_debug=False,
-    #     bool_use_ray=True,
-    #     bool_use_gpu=False,
-    #     bool_force_sfs_acc=False,
-    #     bool_use_strat_kfold=False,
-    #     random_seed=None,
-    # )
+    # generate the config (UR=1.5s)
+    cfg = gen_config(
+        p_data,
+        f_data_R,
+        p_output,
+        str_subject="RCS02",
+        str_side="R",
+        stim_level=stim_level,
+        label_type="med",
+        str_model="LDA",
+        str_metric="avg_auc",
+        interval=0.05,
+        update_rate=30,
+        n_rep=5,
+        bool_debug=False,
+        bool_use_ray=True,
+        bool_use_gpu=False,
+        bool_force_sfs_acc=False,
+        bool_use_strat_kfold=True,
+        random_seed=None,
+    )
 
     # # generate the config (UR=3s)
     # cfg = gen_config(
@@ -55,7 +55,7 @@ if __name__ == "__main__":
     #     bool_use_ray=True,
     #     bool_use_gpu=False,
     #     bool_force_sfs_acc=False,
-    #     bool_use_strat_kfold=False,
+    #     bool_use_strat_kfold=True,
     #     random_seed=None,
     # )
 
@@ -78,11 +78,11 @@ if __name__ == "__main__":
     #     bool_use_ray=True,
     #     bool_use_gpu=False,
     #     bool_force_sfs_acc=False,
-    #     bool_use_strat_kfold=False,
+    #     bool_use_strat_kfold=True,
     #     random_seed=None,
     # )
 
-    # generate the config (UR=6s)
+    # # generate the config (UR=6s)
     # cfg = gen_config(
     #     p_data,
     #     f_data_R,
@@ -101,7 +101,7 @@ if __name__ == "__main__":
     #     bool_use_ray=True,
     #     bool_use_gpu=False,
     #     bool_force_sfs_acc=False,
-    #     bool_use_strat_kfold=False,
+    #     bool_use_strat_kfold=True,
     #     random_seed=None,
     # )
 
@@ -124,32 +124,32 @@ if __name__ == "__main__":
     #     bool_use_ray=True,
     #     bool_use_gpu=False,
     #     bool_force_sfs_acc=False,
-    #     bool_use_strat_kfold=False,
+    #     bool_use_strat_kfold=True,
     #     random_seed=None,
     # )
 
-    # generate the config (UR=9s)
-    cfg = gen_config(
-        p_data,
-        f_data_R,
-        p_output,
-        f_output_opt="_UR180",
-        str_subject="RCS02",
-        str_side="R",
-        stim_level=stim_level,
-        label_type="med",
-        str_model="LDA",
-        str_metric="avg_auc",
-        interval=0.05,
-        update_rate=180,
-        n_rep=5,
-        bool_debug=False,
-        bool_use_ray=True,
-        bool_use_gpu=False,
-        bool_force_sfs_acc=False,
-        bool_use_strat_kfold=False,
-        random_seed=None,
-    )
+    # # generate the config (UR=9s)
+    # cfg = gen_config(
+    #     p_data,
+    #     f_data_R,
+    #     p_output,
+    #     f_output_opt="_UR180",
+    #     str_subject="RCS02",
+    #     str_side="R",
+    #     stim_level=stim_level,
+    #     label_type="med",
+    #     str_model="LDA",
+    #     str_metric="avg_auc",
+    #     interval=0.05,
+    #     update_rate=180,
+    #     n_rep=5,
+    #     bool_debug=False,
+    #     bool_use_ray=True,
+    #     bool_use_gpu=False,
+    #     bool_force_sfs_acc=False,
+    #     bool_use_strat_kfold=True,
+    #     random_seed=None,
+    # )
 
     # initialize training
     trainer = BiomarkerIDTrainer(cfg)

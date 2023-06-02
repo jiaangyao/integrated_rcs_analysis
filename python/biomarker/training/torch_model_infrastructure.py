@@ -28,19 +28,50 @@ def get_dynamics_model() -> list:
 def get_model_ray(
     str_model,
     model_params: dict | MappingProxyType = MappingProxyType(dict()),
-    gpu_per_model=1,
+    bool_use_ray: bool = False,
+    bool_use_gpu: bool = False,
+    n_cpu_per_process: int | float = 1,
+    n_gpu_per_process: int | float = 0,
 ):
     # use GPU hard limit to compute parallelizable model
-    n_models = np.floor(1 / gpu_per_model)
+    n_models = np.floor(1 / n_gpu_per_process)
 
     if str_model == "MLP":
         # TODO: look into args and kwargs
-        model = MLPModelWrapper(**model_params)  # type: ignore
-        # model = [MLPModelWrapper.remote(**model_params) for _ in range(n_models)]
+        if bool_use_ray and bool_use_gpu:
+            # initalize the GPU model with correct number of CPUs and GPUs
+            GPUModel = MLPModelWrapperRay.options(
+                num_cpus=n_cpu_per_process,
+                num_gpus=n_gpu_per_process,
+            )
 
-        # model = MLPModelWrapper.remote(**model_params)
+            # initialize the model
+            model = GPUModel.remote(
+                *model_params["args"],
+                **model_params["kwargs"],
+                bool_use_gpu=True,
+            )
+        else:
+            # initialize the CPU model
+            model = MLPModelWrapper(
+                *model_params["args"],
+                **model_params["kwargs"],
+                bool_use_gpu=bool_use_gpu,
+            )
+
     elif str_model == "RNN":
-        model = RNNModelWrapper(**model_params)  # type: ignore
+        if bool_use_ray and bool_use_gpu:
+            # initalize the GPU model with correct number of CPUs and GPUs
+            GPUModel = RNNModelWrapperRay.options(
+                num_cpus=n_cpu_per_process,
+                num_gpus=n_gpu_per_process,
+            )
+
+            # initialize the model
+            model = GPUModel.remote(*model_params["args"], **model_params["kwargs"])
+        else:
+            # initialize the CPU model
+            model = RNNModelWrapper(*model_params["args"], **model_params["kwargs"])
 
     else:
         raise NotImplementedError
@@ -60,6 +91,7 @@ class PyTorchModelWrapper(BaseModel):
         lr,
         transform,
         target_transform,
+        bool_use_gpu=False,
     ):
         super().__init__()
 
@@ -84,6 +116,9 @@ class PyTorchModelWrapper(BaseModel):
         self.transform = transform
         self.target_transform = target_transform
 
+        # initialize GPU utilization flag
+        self.bopol_use_gpu = bool_use_gpu
+
     def train(
         self,
         train_data,
@@ -98,6 +133,11 @@ class PyTorchModelWrapper(BaseModel):
         bool_shuffle=True,
         bool_verbose=True,
     ):
+        # double check device selection
+        if self.bool_use_gpu:
+            assert torch.cuda.is_available(), "Make sure you have a GPU available"
+            assert torch.cuda.current_device() == 0, "Make sure you are using GPU 0"
+
         # initialize dataset and dataloader for training set
         train_dataset = NeuralDataset(
             train_data,
@@ -448,7 +488,7 @@ class MLPModelWrapper(PyTorchModelWrapper):
         n_class,
         n_layer=3,
         hidden_size=32,
-        dropout=0.5,
+        dropout: float = 0.5,
         lam=1e-5,
         str_act="relu",
         str_reg="L2",
@@ -457,6 +497,7 @@ class MLPModelWrapper(PyTorchModelWrapper):
         lr=1e-4,
         transform=None,
         target_transform=None,
+        bool_use_gpu=False,
     ):
         # initialize the base model
         super().__init__(
@@ -469,6 +510,7 @@ class MLPModelWrapper(PyTorchModelWrapper):
             lr,
             transform,
             target_transform,
+            bool_use_gpu=bool_use_gpu,
         )
 
         # initialize fields for MLP params
@@ -484,6 +526,7 @@ class MLPModelWrapper(PyTorchModelWrapper):
         self.lr = lr
         self.transform = transform
         self.target_transform = target_transform
+        self.bool_use_gpu = bool_use_gpu
 
         # initialize the model
         self.model = TorchMLPModel(
@@ -501,8 +544,8 @@ class MLPModelWrapper(PyTorchModelWrapper):
         self,
         train_data,
         train_label,
-        valid_data: tp.Optional[npt.NDArray] = None,
-        valid_label: tp.Optional[npt.NDArray] = None,
+        valid_data: npt.NDArray | None = None,
+        valid_label: npt.NDArray | None = None,
         batch_size: int = 32,
         n_epoch: int = 100,
         bool_early_stopping: bool = True,
@@ -539,6 +582,12 @@ class MLPModelWrapper(PyTorchModelWrapper):
         return super().predict(data)
 
 
+@ray.remote(num_cpus=1, num_gpus=0.2)
+class MLPModelWrapperRay(MLPModelWrapper):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
 class RNNModelWrapper(PyTorchModelWrapper):
     def __init__(
         self,
@@ -563,6 +612,7 @@ class RNNModelWrapper(PyTorchModelWrapper):
         lr=1e-4,
         transform=None,
         target_transform=None,
+        bool_use_gpu=False,
     ):
         # initialize the base model
         super().__init__(
@@ -575,6 +625,7 @@ class RNNModelWrapper(PyTorchModelWrapper):
             lr,
             transform,
             target_transform,
+            bool_use_gpu=bool_use_gpu,
         )
 
         # initialize fields for RNN params
@@ -598,6 +649,7 @@ class RNNModelWrapper(PyTorchModelWrapper):
         self.lr = lr
         self.transform = transform
         self.target_transform = target_transform
+        self.bool_use_gpu = bool_use_gpu
 
         # initialize the model
         self.model = TorchRNNModel(
@@ -660,3 +712,9 @@ class RNNModelWrapper(PyTorchModelWrapper):
             raise ValueError("Has to be 3D data for RNN model")
 
         return super().predict(data)
+
+
+@ray.remote(num_cpus=1, num_gpus=0.2)
+class RNNModelWrapperRay(RNNModelWrapper):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)

@@ -27,27 +27,14 @@ def kfold_cv_training(
     y_class,
     y_stim,
     n_fold=10,
+    n_cpu_per_process: int | float = 1,
+    n_gpu_per_process: int | float = 0,
     str_model="LDA",
     bool_use_strat_kfold=True,
+    bool_use_ray=False,
+    bool_use_gpu=False,
     random_seed: int | None = 0,
 ):
-    """The inner function for obtaining the initial cross-validated metric
-
-    Args:
-        features_sub (_type_): _description_
-        y_class (_type_): _description_
-        y_stim (_type_): _description_
-        n_class (int, optional): _description_. Defaults to 4.
-        n_fold (int, optional): _description_. Defaults to 10.
-        str_model (str, optional): _description_. Defaults to 'LDA'.
-        bool_use_ray (bool, optional): _description_. Defaults to True.
-        bool_use_strat_kfold (bool, optional): _description_. Defaults to True.
-        random_seed (int, optional): _description_. Defaults to 0.
-
-    Returns:
-        _type_: _description_
-    """
-
     # create the training and test sets
     if bool_use_strat_kfold:
         skf = StratifiedKFold(n_splits=n_fold, shuffle=True, random_state=random_seed)
@@ -97,6 +84,10 @@ def kfold_cv_training(
             n_class=n_class,
             str_model=str_model,
             hashmap=hashmap,
+            bool_use_ray=bool_use_ray,
+            bool_use_gpu=bool_use_gpu,
+            n_cpu_per_process=n_cpu_per_process,
+            n_gpu_per_process=n_gpu_per_process,
         )
 
         # append the variables to outer list
@@ -116,7 +107,7 @@ def kfold_cv_training(
     return output
 
 
-@ray.remote
+@ray.remote(num_cpus=1, num_gpus=0)
 def kfold_cv_training_ray(*args, **kwargs):
     """Ray wrapper for kfold_cv_training
 
@@ -128,6 +119,6 @@ def kfold_cv_training_ray(*args, **kwargs):
         dict: output of kfold_cv_training
     """
 
-    output = kfold_cv_training(*args, **kwargs)
+    output = kfold_cv_training(*args, **kwargs, bool_use_ray=True)
 
     return output
