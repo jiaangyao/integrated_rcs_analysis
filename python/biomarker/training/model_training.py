@@ -9,7 +9,6 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
-import utils.torch_utils as ptu
 from biomarker.training.model_infrastructure import get_model, BaseModel
 from biomarker.training.torch_model_infrastructure import get_model_ray
 from biomarker.training.get_model_params import get_model_params
@@ -52,10 +51,6 @@ def train_model(
         y_class_train, y_class_valid, y_class_test = vec_y_class
 
         # now start the model training
-        # initialize GPU if not using ray since not initialized elsewhere
-        if not bool_use_ray and bool_use_gpu:
-            ptu.init_gpu(bool_use_gpu, bool_use_best_gpu=True)
-
         model = get_model_ray(
             str_model,
             model_params,
@@ -67,7 +62,15 @@ def train_model(
 
         # train the model
         if bool_use_ray and bool_use_gpu:
-            model.train.remote(
+            # model.train.remote(
+            #     features_train,
+            #     y_class_train,
+            #     valid_data=features_valid,
+            #     valid_label=y_class_valid,
+            #     **train_params
+            # )
+            
+            model.train(
                 features_train,
                 y_class_train,
                 valid_data=features_valid,
@@ -85,21 +88,25 @@ def train_model(
 
         # next generate the predictions
         if bool_use_ray and bool_use_gpu:
-            y_class_pred = model.predict.remote(features_test)
+            # y_class_pred = model.predict.remote(features_test)
+            y_class_pred = model.predict(features_test)
+            
         else:
             y_class_pred = model.predict(features_test)
-        if np.ndim(y_class_pred) > 1:
-            y_class_pred = np.argmax(y_class_pred, axis=1)
         
         # estimate the ROC curve
         if bool_use_ray and bool_use_gpu:
-            y_class_pred_scores = model.predict_proba.remote(features_test)
+            # y_class_pred_scores = model.predict_proba.remote(features_test)
+            y_class_pred_scores = model.predict_proba(features_test)
         else:
             y_class_pred_scores = model.predict_proba(features_test)
         
-        # obtain the object from ray remote if using gpu
-        if bool_use_ray and bool_use_gpu:
-            [y_class_pred, y_class_pred_scores] = ray.get([y_class_pred, y_class_pred_scores])
+        # # obtain the object from ray remote if using gpu
+        # if bool_use_ray and bool_use_gpu:
+        #     [y_class_pred, y_class_pred_scores] = ray.get([y_class_pred, y_class_pred_scores])
+            
+        if np.ndim(y_class_pred) > 1:
+            y_class_pred = np.argmax(y_class_pred, axis=1)
             
     else:
         # warn if using GPU for sklearn

@@ -188,6 +188,7 @@ class BiomarkerIDTrainer:
         # initialize ray
         if bool_use_ray:
             if not bool_use_gpu:
+                os.environ["RAY_DEDUP_LOGS"] = "0"
                 context = ray.init(
                     log_to_driver=False,
                     num_cpus=n_cpu,
@@ -197,13 +198,14 @@ class BiomarkerIDTrainer:
 
             else:
                 # initailize ray with GPU
-                ptu.init_gpu(use_gpu=True, bool_use_best_gpu=True)
-                os.environ["CUDA_VISIBLE_DEVICES"] = str(ptu.device.index)
+                # ptu.init_gpu(use_gpu=True, bool_use_best_gpu=True)
+                # os.environ["CUDA_VISIBLE_DEVICES"] = str(ptu.device.index)
+                os.environ["RAY_DEDUP_LOGS"] = "0"
                 context = ray.init(
-                    log_to_driver=True,
+                    log_to_driver=False,
                     num_cpus=n_cpu,
                     num_gpus=n_gpu,
-                    include_dashboard=True,
+                    include_dashboard=True
                 )
 
         # initialize the output variable

@@ -107,7 +107,7 @@ def kfold_cv_training(
     return output
 
 
-@ray.remote(num_cpus=1, num_gpus=0)
+@ray.remote(num_cpus=1, num_gpus=0, max_calls=1)
 def kfold_cv_training_ray(*args, **kwargs):
     """Ray wrapper for kfold_cv_training
 

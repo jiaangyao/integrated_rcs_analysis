@@ -21,6 +21,15 @@ from biomarker.training.torch_dataset import NeuralDataset, NeuralDatasetTest
 _VEC_MODEL_DYNAMICS_ONLY = ["RNN"]
 
 
+# TODO: remove this
+def force_cudnn_initialization():
+    s = 32
+    dev = torch.device("cuda")
+    torch.nn.functional.conv2d(
+        torch.zeros(s, s, s, s, device=dev), torch.zeros(s, s, s, s, device=dev)
+    )
+
+
 def get_dynamics_model() -> list:
     return _VEC_MODEL_DYNAMICS_ONLY
 
@@ -50,6 +59,7 @@ def get_model_ray(
                 *model_params["args"],
                 **model_params["kwargs"],
                 bool_use_gpu=True,
+                n_gpu_per_process=n_gpu_per_process,
             )
         else:
             # initialize the CPU model
@@ -61,17 +71,32 @@ def get_model_ray(
 
     elif str_model == "RNN":
         if bool_use_ray and bool_use_gpu:
-            # initalize the GPU model with correct number of CPUs and GPUs
-            GPUModel = RNNModelWrapperRay.options(
-                num_cpus=n_cpu_per_process,
-                num_gpus=n_gpu_per_process,
-            )
+            # # initalize the GPU model with correct number of CPUs and GPUs
+            # GPUModel = RNNModelWrapperRay.options(
+            #     num_cpus=n_cpu_per_process,
+            #     num_gpus=n_gpu_per_process,
+            # )
 
-            # initialize the model
-            model = GPUModel.remote(*model_params["args"], **model_params["kwargs"])
+            # # initialize the model
+            # model = GPUModel.remote(
+            #     *model_params["args"],
+            #     **model_params["kwargs"],
+            #     bool_use_gpu=True,
+            # )
+
+            model = RNNModelWrapper(
+                *model_params["args"],
+                **model_params["kwargs"],
+                bool_use_gpu=True,
+                n_gpu_per_process=n_gpu_per_process,
+            )
         else:
             # initialize the CPU model
-            model = RNNModelWrapper(*model_params["args"], **model_params["kwargs"])
+            model = RNNModelWrapper(
+                *model_params["args"],
+                **model_params["kwargs"],
+                bool_use_gpu=True,
+            )
 
     else:
         raise NotImplementedError
@@ -92,6 +117,7 @@ class PyTorchModelWrapper(BaseModel):
         transform,
         target_transform,
         bool_use_gpu=False,
+        n_gpu_per_process=0,
     ):
         super().__init__()
 
@@ -117,7 +143,16 @@ class PyTorchModelWrapper(BaseModel):
         self.target_transform = target_transform
 
         # initialize GPU utilization flag
-        self.bopol_use_gpu = bool_use_gpu
+        self.bool_use_gpu = bool_use_gpu
+
+        # initialize GPU
+        print(n_gpu_per_process)
+        ptu.init_gpu(
+            use_gpu=bool_use_gpu,
+            bool_use_best_gpu=True,
+            bool_limit_gpu_mem=True,
+            gpu_memory_fraction=n_gpu_per_process,
+        )
 
     def train(
         self,
@@ -135,8 +170,13 @@ class PyTorchModelWrapper(BaseModel):
     ):
         # double check device selection
         if self.bool_use_gpu:
+            force_cudnn_initialization()
             assert torch.cuda.is_available(), "Make sure you have a GPU available"
-            assert torch.cuda.current_device() == 0, "Make sure you are using GPU 0"
+            assert ptu.device.type == "cuda", "Make sure you are using GPU"
+
+            assert (
+                torch.cuda.current_device() == ptu.device.index
+            ), "Make sure you are using specified GPU"
 
         # initialize dataset and dataloader for training set
         train_dataset = NeuralDataset(
@@ -498,6 +538,7 @@ class MLPModelWrapper(PyTorchModelWrapper):
         transform=None,
         target_transform=None,
         bool_use_gpu=False,
+        n_gpu_per_process=0,
     ):
         # initialize the base model
         super().__init__(
@@ -511,6 +552,7 @@ class MLPModelWrapper(PyTorchModelWrapper):
             transform,
             target_transform,
             bool_use_gpu=bool_use_gpu,
+            n_gpu_per_process=n_gpu_per_process,
         )
 
         # initialize fields for MLP params
@@ -527,6 +569,7 @@ class MLPModelWrapper(PyTorchModelWrapper):
         self.transform = transform
         self.target_transform = target_transform
         self.bool_use_gpu = bool_use_gpu
+        self.n_gpu_per_process = n_gpu_per_process
 
         # initialize the model
         self.model = TorchMLPModel(
@@ -613,6 +656,7 @@ class RNNModelWrapper(PyTorchModelWrapper):
         transform=None,
         target_transform=None,
         bool_use_gpu=False,
+        n_gpu_per_process=0,
     ):
         # initialize the base model
         super().__init__(
@@ -626,6 +670,7 @@ class RNNModelWrapper(PyTorchModelWrapper):
             transform,
             target_transform,
             bool_use_gpu=bool_use_gpu,
+            n_gpu_per_process=n_gpu_per_process,
         )
 
         # initialize fields for RNN params
@@ -650,6 +695,7 @@ class RNNModelWrapper(PyTorchModelWrapper):
         self.transform = transform
         self.target_transform = target_transform
         self.bool_use_gpu = bool_use_gpu
+        self.n_gpu_per_process = n_gpu_per_process
 
         # initialize the model
         self.model = TorchRNNModel(
