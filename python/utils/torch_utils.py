@@ -1,5 +1,6 @@
 import re, subprocess
 
+import numpy.typing as npt
 import torch
 import torch.nn as nn
 
@@ -8,7 +9,7 @@ device = None
 
 def run_command(cmd):
     """Run command, return output as string."""
-    output = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True).communicate()[0]
+    output = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True).communicate()[0]  # type: ignore
     return output.decode("ascii")
 
 
@@ -20,19 +21,21 @@ def list_available_gpus():
     result = []
     for line in output.strip().split("\n"):
         m = gpu_regex.match(line)
-        assert m, "Couldn't parse "+line
+        assert m, "Couldn't parse " + line
         result.append(int(m.group("gpu_id")))
     return result
 
 
-def gpu_memory_map():
+def gpu_memory_map() -> dict:
     """Returns map of GPU id to memory allocated on that GPU."""
 
     output = run_command("nvidia-smi")
-    gpu_output = output[output.find("GPU Memory"):]
+    gpu_output = output[output.find("GPU Memory") :]
     # lines of the form
     # |    0      8734    C   python                                       11705MiB |
-    memory_regex = re.compile(r"[|]\s+?(?P<gpu_id>\d+)\D+?(?P<pid>\d+).+[ ](?P<gpu_memory>\d+)MiB")
+    memory_regex = re.compile(
+        r"[|]\s+?(?P<gpu_id>\d+)\D+?(?P<pid>\d+).+[ ](?P<gpu_memory>\d+)MiB"
+    )
     rows = gpu_output.split("\n")
     result = {gpu_id: 0 for gpu_id in list_available_gpus()}
     for row in gpu_output.split("\n"):
@@ -45,7 +48,7 @@ def gpu_memory_map():
     return result
 
 
-def pick_gpu_lowest_memory():
+def pick_gpu_lowest_memory() -> int:
     """Returns GPU with the least allocated memory"""
 
     memory_gpu_map = [(memory, gpu_id) for (gpu_id, memory) in gpu_memory_map().items()]
@@ -53,7 +56,14 @@ def pick_gpu_lowest_memory():
     return best_gpu
 
 
-def init_gpu(use_gpu=True, gpu_id=0, bool_use_best_gpu=True):
+def init_gpu(
+    use_gpu: bool = True,
+    gpu_id: int = 0,
+    bool_use_best_gpu: bool = True,
+    bool_limit_gpu_mem: bool = False,
+    gpu_memory_fraction: float = 0.5,
+    verbose: bool = False,
+):
     global device
 
     # pick best gpu if flag is set
@@ -62,39 +72,55 @@ def init_gpu(use_gpu=True, gpu_id=0, bool_use_best_gpu=True):
 
     if torch.cuda.is_available() and use_gpu:
         device = torch.device("cuda:" + str(gpu_id))
-        print("Using GPU id {}".format(gpu_id))
+        if verbose:
+            print("Using GPU id {}".format(gpu_id))
+        
+        # optionally limit gpu memory
+        if bool_limit_gpu_mem:
+            torch.cuda.set_per_process_memory_fraction(gpu_memory_fraction, device=device)
+            if verbose:
+                print("GPU memory limited to {}%".format(gpu_memory_fraction * 105))
     else:
         device = torch.device("cpu")
-        print("GPU not detected. Defaulting to CPU.")
+        if verbose:
+            print("GPU not detected. Defaulting to CPU.")
 
 
-def set_device(gpu_id):
+def set_device(
+    gpu_id: int,
+):
     torch.cuda.set_device(gpu_id)
 
 
-def from_numpy(*args, **kwargs):
+def from_numpy(
+    *args,
+    **kwargs,
+) -> torch.Tensor:
     return torch.from_numpy(*args, **kwargs).float().to(device)
 
 
-def from_numpy_same_device(*args, **kwargs):
+def from_numpy_same_device(
+    *args,
+    **kwargs,
+) -> torch.Tensor:
     return torch.from_numpy(*args, **kwargs).float()
 
 
-def to_numpy(tensor):
-    return tensor.to('cpu').detach().numpy()
+def to_numpy(
+    tensor: torch.Tensor,
+) -> npt.NDArray:
+    return tensor.to("cpu").detach().numpy()
 
 
-def get_act_func():
+def get_act_func() -> dict:
     _str_to_activation = {
-        'relu': nn.ReLU(),
-        'tanh': nn.Tanh(),
-        'leaky_relu': nn.LeakyReLU(),
-        'sigmoid': nn.Sigmoid(),
-        'selu': nn.SELU(),
-        'softplus': nn.Softplus(),
-        'identity': nn.Identity(),
+        "relu": nn.ReLU(),
+        "tanh": nn.Tanh(),
+        "leaky_relu": nn.LeakyReLU(),
+        "sigmoid": nn.Sigmoid(),
+        "selu": nn.SELU(),
+        "softplus": nn.Softplus(),
+        "identity": nn.Identity(),
     }
 
     return _str_to_activation
-
-

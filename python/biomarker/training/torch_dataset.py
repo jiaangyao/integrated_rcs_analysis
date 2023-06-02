@@ -1,4 +1,5 @@
-import numpy
+import numpy as np
+import numpy.typing as npt
 import torch
 from torch.utils.data import Dataset
 
@@ -7,7 +8,18 @@ import utils.torch_utils as ptu
 
 
 class NeuralDataset(Dataset):
-    def __init__(self, features: numpy.ndarray, labels: numpy.ndarray, transform=None, target_transform=None):
+    def __init__(
+        self,
+        features: npt.NDArray | None,
+        labels: npt.NDArray | None,
+        transform=None,
+        target_transform=None,
+    ):
+        # sanity check
+        assert (
+            features is not None and labels is not None
+        ), "Need to initialize with either features and labels"
+                
         # obtain the features and labels
         self.features = ptu.from_numpy(features)
         self.labels = ptu.from_numpy(labels).long()
@@ -40,7 +52,7 @@ class NeuralDataset(Dataset):
 
 
 class NeuralDatasetTest(Dataset):
-    def __init__(self, features: numpy.ndarray):
+    def __init__(self, features: npt.NDArray):
         # obtain the features and labels
         self.features = ptu.from_numpy(features)
         assert torch.is_tensor(self.features)

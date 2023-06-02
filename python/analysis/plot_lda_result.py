@@ -9,26 +9,36 @@ import scipy.io as sio
 import scipy.stats as stats
 
 
+def load_model_id_results(output):
+    acc_python_full = np.stack([output['sinPB'][i]['vec_acc'][:5] for i in range(len(output['sinPB']))], axis=1).T
+    auc_python_full = np.stack([output['sinPB'][i]['vec_auc'][:5] for i in range(len(output['sinPB']))], axis=1).T
+    acc_python_top = [output['sinPB'][i]['vec_acc'][0] for i in range(len(output['sinPB']))]
+    auc_python_top = [output['sinPB'][i]['vec_auc'][0] for i in range(len(output['sinPB']))]
+
+    acc_python_full_sfs = np.stack([output['sfsPB'][i]['vec_acc'][:5] for i in range(len(output['sfsPB']))], axis=1).T
+    auc_python_full_sfs = np.stack([output['sfsPB'][i]['vec_auc'][:5] for i in range(len(output['sfsPB']))], axis=1).T
+    acc_python_top_sfs = [output['sfsPB'][i]['vec_acc'][0] for i in range(len(output['sfsPB']))]
+    auc_python_top_sfs = [output['sfsPB'][i]['vec_auc'][0] for i in range(len(output['sfsPB']))]
+
+    return acc_python_full, auc_python_full, acc_python_top, auc_python_top, acc_python_full_sfs, auc_python_full_sfs, acc_python_top_sfs, auc_python_top_sfs
+
+
 def plot_lda_results():
     # hard code all paths
-    p_output = pathlib.Path('/home/jyao/Downloads/')
-    f_output_python = 'RCS02_R_med_level_acc_LDA.pkl'
+    p_output = pathlib.Path('/home/jyao/Downloads/biomarker_id/model_id/')
+    f_output_python = 'RCS02_R_med_level_auc_LDA.pkl'
     # f_output_python = 'RCS02_R_med_level_auc_LDA.pkl'
     # f_output_python = 'RCS02_R_med_level_acc_SVM.pkl'
     # f_output_python = 'RCS02_R_med_level_acc_QDA.pkl'
     f_output_matlab = 'RCS02_R_med_level_stats.mat'
 
+    p_figure_output = pathlib.Path('/home/jyao/Downloads/biomarker_id/figures/model_id/')
+
     # load in the python values
     output = pickle.load(open(str(p_output / f_output_python), 'rb'))
-    acc_python_full = np.stack([output.sinPB[i].vec_acc[:5] for i in range(len(output.sinPB))], axis=1).T
-    auc_python_full = np.stack([output.sinPB[i].vec_auc[:5] for i in range(len(output.sinPB))], axis=1).T
-    acc_python_top = [output.sinPB[i].vec_acc[0] for i in range(len(output.sinPB))]
-    auc_python_top = [output.sinPB[i].vec_auc[0] for i in range(len(output.sinPB))]
-
-    acc_python_full_sfs = np.stack([output.sfsPB[i].vec_acc[:5] for i in range(len(output.sfsPB))], axis=1).T
-    auc_python_full_sfs = np.stack([output.sfsPB[i].vec_auc[:5] for i in range(len(output.sfsPB))], axis=1).T
-    acc_python_top_sfs = [output.sfsPB[i].vec_acc[0] for i in range(len(output.sfsPB))]
-    auc_python_top_sfs = [output.sfsPB[i].vec_auc[0] for i in range(len(output.sfsPB))]
+    acc_python_full, auc_python_full, acc_python_top, auc_python_top, \
+        acc_python_full_sfs, auc_python_full_sfs, acc_python_top_sfs, auc_python_top_sfs = \
+            load_model_id_results(output)
 
     # load in the matlab values
     matlab_results = sio.loadmat(str(p_output / f_output_matlab))
@@ -67,7 +77,7 @@ def plot_lda_results():
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
 
-    fig.savefig(str(p_output / 'RCS02_R_med_level_auc_LDA.png'), dpi=300)
+    fig.savefig(str(p_figure_output / 'RCS02_R_med_level_auc_LDA.png'), dpi=300)
     plt.close(fig)
 
     # plot the figure for accuracy
@@ -87,7 +97,7 @@ def plot_lda_results():
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
 
-    fig.savefig(str(p_output / 'RCS02_R_med_level_acc_LDA.png'), dpi=300)
+    fig.savefig(str(p_figure_output / 'RCS02_R_med_level_acc_LDA.png'), dpi=300)
     plt.close(fig)
 
     # now plot the line plots for the top5 auc
@@ -112,7 +122,7 @@ def plot_lda_results():
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
 
-    fig.savefig(str(p_output / 'RCS02_R_med_level_auc_LDA_top5.png'), dpi=300)
+    fig.savefig(str(p_figure_output / 'RCS02_R_med_level_auc_LDA_top5.png'), dpi=300)
     plt.close(fig)
 
     '''
@@ -140,7 +150,7 @@ def plot_lda_results():
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
 
-    fig.savefig(str(p_output / 'RCS02_R_med_level_auc_LDA_top5_combo.png'), dpi=300)
+    fig.savefig(str(p_figure_output / 'RCS02_R_med_level_auc_LDA_top5_combo.png'), dpi=300)
     plt.close(fig)
 
 
@@ -150,21 +160,29 @@ def plot_lda_results():
     f_output_python_RF = 'RCS02_R_med_level_acc_RF.pkl'
     # f_output_python_GP = 'RCS02_R_med_level_auc_GP.pkl'
     f_output_python_MLP = 'RCS02_R_med_level_auc_MLP.pkl'
+    f_output_python_RNN = 'RCS02_R_med_level_auc_RNN.pkl'
 
     output_QDA = pickle.load(open(str(p_output / f_output_python_QDA), 'rb'))
+    auc_python_full_QDA = np.stack([output_QDA.sinPB[i].vec_auc[:5] for i in range(len(output_QDA.sinPB))], axis=1).T
     auc_python_full_sfs_QDA = np.stack([output_QDA.sfsPB[i].vec_auc[:5] for i in range(len(output_QDA.sfsPB))], axis=1).T
 
     output_SVM = pickle.load(open(str(p_output / f_output_python_SVM), 'rb'))
+    auc_python_full_SVM = np.stack([output_SVM.sinPB[i].vec_auc[:5] for i in range(len(output_SVM.sinPB))], axis=1).T
     auc_python_full_sfs_SVM = np.stack([output_SVM.sfsPB[i].vec_auc[:5] for i in range(len(output_SVM.sfsPB))], axis=1).T
 
     output_RF = pickle.load(open(str(p_output / f_output_python_RF), 'rb'))
+    auc_python_full_RF = np.stack([output_RF.sinPB[i].vec_auc[:5] for i in range(len(output_RF.sinPB))], axis=1).T
     auc_python_full_sfs_RF = np.stack([output_RF.sfsPB[i].vec_auc[:5] for i in range(len(output_RF.sfsPB))], axis=1).T
 
     # output_GP = pickle.load(open(str(p_output / f_output_python_GP), 'rb'))
     # auc_python_full_sfs_GP = np.stack([output_GP.sfsPB[i].vec_auc[:5] for i in range(len(output_GP.sfsPB))], axis=1).T
     #
     output_MLP = pickle.load(open(str(p_output / f_output_python_MLP), 'rb'))
+    auc_python_full_MLP = np.stack([output_MLP.sinPB[i].vec_auc[:5] for i in range(len(output_MLP.sinPB))], axis=1).T
     auc_python_full_sfs_MLP = np.stack([output_MLP.sfsPB[i].vec_auc[:5] for i in range(len(output_MLP.sfsPB))], axis=1).T
+
+    output_RNN = pickle.load(open(str(p_output / f_output_python_RNN), 'rb'))
+    auc_python_full_sfs_RNN = np.stack([output_RNN.sfsPB[i].vec_auc[:5] for i in range(len(output_RNN.sfsPB))], axis=1).T
 
     fig = plt.figure()
     idx = np.arange(1, 6, 1)
@@ -193,6 +211,11 @@ def plot_lda_results():
                      np.mean(auc_python_full_sfs_MLP, axis=0) + np.std(auc_python_full_sfs_MLP, axis=0),
                      color='b', alpha=0.2)
 
+    plt.plot(idx, np.mean(auc_python_full_sfs_RNN, axis=0), 'c', label='RNN')
+    plt.fill_between(idx, np.mean(auc_python_full_sfs_RNN, axis=0) - np.std(auc_python_full_sfs_RNN, axis=0),
+                        np.mean(auc_python_full_sfs_RNN, axis=0) + np.std(auc_python_full_sfs_RNN, axis=0),
+                        color='c', alpha=0.2)
+
     plt.xlabel('Number of Power Bands Included')
     plt.ylabel('AUC with Algorithms')
     plt.title('Comparison of AUC for Top 5 Power Bands')
@@ -204,7 +227,7 @@ def plot_lda_results():
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
 
-    fig.savefig(str(p_output / 'RCS02_R_med_level_auc_comp_top5_combo.png'), dpi=300)
+    fig.savefig(str(p_figure_output / 'RCS02_R_med_level_auc_comp_top5_combo.png'), dpi=300)
     plt.close(fig)
 
     t1 = 1

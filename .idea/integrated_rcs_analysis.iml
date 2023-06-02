@@ -2,10 +2,11 @@
 <module type="PYTHON_MODULE" version="4">
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/python" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/auxf" />
       <excludeFolder url="file://$MODULE_DIR$/matlab" />
     </content>
-    <orderEntry type="jdk" jdkName="envTF270" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="envTorch201" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
   <component name="PyDocumentationSettings">
