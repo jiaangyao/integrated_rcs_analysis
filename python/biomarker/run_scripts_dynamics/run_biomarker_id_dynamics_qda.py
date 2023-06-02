@@ -31,6 +31,7 @@ if __name__ == "__main__":
         interval=0.05,
         update_rate=30,
         n_rep=5,
+        n_cpu=32,
         n_dyna_start=1,
         n_dyna_end=6,
         bool_debug=False,

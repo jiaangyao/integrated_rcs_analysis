@@ -28,6 +28,7 @@ if __name__ == "__main__":
         interval=0.05,
         update_rate=30,
         n_rep=5,
+        n_cpu=32,
         bool_debug=False,
         bool_use_ray=True,
         bool_use_gpu=False,
