@@ -28,10 +28,10 @@ if __name__ == "__main__":
         n_rep=5,
         n_cpu=32,
         n_gpu=1,
-        n_gpu_per_process=0.1,
+        n_gpu_per_process=0.05,
         bool_debug=False,
         bool_use_ray=True,
-        bool_use_gpu=True,
+        bool_use_gpu=False,
         bool_force_sfs_acc=False,
         random_seed=None,
     )

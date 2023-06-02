@@ -79,7 +79,7 @@ def init_gpu(
         if bool_limit_gpu_mem:
             torch.cuda.set_per_process_memory_fraction(gpu_memory_fraction, device=device)
             if verbose:
-                print("GPU memory limited to {}%".format(gpu_memory_fraction * 100))
+                print("GPU memory limited to {}%".format(gpu_memory_fraction * 105))
     else:
         device = torch.device("cpu")
         if verbose:

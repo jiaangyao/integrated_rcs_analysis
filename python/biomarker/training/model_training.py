@@ -9,7 +9,7 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
-from biomarker.training.model_infrastructure import get_model, BaseModel
+from biomarker.training.model_infrastructure import get_model
 from biomarker.training.torch_model_infrastructure import get_model_ray
 from biomarker.training.get_model_params import get_model_params
 from biomarker.training.correct_data_dim import correct_data_dim
@@ -45,6 +45,7 @@ def train_model(
     # obtain the parameters for training and append it to the configuraiton
 
     # now define the model
+    # if using pytorch models
     if bool_torch:
         # unpack the features first
         features_train, features_valid, features_test = vec_features
@@ -61,53 +62,15 @@ def train_model(
         )
 
         # train the model
-        if bool_use_ray and bool_use_gpu:
-            # model.train.remote(
-            #     features_train,
-            #     y_class_train,
-            #     valid_data=features_valid,
-            #     valid_label=y_class_valid,
-            #     **train_params
-            # )
-            
-            model.train(
-                features_train,
-                y_class_train,
-                valid_data=features_valid,
-                valid_label=y_class_valid,
-                **train_params
-            )
-        else:
-            model.train(
-                features_train,
-                y_class_train,
-                valid_data=features_valid,
-                valid_label=y_class_valid,
-                **train_params
-            )
+        model.train(
+            features_train,
+            y_class_train,
+            valid_data=features_valid,
+            valid_label=y_class_valid,
+            **train_params
+        )
 
-        # next generate the predictions
-        if bool_use_ray and bool_use_gpu:
-            # y_class_pred = model.predict.remote(features_test)
-            y_class_pred = model.predict(features_test)
-            
-        else:
-            y_class_pred = model.predict(features_test)
-        
-        # estimate the ROC curve
-        if bool_use_ray and bool_use_gpu:
-            # y_class_pred_scores = model.predict_proba.remote(features_test)
-            y_class_pred_scores = model.predict_proba(features_test)
-        else:
-            y_class_pred_scores = model.predict_proba(features_test)
-        
-        # # obtain the object from ray remote if using gpu
-        # if bool_use_ray and bool_use_gpu:
-        #     [y_class_pred, y_class_pred_scores] = ray.get([y_class_pred, y_class_pred_scores])
-            
-        if np.ndim(y_class_pred) > 1:
-            y_class_pred = np.argmax(y_class_pred, axis=1)
-            
+    # if using sklearn models
     else:
         # warn if using GPU for sklearn
         if bool_use_gpu:
@@ -121,12 +84,14 @@ def train_model(
         model = get_model(str_model, model_params)
         model.train(features_train, y_class_train)
 
-        # next generate the predictions
-        y_class_pred = model.predict(features_test)
-        if y_class_pred.ndim > 1:
-            y_class_pred = np.argmax(y_class_pred, axis=1)
-        y_class_pred_scores = model.predict_proba(features_test)
-    
+    # next generate the predictions
+    y_class_pred = model.predict(features_test)
+    if np.ndim(y_class_pred) > 1:
+        y_class_pred = np.argmax(y_class_pred, axis=1)
+
+    # estimate the ROC curve
+    y_class_pred_scores = model.predict_proba(features_test)
+
     # compute metrics outside of if
     acc = accuracy_score(y_class_test, y_class_pred)
     f1 = f1_score(y_class_test, y_class_pred)
@@ -147,7 +112,7 @@ def train_model(
     ), "Confusion matrix is not the right size"
 
     # obtain the ROC curve
-    roc = roc_curve(y_class_test, y_class_pred_scores)
+    # roc = roc_curve(y_class_test, y_class_pred_scores)
     auc = roc_auc_score(y_class_test, y_class_pred_scores)
 
     # create the output dictionary

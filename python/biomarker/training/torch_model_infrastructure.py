@@ -47,57 +47,22 @@ def get_model_ray(
 
     if str_model == "MLP":
         # TODO: look into args and kwargs
-        if bool_use_ray and bool_use_gpu:
-            # initalize the GPU model with correct number of CPUs and GPUs
-            GPUModel = MLPModelWrapperRay.options(
-                num_cpus=n_cpu_per_process,
-                num_gpus=n_gpu_per_process,
-            )
-
-            # initialize the model
-            model = GPUModel.remote(
-                *model_params["args"],
-                **model_params["kwargs"],
-                bool_use_gpu=True,
-                n_gpu_per_process=n_gpu_per_process,
-            )
-        else:
-            # initialize the CPU model
-            model = MLPModelWrapper(
-                *model_params["args"],
-                **model_params["kwargs"],
-                bool_use_gpu=bool_use_gpu,
-            )
+        # initialize the model
+        model = MLPModelWrapper(
+            *model_params["args"],
+            **model_params["kwargs"],
+            bool_use_gpu=bool_use_gpu,
+            n_gpu_per_process=n_gpu_per_process,
+        )
 
     elif str_model == "RNN":
-        if bool_use_ray and bool_use_gpu:
-            # # initalize the GPU model with correct number of CPUs and GPUs
-            # GPUModel = RNNModelWrapperRay.options(
-            #     num_cpus=n_cpu_per_process,
-            #     num_gpus=n_gpu_per_process,
-            # )
-
-            # # initialize the model
-            # model = GPUModel.remote(
-            #     *model_params["args"],
-            #     **model_params["kwargs"],
-            #     bool_use_gpu=True,
-            # )
-
-            model = RNNModelWrapper(
-                *model_params["args"],
-                **model_params["kwargs"],
-                bool_use_gpu=True,
-                n_gpu_per_process=n_gpu_per_process,
-            )
-        else:
-            # initialize the CPU model
-            model = RNNModelWrapper(
-                *model_params["args"],
-                **model_params["kwargs"],
-                bool_use_gpu=True,
-            )
-
+        # initalize the model
+        model = RNNModelWrapper(
+            *model_params["args"],
+            **model_params["kwargs"],
+            bool_use_gpu=bool_use_gpu,
+            n_gpu_per_process=n_gpu_per_process,
+        )
     else:
         raise NotImplementedError
 
@@ -145,8 +110,7 @@ class PyTorchModelWrapper(BaseModel):
         # initialize GPU utilization flag
         self.bool_use_gpu = bool_use_gpu
 
-        # initialize GPU
-        print(n_gpu_per_process)
+        # initialize GPU with memory constraints
         ptu.init_gpu(
             use_gpu=bool_use_gpu,
             bool_use_best_gpu=True,
