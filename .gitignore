@@ -97,10 +97,12 @@ fabric.properties
 
 
 ################################################################
-# Hydra .gitignore contents
+# Hydra && wandb .gitignore contents
 
 /outputs
 /multirun
+/data
+/wandb
 
 
 ################################################################
