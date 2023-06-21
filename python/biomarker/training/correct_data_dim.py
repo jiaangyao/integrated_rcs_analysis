@@ -1,3 +1,4 @@
+# pyright: reportPrivateImportUsage=false
 import numpy as np
 import numpy.typing as npt
 import scipy.signal as signal
@@ -130,7 +131,7 @@ def group_pb_cross_asym(
     assert vec_metric.shape[0] == features.shape[1], "metric and features do not match"
 
     # find the peaks and also exclude the ones already used
-    vec_idx_peak = signal.find_peaks(
+    vec_idx_peak = signal.find_peaks( # type: ignore
         vec_metric, height=np.percentile(vec_metric, 75), width=width / 2
     )[0]
     if len(idx_used) > 0:

@@ -4,7 +4,7 @@ import numpy.typing as npt
 
 
 def get_model_params(str_model, n_input, n_class):
-    # TODO: finish the documentation
+    # TODO: moev this to hydra
     """_summary_
 
     Args:
@@ -35,11 +35,11 @@ def get_model_params(str_model, n_input, n_class):
             "args": [n_input, n_class],
             "kwargs": {
                 "n_layer": 3,
-                "dropout": 0.35,
-                "str_act": "leaky_relu",
+                "dropout": 0.5,
+                "str_act": "identity",
                 "lr": 5e-4,
                 "lam": 1e-5,
-                "hidden_size": 128,
+                "hidden_size": 16,
             },
         }
         train_params = {"n_epoch": 100, "batch_size": 128, "bool_verbose": False}

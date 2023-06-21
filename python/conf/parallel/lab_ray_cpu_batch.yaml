@@ -1,0 +1,12 @@
+defaults:
+  - base_ray_default
+  - _self_
+
+bool_use_gpu: False
+bool_use_batch: True
+
+n_cpu: 40
+n_gpu: 0
+n_cpu_per_process: 1
+n_gpu_per_process: 0
+batch_size: 4

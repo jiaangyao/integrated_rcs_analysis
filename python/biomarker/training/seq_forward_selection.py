@@ -1,6 +1,7 @@
-# pylint: disable=no-member
+# pyright: reportPrivateImportUsage=false
 import copy
 import typing as tp
+import itertools
 
 import ray
 import tqdm
@@ -15,6 +16,7 @@ from biomarker.training.correct_data_dim import (
 from biomarker.training.kfold_cv_training import (
     kfold_cv_training,
     kfold_cv_training_ray,
+    kfold_cv_training_ray_batch,
 )
 from utils.combine_struct import combine_struct_by_field
 from utils.combine_hist import combine_hist
@@ -50,7 +52,7 @@ def sfs_feature_sweep(
     """
 
     vec_output = []
-    for i in tqdm.trange(
+    for idx_feature in tqdm.trange(
         len(vec_features_sub),
         leave=False,
         desc="SFS1",
@@ -58,9 +60,10 @@ def sfs_feature_sweep(
     ):
         vec_output.append(
             kfold_cv_training(
-                vec_features_sub[i],
+                vec_features_sub[idx_feature],
                 y_class,
                 y_stim,
+                idx_feature,
                 n_fold=n_fold,
                 n_cpu_per_process=n_cpu_per_process,
                 n_gpu_per_process=n_gpu_per_process,
@@ -81,8 +84,10 @@ def sfs_feature_sweep_ray(
     str_model: str,
     bool_use_strat_kfold: bool,
     bool_use_gpu: bool,
+    bool_use_batch: bool,
     n_cpu_per_process: int | float,
     n_gpu_per_process: int | float,
+    batch_size: int,
     random_seed: int | None,
 ) -> list[dict]:
     """Set up SFS feature sweeping using Ray for parallelization
@@ -103,16 +108,40 @@ def sfs_feature_sweep_ray(
         list[dict]: list of output dictionaries of same structure, each representing the output at a particular frequeney bin
     """
 
-    # ray handle for using gpu in training
-    if bool_use_gpu:
+    # if use batching
+    if bool_use_batch:
+        feature_handle = []
+        vec_idx_feature = np.arange(len(vec_features_sub))
+        for i in range(0, len(vec_features_sub), batch_size):
+            feature_handle.append(
+                kfold_cv_training_ray_batch.options(  # type: ignore
+                    num_cpus=n_cpu_per_process,
+                    num_gpus=n_gpu_per_process,
+                ).remote(
+                    vec_features_sub[i : i + batch_size],
+                    y_class,
+                    y_stim,
+                    vec_idx_feature[i : i + batch_size],
+                    n_fold=n_fold,
+                    str_model=str_model,
+                    bool_use_strat_kfold=bool_use_strat_kfold,
+                    bool_use_gpu=bool_use_gpu,
+                    n_cpu_per_process=n_cpu_per_process,
+                    n_gpu_per_process=n_gpu_per_process,
+                    random_seed=random_seed,
+                )
+            )
+
+    else:
         feature_handle = [
             kfold_cv_training_ray.options(  # type: ignore
                 num_cpus=n_cpu_per_process,
                 num_gpus=n_gpu_per_process,
             ).remote(
-                features_sub,  # type: ignore
+                vec_features_sub[idx_feature],
                 y_class,
-                y_stim,  # type: ignore
+                y_stim,
+                idx_feature,
                 n_fold=n_fold,
                 str_model=str_model,
                 bool_use_strat_kfold=bool_use_strat_kfold,
@@ -121,30 +150,28 @@ def sfs_feature_sweep_ray(
                 n_gpu_per_process=n_gpu_per_process,
                 random_seed=random_seed,
             )
-            for features_sub in vec_features_sub
+            for idx_feature in range(len(vec_features_sub))
         ]
 
-    # ray handle for not using gpu in training
-    else:
-        feature_handle = [
-            kfold_cv_training_ray.options(  # type: ignore
-                num_cpus=n_cpu_per_process,
-                num_gpus=0,
-            ).remote(
-                features_sub,  # type: ignore
-                y_class,
-                y_stim,  # type: ignore
-                n_fold=n_fold,
-                str_model=str_model,
-                bool_use_strat_kfold=bool_use_strat_kfold,
-                bool_use_gpu=bool_use_gpu,
-                n_cpu_per_process=n_cpu_per_process,
-                n_gpu_per_process=n_gpu_per_process,
-                random_seed=random_seed,
-            )
-            for features_sub in vec_features_sub
-        ]
-    vec_output = ray.get(feature_handle)
+    # incorporate ray.wait() especially for the result function
+    vec_output = [None] * len(vec_features_sub)
+    while len(feature_handle) > 0:
+        done_id, feature_handle = ray.wait(feature_handle, num_returns=1)
+        if bool_use_batch:
+            vec_output_done = [*ray.get(done_id[0])]
+            for output_done in vec_output_done:
+                vec_output[output_done["idx_feature"]] = output_done
+
+            # vec_output =  itertools.chain(*ray.get(feature_handle))
+        else:
+            output_done = ray.get(done_id[0])
+            vec_output[output_done["idx_feature"]] = output_done
+
+            # vec_output = ray.get(feature_handle)
+
+    # final sanity check
+    for i in range(len(vec_output)):
+        assert vec_output[i] is not None
 
     return vec_output
 
@@ -154,15 +181,15 @@ def sfs_pb_sweep(
     y_class,
     y_stim,
     n_fold,
-    n_cpu_per_process,
-    n_gpu_per_process,
     str_model,
     bool_use_strat_kfold,
     bool_use_gpu,
+    n_cpu_per_process,
+    n_gpu_per_process,
     random_seed,
 ):
     vec_output_sfs = []
-    for i in tqdm.trange(
+    for idx_feature in tqdm.trange(
         len(vec_features_pb_sub),
         leave=False,
         desc="SFS2",
@@ -170,9 +197,10 @@ def sfs_pb_sweep(
     ):
         vec_output_sfs.append(
             kfold_cv_training(
-                vec_features_pb_sub[i],
+                vec_features_pb_sub[idx_feature],
                 y_class,
                 y_stim,
+                idx_feature,
                 n_fold=n_fold,
                 n_cpu_per_process=n_cpu_per_process,
                 n_gpu_per_process=n_gpu_per_process,
@@ -191,22 +219,49 @@ def sfs_pb_sweep_ray(
     y_class,
     y_stim,
     n_fold,
-    n_cpu_per_process,
-    n_gpu_per_process,
     str_model,
     bool_use_strat_kfold,
     bool_use_gpu,
+    bool_use_batch,
+    n_cpu_per_process,
+    n_gpu_per_process,
+    batch_size,
     random_seed,
 ):
-    if bool_use_gpu:
+    # if use batching
+    if bool_use_batch:
+        pb_handle = []
+        vec_idx_feature = np.arange(len(vec_features_pb_sub))
+        for i in range(0, len(vec_features_pb_sub), batch_size):
+            pb_handle.append(
+                kfold_cv_training_ray_batch.options(  # type: ignore
+                    num_cpus=n_cpu_per_process,
+                    num_gpus=n_gpu_per_process,
+                ).remote(
+                    vec_features_pb_sub[i : i + batch_size],
+                    y_class,
+                    y_stim,
+                    vec_idx_feature[i : i + batch_size],
+                    n_fold=n_fold,
+                    n_cpu_per_process=n_cpu_per_process,
+                    n_gpu_per_process=n_gpu_per_process,
+                    str_model=str_model,
+                    bool_use_strat_kfold=bool_use_strat_kfold,
+                    bool_use_gpu=bool_use_gpu,
+                    random_seed=random_seed,
+                )
+            )
+
+    else:
         pb_handle = [
-            kfold_cv_training_ray.options( # type: ignore
+            kfold_cv_training_ray.options(  # type: ignore
                 num_cpus=n_cpu_per_process,
                 num_gpus=n_gpu_per_process,
             ).remote(
-                vec_features_pb_sub[i],  # type: ignore
+                vec_features_pb_sub[idx_feature],
                 y_class,
                 y_stim,
+                idx_feature,
                 n_fold=n_fold,
                 n_cpu_per_process=n_cpu_per_process,
                 n_gpu_per_process=n_gpu_per_process,
@@ -215,28 +270,29 @@ def sfs_pb_sweep_ray(
                 bool_use_gpu=bool_use_gpu,
                 random_seed=random_seed,
             )
-            for i in range(len(vec_features_pb_sub))
+            for idx_feature in range(len(vec_features_pb_sub))
         ]
-    else:
-        pb_handle = [
-            kfold_cv_training_ray.options( # type: ignore
-                num_cpus=n_cpu_per_process,
-                num_gpus=0,
-            ).remote(
-                vec_features_pb_sub[i],  # type: ignore
-                y_class,
-                y_stim,
-                n_fold=n_fold,
-                n_cpu_per_process=n_cpu_per_process,
-                n_gpu_per_process=n_gpu_per_process,
-                str_model=str_model,
-                bool_use_strat_kfold=bool_use_strat_kfold,
-                bool_use_gpu=bool_use_gpu,
-                random_seed=random_seed,
-            )
-            for i in range(len(vec_features_pb_sub))
-        ]
-    vec_output_sfs = ray.get(pb_handle)
+
+    # incorporate ray.wait() especially for the result function
+    vec_output_sfs = [None] * len(vec_features_pb_sub)
+    while len(pb_handle) > 0:
+        done_id, pb_handle = ray.wait(pb_handle, num_returns=1)
+        if bool_use_batch:
+            vec_output_done = [*ray.get(done_id[0])]
+            for output_done in vec_output_done:
+                vec_output_sfs[output_done["idx_feature"]] = output_done
+
+            # vec_output_sfs = itertools.chain(*ray.get(pb_handle))
+
+        else:
+            output_done = ray.get(done_id[0])
+            vec_output_sfs[output_done["idx_feature"]] = output_done
+
+            # vec_output_sfs = ray.get(pb_handle)
+
+    # final sanity check
+    for i in range(len(vec_output_sfs)):
+        assert vec_output_sfs[i] is not None
 
     return vec_output_sfs
 
@@ -246,23 +302,52 @@ def seq_forward_selection(
     y_class,
     y_stim,
     labels_cell,
-    n_pass=5,
-    n_fold=10,
-    n_ch=3,
-    width=5,
-    max_width=10,
-    top_k=10,
-    top_best=5,
+    n_ch: int = 3,
     str_model="LDA",
     str_metric="avg_auc",
+    n_candidate_peak=10,
+    n_candidate_pb=5,
+    width=5,
+    max_width=10,
     bool_force_sfs_acc=False,
+    random_seed: int | None = None,
+    n_fold=10,
+    bool_use_strat_kfold=True,
     bool_use_ray=True,
     bool_use_gpu: bool = False,
-    n_cpu: int = 32,
+    bool_use_batch: bool = False,
+    n_cpu_per_process: int | float = 1,
     n_gpu_per_process: float = 0.1,
-    bool_use_strat_kfold=True,
-    random_seed: int | None = None,
+    batch_size: int = 1,
 ):
+    """_summary_
+
+    Args:
+        features (_type_): _description_
+        y_class (_type_): _description_
+        y_stim (_type_): _description_
+        labels_cell (_type_): _description_
+        n_ch (int, optional): _description_. Defaults to 3.
+        str_model (str, optional): _description_. Defaults to "LDA".
+        str_metric (str, optional): _description_. Defaults to "avg_auc".
+        n_candidate_peak (int, optional): _description_. Defaults to 10.
+        n_candidate_pb (int, optional): _description_. Defaults to 5.
+        width (int, optional): _description_. Defaults to 5.
+        max_width (int, optional): _description_. Defaults to 10.
+        bool_force_sfs_acc (bool, optional): _description_. Defaults to False.
+        random_seed (int | None, optional): _description_. Defaults to None.
+        n_fold (int, optional): _description_. Defaults to 10.
+        bool_use_strat_kfold (bool, optional): _description_. Defaults to True.
+        bool_use_ray (bool, optional): _description_. Defaults to True.
+        bool_use_gpu (bool, optional): _description_. Defaults to False.
+        bool_use_batch (bool, optional): _description_. Defaults to False.
+        n_cpu_per_process (int | float, optional): _description_. Defaults to 1.
+        n_gpu_per_process (float, optional): _description_. Defaults to 0.1.
+        batch_size (int, optional): _description_. Defaults to 1.
+
+    Returns:
+        _type_: _description_
+    """
     # define initial variables
     idx_ch = (
         (
@@ -294,10 +379,9 @@ def seq_forward_selection(
     orig_metric = None
 
     # start the main loop
-    print("Sequential Forward Selection")
     for n_iter in tqdm.trange(
         1,
-        n_pass + 1,
+        n_candidate_pb + 1,
         leave=False,
         desc="ITER",
         bar_format="{desc:<2.5}{percentage:3.0f}%|{bar:15}{r_bar}",
@@ -312,9 +396,6 @@ def seq_forward_selection(
 
         # run parallelized version of feature sweep
         if bool_use_ray:
-            n_cpu_per_process = np.ceil(
-                n_cpu / np.ceil(1 / n_gpu_per_process)) if bool_use_gpu else 1
-            
             vec_output = sfs_feature_sweep_ray(
                 vec_features_sub,
                 y_class,
@@ -323,8 +404,10 @@ def seq_forward_selection(
                 str_model=str_model_cv,
                 bool_use_strat_kfold=bool_use_strat_kfold,
                 bool_use_gpu=bool_use_gpu,
+                bool_use_batch=bool_use_batch,
                 n_cpu_per_process=n_cpu_per_process,
                 n_gpu_per_process=n_gpu_per_process,
+                batch_size=batch_size,
                 random_seed=random_seed,
             )
 
@@ -338,10 +421,11 @@ def seq_forward_selection(
                 str_model=str_model_cv,
                 bool_use_strat_kfold=bool_use_strat_kfold,
                 bool_use_gpu=bool_use_gpu,
-                n_cpu_per_process=1,
+                n_cpu_per_process=n_cpu_per_process,
                 n_gpu_per_process=n_gpu_per_process,
                 random_seed=random_seed,
             )
+
         # obtain the initial AUC from first pass
         if len(output_fin["vec_pb_ord"]) == 0:
             orig_metric = combine_struct_by_field(vec_output, str_metric)
@@ -368,7 +452,7 @@ def seq_forward_selection(
             str_metric=str_metric,
             max_width=max_width,
             width=width,
-            top_k=top_k,
+            top_k=n_candidate_peak,
         )
         vec_features_pb_sub = [
             correct_sfs_feature_dim(features, pb, idx_used, n_iter)
@@ -385,8 +469,10 @@ def seq_forward_selection(
                 str_model=str_model_sfs,
                 bool_use_strat_kfold=bool_use_strat_kfold,
                 bool_use_gpu=bool_use_gpu,
-                n_cpu_per_process=1,
+                bool_use_batch=bool_use_batch,
+                n_cpu_per_process=n_cpu_per_process,
                 n_gpu_per_process=n_gpu_per_process,
+                batch_size=batch_size,
                 random_seed=random_seed,
             )
 
@@ -400,7 +486,7 @@ def seq_forward_selection(
                 str_model=str_model_sfs,
                 bool_use_strat_kfold=bool_use_strat_kfold,
                 bool_use_gpu=bool_use_gpu,
-                n_cpu_per_process=1,
+                n_cpu_per_process=n_cpu_per_process,
                 n_gpu_per_process=n_gpu_per_process,
                 random_seed=random_seed,
             )
@@ -418,7 +504,7 @@ def seq_forward_selection(
             vec_metric_pb_curr = combine_struct_by_field(
                 vec_output_sfs_pb_curr, str_metric
             )
-            idx_max_metric = np.argsort(vec_metric_pb_curr)[::-1][:top_best]
+            idx_max_metric = np.argsort(vec_metric_pb_curr)[::-1][:n_candidate_pb]
 
             # now form the best power band
             # _, output_sfs['pb_best'] = combine_hist(vec_metric_pb_curr)
@@ -429,7 +515,7 @@ def seq_forward_selection(
 
         # find the best feature
         vec_metric_sfs = combine_struct_by_field(vec_output_sfs, str_metric)
-        idx_sort = np.argsort(vec_metric_sfs)[::-1][:top_best]
+        idx_sort = np.argsort(vec_metric_sfs)[::-1][:n_candidate_pb]
         vec_output_sfs = [vec_output_sfs[i] for i in idx_sort]
 
         if len(output_fin["vec_pb_ord"]) == 0:
@@ -476,7 +562,7 @@ def seq_forward_selection(
         ],
         axis=0,
     )
-    n_pb_lim = 5 if top_k > 5 else top_k
+    n_pb_lim = 5 if n_candidate_pb > 5 else n_candidate_pb
     pb_init_lim = np.stack(
         [
             [output_init["vec_pb_ord"][i][0], output_init["vec_pb_ord"][i][-1]]
@@ -488,7 +574,7 @@ def seq_forward_selection(
     # parse the power band labels
     vec_str_ch = [x[0] for x in labels_cell]
     vec_pb = [x[1] for x in labels_cell]
-    pb_width = stats.mode(np.diff(vec_pb), keepdims=True)[0][0]
+    pb_width = stats.mode(np.diff(vec_pb), keepdims=True)[0][0]  # type: ignore
 
     # obtain the final power bands
     output_init["sinPB"] = []

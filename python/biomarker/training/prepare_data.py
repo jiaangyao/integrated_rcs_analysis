@@ -1,19 +1,22 @@
-import scipy
 import numpy as np
+import numpy.typing as npt
+import pandas as pd
+import scipy
+
 
 from biomarker.signal_processing.calc_high_res_spectra import calc_high_res_spectra
 
 
 def prepare_data(
-    data,
-    stim_level: dict,
+    data: pd.DataFrame,
     str_side="L",
+    stim_level: list = [],
     label_type="med",
     interval=0.05,
     update_rate=30,
     low_lim=2,
     high_lim=100,
-    bool_use_dynamics=False,
+    bool_use_dyna=False,
     n_dynamics=3,
 ):
     print("\nCalculating High Resolution Spectra", end="")
@@ -59,12 +62,9 @@ def prepare_data(
         raise NotImplementedError
 
     # now calculate the high resolution spectra
-    stim_level_side = (
-        stim_level[str_side]
-        if isinstance(stim_level, dict)
-        else getattr(stim_level, str_side)
-    )
-    
+    # sanity check first for stim level
+    assert len(stim_level) > 0, "Stim level must be specified"
+
     # obtain the high resolution spectra
     (
         vec_features_full,
@@ -78,7 +78,7 @@ def prepare_data(
         fs,
         interval,
         update_rate,
-        stim_level_side,
+        stim_level,
         ch2use,
     )
 
@@ -88,7 +88,7 @@ def prepare_data(
         True if (low_lim <= f[1] <= high_lim) else False for f in labels_cell_full
     ]
     features = vec_features_full[bool_lim, :].T
-    if bool_use_dynamics:
+    if bool_use_dyna:
         vec_features = []
         vec_y_class = []
         vec_y_stim = []
@@ -112,6 +112,6 @@ def prepare_data(
         assert features.shape[0] == y_class.shape[0] == y_stim.shape[0]
 
     # TODO: enforce typing in function above
-    labels_cell = [x for x, y in zip(labels_cell_full, bool_lim) if y] # type: ignore
+    labels_cell = [x for x, y in zip(labels_cell_full, bool_lim) if y]  # type: ignore
 
     return features, y_class, y_stim, labels_cell, vec_times_full

@@ -94,3 +94,36 @@ fabric.properties
 
 # Built Visual Studio Code Extensions
 *.vsix
+
+
+################################################################
+# Hydra && wandb .gitignore contents
+
+/outputs
+/multirun
+/data
+/wandb
+
+
+################################################################
+# Python .gitignore contents
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST

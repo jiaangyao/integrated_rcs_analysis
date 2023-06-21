@@ -1,4 +1,4 @@
-# pylint: disable=no-member
+# pyright: reportPrivateImportUsage=false
 import typing as tp
 
 import numpy as np
@@ -26,6 +26,7 @@ def kfold_cv_training(
     features_sub,
     y_class,
     y_stim,
+    idx_feature,
     n_fold=10,
     n_cpu_per_process: int | float = 1,
     n_gpu_per_process: int | float = 0,
@@ -104,7 +105,27 @@ def kfold_cv_training(
     # create the output structure
     output = comp_summary_output_struct(output)
 
+    # also append the index of current input
+    output["idx_feature"] = idx_feature
+
     return output
+
+
+def kfold_Cv_training_batch(
+    vec_features_batch,
+    y_class,
+    y_stim,
+    vec_idx_feature,
+    **kwargs,
+):
+    vec_output = [
+        kfold_cv_training(
+            vec_features_batch[i], y_class, y_stim, vec_idx_feature[i], **kwargs
+        )
+        for i in range(len(vec_features_batch))
+    ]
+
+    return vec_output
 
 
 @ray.remote(num_cpus=1, num_gpus=0, max_calls=1)
@@ -122,3 +143,20 @@ def kfold_cv_training_ray(*args, **kwargs):
     output = kfold_cv_training(*args, **kwargs, bool_use_ray=True)
 
     return output
+
+
+@ray.remote(num_cpus=1, num_gpus=0, max_calls=1)
+def kfold_cv_training_ray_batch(*args, **kwargs):
+    """Ray wrapper for kfold_cv_training
+
+    Args:
+        args (tuple): arguments for kfold_cv_training
+        kwargs (dict): keyword arguments for kfold_cv_training
+
+    Returns:
+        dict: output of kfold_cv_training
+    """
+
+    vec_output = kfold_Cv_training_batch(*args, **kwargs)
+
+    return vec_output

@@ -1,0 +1,5 @@
+defaults:
+    - home_ray_cpu_batch
+    - _self_
+
+batch_size: 4
