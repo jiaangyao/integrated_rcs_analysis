@@ -3,7 +3,7 @@
 str_subject: "RCS17"
 str_side: "L"
 stim_settings:
-  R:
+  L:
     active_group: "D"
     amp_in_mA:
       - 2.3
