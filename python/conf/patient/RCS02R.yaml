@@ -3,15 +3,6 @@
 str_subject: "RCS02"
 str_side: "R"
 stim_settings:
-  L:
-    active_group: "D"
-    amp_in_mA:
-      - 1.7
-      - 2.5
-    rate_in_Hz:
-      - 130.2
-    pulse_width_in_us:
-      - 60
   R:
     active_group: "D"
     amp_in_mA:

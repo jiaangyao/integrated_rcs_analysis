@@ -1,0 +1,14 @@
+
+# patient specific settings subject to change later
+str_subject: "RCS08"
+str_side: "R"
+stim_settings:
+  R:
+    active_group: "D"
+    amp_in_mA:
+      - 1.0
+      - 2.8
+    rate_in_Hz:
+      - 130.2
+    pulse_width_in_us:
+      - 60
