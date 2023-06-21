@@ -109,12 +109,15 @@ class PyTorchModelWrapper(BaseModel):
         self.bool_use_gpu = bool_use_gpu
 
         # initialize GPU with memory constraints
+        gpu_id = torch.cuda.current_device() if bool_use_gpu else 0
         ptu.init_gpu(
             use_gpu=bool_use_gpu,
+            gpu_id=gpu_id,
             bool_use_best_gpu=True,
             bool_limit_gpu_mem=True,
             gpu_memory_fraction=n_gpu_per_process,
         )
+        self.device = ptu.device
 
     def train(
         self,
@@ -134,10 +137,10 @@ class PyTorchModelWrapper(BaseModel):
         if self.bool_use_gpu:
             force_cudnn_initialization()
             assert torch.cuda.is_available(), "Make sure you have a GPU available"
-            assert ptu.device.type == "cuda", "Make sure you are using GPU"
+            assert self.device.type == "cuda", "Make sure you are using GPU"
 
             assert (
-                torch.cuda.current_device() == ptu.device.index
+                torch.cuda.current_device() == self.device.index
             ), "Make sure you are using specified GPU"
 
         # initialize dataset and dataloader for training set
@@ -543,7 +546,7 @@ class MLPModelWrapper(PyTorchModelWrapper):
             hidden_size,
             dropout,
         )
-        self.model = self.model.to(ptu.device)
+        self.model = self.model.to(self.device)
 
     def train(
         self,
@@ -678,7 +681,7 @@ class RNNModelWrapper(PyTorchModelWrapper):
             final_dropout,
         )
 
-        self.model = self.model.to(ptu.device)
+        self.model = self.model.to(self.device)
 
     def train(
         self,
