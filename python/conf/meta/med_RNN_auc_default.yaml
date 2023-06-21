@@ -5,5 +5,4 @@ label_type: "med"
 str_model: "RNN"
 str_metric: "avg_auc"
 
-width: 5
-max_width: 10
+bool_debug: False

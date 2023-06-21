@@ -150,13 +150,7 @@ class SFSTrainer(DefaultModelTrainer):
             Warning("Debug mode is on, only 1 rep will be run")
             self.n_rep = 1
 
-    def train_side(self):
-        """Biomarker identification script
-
-        Args:
-            cfg (dict): dictionary holding the configurations for the biomarker identification
-        """
-
+    def load_data(self):
         # load the data from the desginated side
         data_hemi = pd.read_csv(str(self.p_data / self.f_data), header=0)
 
@@ -167,6 +161,9 @@ class SFSTrainer(DefaultModelTrainer):
             tz_str="America/Los_Angeles",
         )
 
+        return data_hemi
+
+    def initialize_ray(self):
         # initialize ray
         if self.bool_use_ray:
             if not self.bool_use_gpu:
@@ -190,11 +187,21 @@ class SFSTrainer(DefaultModelTrainer):
                     include_dashboard=True,
                 )
 
-        # initialize the output variable
-        output_label = dict()
-        output_label["sinPB"] = []
-        output_label["sfsPB"] = []
+        else:
+            context = None
 
+        return context
+
+    def terminate_ray(self, context):
+        # terminate ray
+        if self.bool_use_ray:
+            ray.shutdown()
+
+    def extract_features(
+        self,
+        data_hemi,
+        n_dynamics=0,
+    ):
         # obtain the features
         features, y_class, y_stim, labels_cell, _ = prepare_data(
             data_hemi,
@@ -205,10 +212,38 @@ class SFSTrainer(DefaultModelTrainer):
             update_rate=self.update_rate,
             low_lim=self.freq_low_lim,
             high_lim=self.freq_high_lim,
-            bool_use_dyna=False,
-            n_dynamics=0,
+            bool_use_dyna=self.bool_use_dyna,
+            n_dynamics=n_dynamics,
         )
 
+        return features, y_class, y_stim, labels_cell
+
+    def save_output(
+        self,
+        output: dict,
+    ):
+        """save the output file
+
+        Args:
+            output (dict): dictionary containing the output
+        """
+        # append config to output
+        output["cfg"] = self.cfg
+
+        # confirm the output directory exists
+        self.p_output.mkdir(parents=True, exist_ok=True)
+
+        # dump output
+        with open(str(self.p_output / self.f_output), "wb") as f:
+            pickle.dump(output, f)
+
+    def SFS_inner_loop(
+        self,
+        features,
+        y_class,
+        y_stim,
+        labels_cell,
+    ):
         # iterate through the repetitions
         print("\nSequential Forward Selection")
         for idx_rep in tqdm.trange(
@@ -217,6 +252,11 @@ class SFSTrainer(DefaultModelTrainer):
             desc="{} REP".format(self.str_feature_selection),
             bar_format="{desc:<2.5}{percentage:3.0f}%|{bar:15}{r_bar}",
         ):
+            # initialize the output variable
+            output_label = dict()
+            output_label["sinPB"] = []
+            output_label["sfsPB"] = []
+
             # perform the SFS
             output_fin, output_init, _, _ = seq_forward_selection(
                 features,
@@ -250,14 +290,40 @@ class SFSTrainer(DefaultModelTrainer):
             print("Done with rep {}".format(idx_rep + 1))
             print("")
 
-        # shutdown ray in case of using it
-        if self.bool_use_ray:
-            ray.shutdown()
+        # return the output
+        return output_label
 
-        # save the output file
-        output_label["cfg"] = self.cfg
-        with open(str(self.p_output / self.f_output), "wb") as f:
-            pickle.dump(output_label, f)
+    def train_side(self):
+        """Training pipeline for a single side of the brain"""
+        
+        # runtime sanity checks
+        assert not self.bool_use_dyna, "Dynamics should not be used for model comp SFS"
+
+        # load the data
+        data_hemi = self.load_data()
+
+        # initialize ray
+        context = self.initialize_ray()
+
+        # obtain the features
+        features, y_class, y_stim, labels_cell = self.extract_features(
+            data_hemi,
+            n_dynamics=0,
+        )
+
+        # perform SFS inner loop and iterate through the repetitions
+        output_label = self.SFS_inner_loop(
+            features,
+            y_class,
+            y_stim,
+            labels_cell,
+        )
+
+        # shutdown ray in case of using it
+        self.terminate_ray(context)
+
+        # save the output
+        self.save_output(output_label)
 
         # final print statement for breakpoint
         if self.bool_debug:
