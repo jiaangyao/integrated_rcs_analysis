@@ -1,0 +1,18 @@
+main:
+  source: file
+  user: ${oc.env:USER}
+
+defaults:
+  - _self_
+  - meta: ???
+  - patient: RCS02
+  - data_paths: model_id_step3
+  - preproc: ur1_5s
+  - feature_selection: sfs_settings_default
+  - parallel: home_ray_cpu_batch
+  - dynamics: no_dynamics_default
+
+hydra:
+  sweeper:
+    params:
+      meta: glob(*, exclude=base*)

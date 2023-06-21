@@ -16,7 +16,7 @@ from utils.parse_datetime import parse_dt_w_tz
 import utils.torch_utils as ptu
 
 
-_VEC_STR_SUBJECT = tp.Literal["RCS02"]
+_VEC_STR_SUBJECT = tp.Literal["RCS02", "RCS08"]
 _VEC_STR_SIDE = tp.Literal["L", "R"]
 _VEC_MED_LEVEL = tp.Literal["med"]
 _VEC_STR_METRIC = tp.Literal["avg_auc", "avg_acc", "avg_f1"]
@@ -256,9 +256,12 @@ class BiomarkerIDDynamicsTrainer(BiomarkerIDTrainer):
                     y_stim,
                     labels_cell,
                     str_model=str_model,
+                    str_metric=str_metric,
                     bool_force_sfs_acc=bool_force_sfs_acc,
                     bool_use_ray=bool_use_ray,
                     bool_use_gpu=bool_use_gpu,
+                    n_cpu=n_cpu,
+                    n_gpu=n_gpu,
                     n_gpu_per_process=n_gpu_per_process,
                     bool_use_strat_kfold=bool_use_strat_kfold,
                     random_seed=random_seed,

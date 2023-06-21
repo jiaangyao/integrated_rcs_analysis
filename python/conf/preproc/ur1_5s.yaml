@@ -1,0 +1,4 @@
+defaults:
+  - base_preproc
+
+update_rate: 30

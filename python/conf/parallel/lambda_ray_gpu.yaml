@@ -1,0 +1,9 @@
+defaults:
+  - base_ray_default
+
+bool_use_gpu: False
+
+n_cpu: 32
+n_gpu: 2
+n_cpu_per_process: ???
+n_gpu_per_process: 0.1

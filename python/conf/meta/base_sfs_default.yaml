@@ -1,0 +1,6 @@
+# to be overridden
+label_type: ???
+str_model: ???
+str_metric: ???
+
+bool_debug: False

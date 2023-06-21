@@ -1,0 +1,6 @@
+interval: 0.05
+update_rate: ???
+freq_low_lim: 2
+freq_high_lim: 100
+
+n_ch: 3

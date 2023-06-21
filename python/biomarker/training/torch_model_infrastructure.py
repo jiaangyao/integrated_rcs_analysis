@@ -1,3 +1,4 @@
+# pyright: reportPrivateImportUsage=false
 from __future__ import print_function
 import typing as tp
 from types import MappingProxyType
@@ -10,7 +11,7 @@ from torch.utils.data import DataLoader
 import ray
 import numpy as np
 import numpy.typing as npt
-from scipy.special import softmax
+from scipy.special import softmax  # type: ignore
 
 import utils.torch_utils as ptu
 from utils.torch_early_stopping import EarlyStopping
@@ -42,9 +43,6 @@ def get_model_ray(
     n_cpu_per_process: int | float = 1,
     n_gpu_per_process: int | float = 0,
 ):
-    # use GPU hard limit to compute parallelizable model
-    n_models = np.floor(1 / n_gpu_per_process)
-
     if str_model == "MLP":
         # TODO: look into args and kwargs
         # initialize the model
@@ -82,7 +80,7 @@ class PyTorchModelWrapper(BaseModel):
         transform,
         target_transform,
         bool_use_gpu=False,
-        n_gpu_per_process=0,
+        n_gpu_per_process: int | float = 0,
     ):
         super().__init__()
 
@@ -502,7 +500,7 @@ class MLPModelWrapper(PyTorchModelWrapper):
         transform=None,
         target_transform=None,
         bool_use_gpu=False,
-        n_gpu_per_process=0,
+        n_gpu_per_process: int | float = 0,
     ):
         # initialize the base model
         super().__init__(
@@ -620,7 +618,7 @@ class RNNModelWrapper(PyTorchModelWrapper):
         transform=None,
         target_transform=None,
         bool_use_gpu=False,
-        n_gpu_per_process=0,
+        n_gpu_per_process: int | float = 0,
     ):
         # initialize the base model
         super().__init__(

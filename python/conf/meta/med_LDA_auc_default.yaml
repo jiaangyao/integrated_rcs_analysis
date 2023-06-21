@@ -1,0 +1,8 @@
+defaults:
+  - base_sfs_default
+
+label_type: "med"
+str_model: "LDA"
+str_metric: "avg_auc"
+
+bool_debug: False

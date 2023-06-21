@@ -13,7 +13,9 @@ def separete_by_stim(data, stim, time):
         return [data], [stim], [time]
 
     # now get all the chunks of data
-    raise NotImplementedError
+    # TODO: fix this later
+    return [data], [stim], [time]
     vec_data_chunk = []
     vec_stim_chunk = []
     vec_time_chunk = []
+    

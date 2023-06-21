@@ -1,0 +1,9 @@
+bool_use_ray: True
+bool_use_gpu: ???
+bool_use_batch: False
+
+n_cpu: ???
+n_gpu: ???
+n_cpu_per_process: ???
+n_gpu_per_process: ???
+batch_size: 1
