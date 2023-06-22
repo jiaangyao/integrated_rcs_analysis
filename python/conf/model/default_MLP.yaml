@@ -1,0 +1,24 @@
+defaults:
+  - base_model
+  - _self_
+
+model_args: []
+model_kwargs:
+  n_layer: 3
+  hidden_size: 16
+  dropout: 0.5
+  lam: 1e-5
+  str_act: 'relu'
+  str_reg: 'L2'
+  str_loss: 'CrossEntropy'
+  str_opt: 'Adam'
+  lr: 5e-4
+  transform: null
+  target_transform: null
+  bool_use_gpu: ???
+  n_gpu_per_process: ???
+
+ensemble_args: []
+ensemble_kwargs: {}
+
+model_type: 'torch'

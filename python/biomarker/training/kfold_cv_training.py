@@ -5,11 +5,11 @@ import numpy as np
 import numpy.typing as npt
 import ray
 from sklearn.model_selection import StratifiedKFold, KFold
+from omegaconf import DictConfig
 
-from biomarker.training.get_model_params import get_model_params
+from biomarker.training.model_initialize import initialize_model
 from biomarker.training.correct_data_dim import correct_data_dim, get_valid_data
-from biomarker.training.model_training import train_model, test_if_torch_model
-from biomarker.training.correct_data_dim import correct_sfs_feature_dim
+from biomarker.training.model_training import train_model
 from utils.combine_labels import create_hashmap
 from utils.combine_struct import (
     combine_struct_by_field,
@@ -23,17 +23,15 @@ from utils.beam_search import beam_search
 
 
 def kfold_cv_training(
-    features_sub,
+    features_sub: npt.NDArray,
     y_class,
     y_stim,
     idx_feature,
+    model_cfg: DictConfig,
+    trainer_cfg: DictConfig,
     n_fold=10,
-    n_cpu_per_process: int | float = 1,
-    n_gpu_per_process: int | float = 0,
     str_model="LDA",
     bool_use_strat_kfold=True,
-    bool_use_ray=False,
-    bool_use_gpu=False,
     random_seed: int | None = 0,
 ):
     # create the training and test sets
@@ -45,8 +43,18 @@ def kfold_cv_training(
     # create hashmap in advance from most general label
     hashmap = create_hashmap(y_class, y_stim)
 
-    # check if validation data is needed
-    bool_torch = test_if_torch_model(str_model)
+    # correct feature dimensionality and obtain the dimensionality for model parameter
+    features_sub = correct_data_dim(str_model, features_sub)
+    n_input = features_sub.shape[1]
+    n_class_model = len(np.unique(y_class))
+
+    # initialize the model for training
+    model = initialize_model(
+        str_model,
+        model_cfg,
+        n_input,
+        n_class_model,
+    )
 
     # obtain the number of classes
     n_class = len(np.unique(y_class)) * len(np.unique(y_stim))
@@ -71,7 +79,7 @@ def kfold_cv_training(
             y_class_train,
             features_test,
             y_class_test,
-            bool_torch,
+            model.bool_torch,
             n_fold,
             bool_use_strat_kfold,
             random_seed,
@@ -79,16 +87,13 @@ def kfold_cv_training(
 
         # now define and train the model
         output_curr = train_model(
+            model,
             vec_features,
             vec_y_class,
             y_stim_test,
+            trainer_cfg,
             n_class=n_class,
-            str_model=str_model,
             hashmap=hashmap,
-            bool_use_ray=bool_use_ray,
-            bool_use_gpu=bool_use_gpu,
-            n_cpu_per_process=n_cpu_per_process,
-            n_gpu_per_process=n_gpu_per_process,
         )
 
         # append the variables to outer list
@@ -116,11 +121,19 @@ def kfold_Cv_training_batch(
     y_class,
     y_stim,
     vec_idx_feature,
+    model_cfg,
+    trainer_cfg,
     **kwargs,
 ):
     vec_output = [
         kfold_cv_training(
-            vec_features_batch[i], y_class, y_stim, vec_idx_feature[i], **kwargs
+            vec_features_batch[i],
+            y_class,
+            y_stim,
+            vec_idx_feature[i],
+            model_cfg,
+            trainer_cfg,
+            **kwargs,
         )
         for i in range(len(vec_features_batch))
     ]
@@ -140,7 +153,7 @@ def kfold_cv_training_ray(*args, **kwargs):
         dict: output of kfold_cv_training
     """
 
-    output = kfold_cv_training(*args, **kwargs, bool_use_ray=True)
+    output = kfold_cv_training(*args, **kwargs)
 
     return output
 

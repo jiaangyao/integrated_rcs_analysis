@@ -19,9 +19,6 @@ from biomarker.training.model_infrastructure import BaseModel
 from biomarker.training.torch_dataset import NeuralDataset, NeuralDatasetTest
 
 
-_VEC_MODEL_DYNAMICS_ONLY = ["RNN"]
-
-
 # TODO: remove this
 def force_cudnn_initialization():
     s = 32
@@ -29,42 +26,6 @@ def force_cudnn_initialization():
     torch.nn.functional.conv2d(
         torch.zeros(s, s, s, s, device=dev), torch.zeros(s, s, s, s, device=dev)
     )
-
-
-def get_dynamics_model() -> list:
-    return _VEC_MODEL_DYNAMICS_ONLY
-
-
-def get_model_ray(
-    str_model,
-    model_params: dict | MappingProxyType = MappingProxyType(dict()),
-    bool_use_ray: bool = False,
-    bool_use_gpu: bool = False,
-    n_cpu_per_process: int | float = 1,
-    n_gpu_per_process: int | float = 0,
-):
-    if str_model == "MLP":
-        # TODO: look into args and kwargs
-        # initialize the model
-        model = MLPModelWrapper(
-            *model_params["args"],
-            **model_params["kwargs"],
-            bool_use_gpu=bool_use_gpu,
-            n_gpu_per_process=n_gpu_per_process,
-        )
-
-    elif str_model == "RNN":
-        # initalize the model
-        model = RNNModelWrapper(
-            *model_params["args"],
-            **model_params["kwargs"],
-            bool_use_gpu=bool_use_gpu,
-            n_gpu_per_process=n_gpu_per_process,
-        )
-    else:
-        raise NotImplementedError
-
-    return model
 
 
 class PyTorchModelWrapper(BaseModel):
@@ -118,6 +79,9 @@ class PyTorchModelWrapper(BaseModel):
             gpu_memory_fraction=n_gpu_per_process,
         )
         self.device = ptu.device
+
+        # additional flags
+        self.bool_torch = True
 
     def train(
         self,
@@ -303,10 +267,10 @@ class PyTorchModelWrapper(BaseModel):
 
         return loss
 
-    def get_activation(self):
+    def get_activation(self, str_act):
         act_hash_map = ptu.get_act_func()
-        if self.str_act in act_hash_map.keys():
-            act = act_hash_map[self.str_act]
+        if str_act in act_hash_map.keys():
+            act = act_hash_map[str_act]
         else:
             raise NotImplementedError
 
@@ -540,7 +504,7 @@ class MLPModelWrapper(PyTorchModelWrapper):
         self.model = TorchMLPModel(
             n_input,
             n_class,
-            self.get_activation(),
+            self.get_activation(self.str_act),
             self.get_loss(),
             n_layer,
             hidden_size,
@@ -593,6 +557,7 @@ class MLPModelWrapper(PyTorchModelWrapper):
 @ray.remote(num_cpus=1, num_gpus=0.2)
 class MLPModelWrapperRay(MLPModelWrapper):
     def __init__(self, *args, **kwargs):
+        # TODO: actor is deprecated, need to remove
         super().__init__(*args, **kwargs)
 
 
@@ -602,7 +567,7 @@ class RNNModelWrapper(PyTorchModelWrapper):
         n_input,
         n_class,
         bool_cnn=True,
-        cnn_act_func=None,
+        str_cnn_act="identity",
         cnn_ks=5,
         cnn_stride=3,
         bool_cnn_dropout=False,
@@ -627,7 +592,7 @@ class RNNModelWrapper(PyTorchModelWrapper):
         super().__init__(
             n_class,
             str_loss,
-            cnn_act_func,
+            str_cnn_act,
             str_reg,
             lam,
             str_opt,
@@ -641,7 +606,7 @@ class RNNModelWrapper(PyTorchModelWrapper):
         # initialize fields for RNN params
         self.n_input = n_input
         self.bool_cnn = bool_cnn
-        self.cnn_act_func = cnn_act_func
+        self.str_cnn_act = str_cnn_act
         self.cnn_ks = cnn_ks
         self.cnn_stride = cnn_stride
         self.bool_cnn_dropout = bool_cnn_dropout
@@ -668,7 +633,7 @@ class RNNModelWrapper(PyTorchModelWrapper):
             n_class,
             self.get_loss(),
             bool_cnn,
-            self.get_activation(),
+            self.get_activation(self.str_cnn_act),
             cnn_ks,
             cnn_stride,
             bool_cnn_dropout,
@@ -728,4 +693,5 @@ class RNNModelWrapper(PyTorchModelWrapper):
 @ray.remote(num_cpus=1, num_gpus=0.2)
 class RNNModelWrapperRay(RNNModelWrapper):
     def __init__(self, *args, **kwargs):
+        # TODO: actor is deprecated, need to remove
         super().__init__(*args, **kwargs)

@@ -1,0 +1,30 @@
+defaults:
+  - base_model
+  - _self_
+
+model_args: []
+model_kwargs:
+  bool_cnn: False
+  str_cnn_act: 'identity'
+  cnn_ks: 5
+  cnn_stride: 3
+  bool_cnn_dropout: False
+  cnn_dropout: 0.5
+  n_rnn_layer: 2
+  rnn_dim: 16
+  bool_bidirectional: True
+  rnn_dropout: 0.6
+  lam: 1e-5
+  str_reg: 'L2'
+  str_loss: 'CrossEntropy'
+  str_opt: 'Adam'
+  lr: 1e-4
+  transform: null
+  target_transform: null
+  bool_use_gpu: ???
+  n_gpu_per_process: ???
+
+ensemble_args: []
+ensemble_kwargs: {}
+
+model_type: 'torch'

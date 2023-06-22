@@ -4,5 +4,6 @@ defaults:
 label_type: "med"
 str_model: "MLP"
 str_metric: "avg_auc"
+model_type: "torch"
 
 bool_debug: False

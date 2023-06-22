@@ -8,58 +8,26 @@ from sklearn.metrics import (
     roc_curve,
     roc_auc_score,
 )
+from omegaconf import DictConfig
 
-from biomarker.training.model_infrastructure import get_model
-from biomarker.training.torch_model_infrastructure import get_model_ray
-from biomarker.training.get_model_params import get_model_params
-from biomarker.training.correct_data_dim import correct_data_dim
 from utils.combine_labels import combine_labels
 
 
-def test_if_torch_model(str_model):
-    return get_model_params(str_model, 1, 1)[2]
-
-
 def train_model(
+    model,
     vec_features: list[npt.NDArray],
     vec_y_class: list[npt.NDArray],
     y_stim_test: npt.NDArray,
+    trainer_cfg: DictConfig,
     n_class: int = 4,
-    str_model: str = "LDA",
     hashmap: dict[str, int] | None = None,
-    bool_use_ray: bool = False,
-    bool_use_gpu: bool = False,
-    n_cpu_per_process: int | float = 1,
-    n_gpu_per_process: int | float = 0,
 ) -> dict[str, npt.NDArray | int | float | None]:
-    # obtain the dimensionality
-    n_input = vec_features[0].shape[1]
-    n_class_model = len(np.unique(vec_y_class[0]))
-
-    # now define the model parameters and correct the feature dimensionality
-    model_params, train_params, bool_torch = get_model_params(
-        str_model, n_input, n_class_model
-    )
-    vec_features = correct_data_dim(str_model, vec_features)
-
-    # obtain the parameters for training and append it to the configuraiton
-
-    # now define the model
+    # now train the model
     # if using pytorch models
-    if bool_torch:
+    if model.bool_torch:
         # unpack the features first
         features_train, features_valid, features_test = vec_features
         y_class_train, y_class_valid, y_class_test = vec_y_class
-
-        # now start the model training
-        model = get_model_ray(
-            str_model,
-            model_params,
-            bool_use_ray=bool_use_ray,
-            bool_use_gpu=bool_use_gpu,
-            n_cpu_per_process=n_cpu_per_process,
-            n_gpu_per_process=n_gpu_per_process,
-        )
 
         # train the model
         model.train(
@@ -67,21 +35,16 @@ def train_model(
             y_class_train,
             valid_data=features_valid,
             valid_label=y_class_valid,
-            **train_params
+            **trainer_cfg
         )
 
     # if using sklearn models
     else:
-        # warn if using GPU for sklearn
-        if bool_use_gpu:
-            Warning("Using GPU for sklearn model training")
-
         # unpack the features first
         features_train, features_test = vec_features
         y_class_train, y_class_test = vec_y_class
 
         # now obtain the models
-        model = get_model(str_model, model_params)
         model.train(features_train, y_class_train)
 
     # next generate the predictions

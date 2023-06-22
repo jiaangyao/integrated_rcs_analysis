@@ -4,5 +4,6 @@ defaults:
 label_type: "med"
 str_model: "QDA"
 str_metric: "avg_auc"
+model_type: "sklearn"
 
 bool_debug: False

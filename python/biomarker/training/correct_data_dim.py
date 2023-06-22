@@ -4,7 +4,7 @@ import numpy.typing as npt
 import scipy.signal as signal
 from sklearn.model_selection import StratifiedKFold, KFold
 
-from biomarker.training.torch_model_infrastructure import get_dynamics_model
+from biomarker.training.model_initialize import get_dynamics_model
 from utils.combine_struct import combine_struct_by_field
 from utils.get_all_pb import get_all_pb
 
@@ -12,42 +12,27 @@ from utils.get_all_pb import get_all_pb
 _VEC_MODEL_DYNAMICS_ONLY = get_dynamics_model()
 
 
-def correct_data_dim(str_model, vec_features):
+def correct_data_dim(str_model, features_sub: npt.NDArray):
     # create empty list for holding output and sanity check
-    assert len(vec_features) > 0, "Input features should not be empty"
-    vec_features_out = []
+    assert features_sub.shape[0] > 0, "Input features should not be empty"
 
     # cases where model doesn't support dynamics
     if str_model not in _VEC_MODEL_DYNAMICS_ONLY:
-        if len(vec_features[0].shape) > 2:
-            for features_curr in vec_features:
-                assert np.all(
-                    features_curr.shape[1:] == vec_features[0].shape[1:]
-                ), "Features should have the same shape"
-                features_curr_reshape = features_curr.copy().reshape(
-                    features_curr.shape[0], -1
-                )
-                vec_features_out.append(features_curr_reshape)
+        if len(features_sub.shape) > 2:
+            features_sub_out = features_sub.copy().reshape(features_sub.shape[0], -1)
         else:
-            vec_features_out = [features for features in vec_features]
+            features_sub_out = features_sub.copy()
 
     # cases where the model only takes in dynamics
     elif str_model in _VEC_MODEL_DYNAMICS_ONLY:
-        if len(vec_features[0].shape) == 2:
-            for features_curr in vec_features:
-                assert np.all(
-                    features_curr.shape[1:] == vec_features[0].shape[1:]
-                ), "Features should have the same shape"
-                features_curr_reshape = np.expand_dims(features_curr, axis=1)
-                vec_features_out.append(features_curr_reshape)
+        if len(features_sub.shape) == 2:
+            features_sub_out = np.expand_dims(features_sub, axis=-1)    # note axis=-1 here since data should be in shape (batch_size, n_channel, n_time)
         else:
-            vec_features_out = [features for features in vec_features]
+            features_sub_out = features_sub.copy()
     else:
         raise ValueError("Model not found")
 
-    assert len(vec_features_out) > 0, "Output features should not be empty"
-
-    return vec_features_out
+    return features_sub_out
 
 
 def correct_sfs_feature_dim(
@@ -55,7 +40,7 @@ def correct_sfs_feature_dim(
     idx_feature: list | int | npt.NDArray[np.int_],
     idx_used: list,
     n_iter: int,
-):  
+):
     # TODO: verify validity of this function
     # organize the indexing for which power bin to extract from full feature matrix
     if isinstance(idx_feature, list):
@@ -131,7 +116,7 @@ def group_pb_cross_asym(
     assert vec_metric.shape[0] == features.shape[1], "metric and features do not match"
 
     # find the peaks and also exclude the ones already used
-    vec_idx_peak = signal.find_peaks( # type: ignore
+    vec_idx_peak = signal.find_peaks(  # type: ignore
         vec_metric, height=np.percentile(vec_metric, 75), width=width / 2
     )[0]
     if len(idx_used) > 0:
@@ -201,5 +186,15 @@ def get_valid_data(
         # for non-neural net then just use the train and test set
         vec_features = [features_train, features_test]
         vec_y_class = [y_class_train, y_class_test]
+
+    # perform sanity checks
+    for features_curr in vec_features:
+        assert np.all(
+            features_curr.shape[1:] == vec_features[0].shape[1:]
+        ), "Features should have the same shape"
+    for y_class_curr in vec_y_class:
+        assert np.all(
+            y_class_curr.shape[1:] == vec_y_class[0].shape[1:]
+        ), "Labels should have the same shape"
 
     return vec_features, vec_y_class

@@ -15,5 +15,5 @@ defaults:
 hydra:
   sweeper:
     params:
-      meta: glob(*, exclude=base*)
+      meta: glob(*, exclude=[base*, default*])
       patient: glob(*, exclude=*no_run*)

@@ -1,0 +1,20 @@
+defaults:
+  - base_model
+  - _self_
+
+model_args: []
+model_kwargs:
+  kernel: null
+  optimizer: 'fmin_l_bfgs_b'
+  n_restarts_optimizer: 0
+  max_iter_predict: 100
+  warm_start: False
+  copy_X_train: True
+  random_state: null
+  multi_class: 'one_vs_rest'
+  n_jobs: null
+
+ensemble_args: []
+ensemble_kwargs: {}
+
+model_type: 'sklearn'

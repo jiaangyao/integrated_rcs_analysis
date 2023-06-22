@@ -276,9 +276,9 @@ class SFSTrainer(DefaultModelTrainer):
                 bool_use_strat_kfold=self.bool_use_strat_kfold,
                 bool_use_ray=self.bool_use_ray,
                 bool_use_gpu=self.bool_use_gpu,
-                bool_use_batch=self.bool_use_batch,
                 n_cpu_per_process=self.n_cpu_per_process,
                 n_gpu_per_process=self.n_gpu_per_process,
+                bool_use_batch=self.bool_use_batch,
                 batch_size=self.batch_size,
             )
 
