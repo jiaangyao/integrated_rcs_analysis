@@ -4,3 +4,4 @@ str_model: ???
 str_metric: ???
 
 bool_debug: False
+bool_tune_hyperparams: False

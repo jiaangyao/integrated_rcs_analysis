@@ -44,6 +44,7 @@ class DefaultModelTrainer:
         self.label_type = cfg["meta"]["label_type"]
         self.str_metric = cfg["meta"]["str_metric"]
         self.bool_debug = cfg["meta"]["bool_debug"]
+        self.bool_tune_hyperparams = cfg["meta"]["bool_tune_hyperparams"]
 
         # unpack the subject specfic configs
         self.str_subject = cfg["patient"]["str_subject"]
@@ -280,6 +281,7 @@ class SFSTrainer(DefaultModelTrainer):
                 n_gpu_per_process=self.n_gpu_per_process,
                 bool_use_batch=self.bool_use_batch,
                 batch_size=self.batch_size,
+                bool_tune_hyperparams=self.bool_tune_hyperparams,
             )
 
             # append to outer list
