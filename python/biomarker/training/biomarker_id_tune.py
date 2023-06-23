@@ -23,104 +23,77 @@ def biomarker_id_tune_sfs(
     trainer.train_side_tune()
 
 
-class SFSInnerLoopTrainable(tune.Trainable):
-    def setup(
-        self,
-        config: dict,
-        features=None,
-        y_class=None,
-        y_stim=None,
-        labels_cell=None,
-        model_cfg: DictConfig | None = None,
-        trainer_cfg: DictConfig | None = None,
-        cfg: dict | None = None,
-    ):
-        # append arguments to field
-        self.features = features
-        self.y_class = y_class
-        self.y_stim = y_stim
-        self.labels_cell = labels_cell
-        self.model_cfg = OmegaConf.to_container(model_cfg, resolve=True)
-        self.trainer_cfg = OmegaConf.to_container(trainer_cfg, resolve=True)
+def sfs_inner_loop_trainable(
+    config: dict,
+    features=None,
+    y_class=None,
+    y_stim=None,
+    labels_cell=None,
+    model_cfg_in: DictConfig | None = None,
+    trainer_cfg_in: DictConfig | None = None,
+    cfg: dict | None = None,
+):
+    # unpack the configs
+    model_cfg = OmegaConf.to_container(model_cfg_in, resolve=True)
+    trainer_cfg = OmegaConf.to_container(trainer_cfg_in, resolve=True)
+    
+    # for all the config keys, update the model_cfg
+    for key, val in config.items():
+        # update values in model_kwargs
+        if key in model_cfg["model_kwargs"].keys():
+            model_cfg["model_kwargs"][key] = val
 
-        # unpack the config also
-        self.n_ch = cfg["preproc"]["n_ch"]
-        self.str_model = cfg["meta"]["str_model"]
-        self.str_metric = cfg["meta"]["str_metric"]
-        self.n_candidate_peak = cfg["feature_selection"]["n_candidate_peak"]
-        self.n_candidate_pb = cfg["feature_selection"]["n_candidate_pb"]
-        self.width = cfg["feature_selection"]["width"]
-        self.max_width = cfg["feature_selection"]["max_width"]
-        self.bool_force_sfs_acc = cfg["feature_selection"]["bool_force_sfs_acc"]
-        self.random_seed = cfg["feature_selection"]["random_seed"]
-        self.n_fold = cfg["feature_selection"]["n_fold"]
-        self.bool_use_strat_kfold = cfg["feature_selection"]["bool_use_strat_kfold"]
-        self.bool_tune_hyperparams = cfg["feature_selection"]["bool_tune_hyperparams"]
+        # update values in ensemble_kwargs
+        if key in model_cfg["ensemble_kwargs"].keys():
+            model_cfg["ensemble_kwargs"][key] = val
+            
+    # initialize wandb
+    wandb = setup_wandb(
+        config=config,
+        project="SFS_{}_Tune".format(cfg["meta"]["str_model"]),
+        group=cfg['tune']["wandb_group"],
+    )
 
-        self.bool_use_ray = False
-        self.bool_use_gpu = cfg["parallel"]["bool_use_gpu"]
+    # run the SFS process
+    _, output_init, _, _, _, _ = seq_forward_selection(
+        features,
+        y_class,
+        y_stim,
+        labels_cell,
+        model_cfg,
+        trainer_cfg,
+        n_ch=cfg["preproc"]["n_ch"],
+        str_model=cfg["meta"]["str_model"],
+        str_metric = cfg["meta"]["str_metric"],
+        n_candidate_peak = cfg["feature_selection"]["n_candidate_peak"],
+        n_candidate_pb = cfg["feature_selection"]["n_candidate_pb"],
+        width = cfg["feature_selection"]["width"],
+        max_width = cfg["feature_selection"]["max_width"],
+        bool_force_sfs_acc = cfg["feature_selection"]["bool_force_sfs_acc"],
+        random_seed = cfg["feature_selection"]["random_seed"],
+        n_fold = cfg["feature_selection"]["n_fold"],
+        bool_use_strat_kfold = cfg["feature_selection"]["bool_use_strat_kfold"],
+        bool_use_ray=False,
+        bool_use_gpu=cfg["parallel"]["bool_use_gpu"],
+        bool_tune_hyperparams=cfg["feature_selection"]["bool_tune_hyperparams"],
+        bool_verbose=False,
+    )
 
-        # append original config for wandb
-        self.config = config
-        self.wandb_group = cfg["wandb_group"]
+    # obtain the metric
+    avg_acc = output_init["vec_acc"][0]
+    avg_auc = output_init["vec_auc"][0]
 
-        # for all the config keys, update the model_cfg
-        for key, val in config.items():
-            # update values in model_kwargs
-            if key in self.model_cfg["model_kwargs"].keys():
-                self.model_cfg["model_kwargs"][key] = val
-
-            # update values in ensemble_kwargs
-            if key in self.model_cfg["ensemble_kwargs"].keys():
-                self.model_cfg["ensemble_kwargs"][key] = val
-
-    def step(self):  # This is called iteratively.
-        # initialize wandb
-        wandb = setup_wandb(
-            config=self.config,
-            project="SFS_{}_Tune".format(self.str_model),
-            group=self.wandb_group,
-        )
-
-        # run the SFS process
-        _, output_init, _, _, _, _ = seq_forward_selection(
-            self.features,
-            self.y_class,
-            self.y_stim,
-            self.labels_cell,
-            self.model_cfg,
-            self.trainer_cfg,
-            n_ch=self.n_ch,
-            str_model=self.str_model,
-            str_metric=self.str_metric,
-            n_candidate_peak=self.n_candidate_peak,
-            n_candidate_pb=self.n_candidate_pb,
-            width=self.width,
-            max_width=self.max_width,
-            bool_force_sfs_acc=self.bool_force_sfs_acc,
-            random_seed=self.random_seed,
-            n_fold=self.n_fold,
-            bool_use_strat_kfold=self.bool_use_strat_kfold,
-            bool_use_ray=self.bool_use_ray,
-            bool_use_gpu=self.bool_use_gpu,
-            bool_tune_hyperparams=self.bool_tune_hyperparams,
-            bool_verbose=False,
-        )
-
-        # obtain the metric
-        if self.str_metric == "avg_acc":
-            score = output_init["vec_acc"][0]
-        elif self.str_metric == "avg_auc":
-            score = output_init["vec_auc"][0]
-
-        session.report({"score": score})
-        wandb.log(dict(score=score))
-
-
+    session.report({"avg_acc": avg_acc, "avg_auc": avg_auc})
+    wandb.log({'summary': dict(avg_acc=avg_acc, avg_auc=avg_auc)})
+    
+    
 class SFSTuneTrainer(SFSTrainer):
     def __init__(self, cfg) -> None:
         # intialize the parent class
         super().__init__(cfg)
+        
+        # obtain tune related params
+        self.num_samples = cfg["tune"]["num_samples"]
 
         # Note: ray_parameters here will not be used and will be handled by the ray.tune instead
 
@@ -148,8 +121,20 @@ class SFSTuneTrainer(SFSTrainer):
                                     kwarg_val.tune_range[2],
                                 )
                             )
+                        elif kwarg_val.tune_op == "range_grid_search":
+                            search_space[kwarg_key] = tune.grid_search(
+                                np.arange(
+                                    kwarg_val.tune_range[0],
+                                    kwarg_val.tune_range[1],
+                                    kwarg_val.tune_range[2],
+                                )
+                            )
                         elif kwarg_val.tune_op == "choice":
                             search_space[kwarg_key] = tune.choice(kwarg_val.tune_range)
+                        elif kwarg_val.tune_op == "grid_search":
+                            search_space[kwarg_key] = tune.grid_search(
+                                kwarg_val.tune_range
+                            )
                         else:
                             raise NotImplementedError(
                                 f"tune_op {kwarg_val.tune_op} is not implemented"
@@ -166,7 +151,7 @@ class SFSTuneTrainer(SFSTrainer):
         return search_space_model | search_space_ensemble
 
     def initialize_tune_config(self):
-        tune_config = tune.TuneConfig(num_samples=self.n_cpu)
+        tune_config = tune.TuneConfig(num_samples=self.num_samples)
 
         return tune_config
 
@@ -213,18 +198,18 @@ class SFSTuneTrainer(SFSTrainer):
             if self.bool_use_gpu
             else {"cpu": self.n_cpu_per_process}
         )
-        SFSInnerLoopwResources = tune.with_resources(
-            SFSInnerLoopTrainable, resources=resources
+        sfs_inner_loop_w_resources = tune.with_resources(
+            sfs_inner_loop_trainable, resources=resources
         )
         tuner = tune.Tuner(
             tune.with_parameters(
-                SFSInnerLoopwResources,
+                sfs_inner_loop_w_resources,
                 features=features,
                 y_class=y_class,
                 y_stim=y_stim,
                 labels_cell=labels_cell,
-                model_cfg=model_cfg,
-                trainer_cfg=trainer_cfg,
+                model_cfg_in=model_cfg,
+                trainer_cfg_in=trainer_cfg,
                 cfg=self.cfg,
             ),
             param_space=search_space,

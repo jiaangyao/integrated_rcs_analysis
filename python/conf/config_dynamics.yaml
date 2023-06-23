@@ -10,4 +10,5 @@ defaults:
   - preproc: ur1_5s
   - feature_selection: sfs_settings_default
   - parallel: home_ray_cpu_batch
+  - tune: base_no_tune_default
   - dynamics: dynamics_ur1_5s_default

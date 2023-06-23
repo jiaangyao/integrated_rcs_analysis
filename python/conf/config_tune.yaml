@@ -9,9 +9,7 @@ defaults:
   - data_paths: model_id_step3
   - preproc: ur1_5s
   - feature_selection: sfs_settings_tune
-  - parallel: home_ray_cpu_batch
+  - parallel: home_ray_cpu
+  - tune: tune_default
   # - parallel: no_ray
   - dynamics: no_dynamics_default
-
-
-wandb_group: ${patient.str_subject}${patient.str_side}_exp_1
