@@ -76,6 +76,8 @@ def sfs_feature_sweep(
                 random_seed=random_seed,
             )
         )
+
+        # log wandb
         wandb.log({"sfs1": {"avg_acc": vec_output[-1]["avg_acc"], "avg_auc": vec_output[-1]["avg_auc"]}})
     return vec_output
 
@@ -217,8 +219,9 @@ def sfs_pb_sweep(
                 random_seed=random_seed,
             )
         )
-        
-    wandb.log({"sfs2": {"avg_acc": vec_output_sfs[-1]["avg_acc"], "avg_auc": vec_output_sfs[-1]["avg_auc"]}})
+
+        # log wandb
+        wandb.log({"sfs2": {"avg_acc": vec_output_sfs[-1]["avg_acc"], "avg_auc": vec_output_sfs[-1]["avg_auc"]}})
 
     return vec_output_sfs
 
