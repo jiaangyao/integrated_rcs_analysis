@@ -610,15 +610,11 @@ def seq_forward_selection(
     pb_width = stats.mode(np.diff(vec_pb), keepdims=True)[0][0]  # type: ignore
 
     # obtain the final power bands
-    output_init["sinPB"] = []
+    # form the SFS power bands first
+
     output_fin["sfsPB"] = []
     for i in range(len(output_fin["vec_pb_ord"])):
-        # form the SFS PB and the single PB
-        sinPB_curr = [
-            vec_str_ch[pb_init_lim[i, 0]],
-            vec_pb[pb_init_lim[i, 0]] - pb_width / 2,
-            vec_pb[pb_init_lim[i, 1]] + pb_width / 2,
-        ]
+        # form the PB
         sfsPB_curr = [
             vec_str_ch[pb_lim[i, 0]],
             vec_pb[pb_lim[i, 0]] - pb_width / 2,
@@ -627,12 +623,21 @@ def seq_forward_selection(
         assert (
             vec_str_ch[pb_lim[i, 0]] == vec_str_ch[pb_lim[i, 1]]
         ), "Channels do not match!"
+        output_fin["sfsPB"].append(sfsPB_curr)
+
+    # now form the single PB
+    output_init["sinPB"] = []
+    for i in range(len(output_init["vec_pb_ord"])):
+        # form the PB
+        sinPB_curr = [
+            vec_str_ch[pb_init_lim[i, 0]],
+            vec_pb[pb_init_lim[i, 0]] - pb_width / 2,
+            vec_pb[pb_init_lim[i, 1]] + pb_width / 2,
+        ]
         assert (
             vec_str_ch[pb_init_lim[i, 0]] == vec_str_ch[pb_init_lim[i, 1]]
         ), "Channels do not match!"
-
         output_init["sinPB"].append(sinPB_curr)
-        output_fin["sfsPB"].append(sfsPB_curr)
 
     # return the outputs
     return output_fin, output_init, iter_used, orig_metric, model_cfg_cv, trainer_cfg_cv
