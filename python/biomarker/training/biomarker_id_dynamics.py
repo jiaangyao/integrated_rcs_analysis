@@ -4,6 +4,7 @@ import tqdm
 from omegaconf import DictConfig, OmegaConf
 import hydra
 
+from biomarker.training.model_initialize import get_model_params
 from biomarker.training.biomarker_id import SFSTrainer
 
 
@@ -44,10 +45,19 @@ class SFSDynamicsTrainer(SFSTrainer):
         # initialize ray
         context = self.initialize_ray()
 
+        # load the model configurations (could be changed later)
+        model_cfg, trainer_cfg = get_model_params(
+            self.str_model,
+            bool_use_ray=self.bool_use_ray,
+            bool_use_gpu=self.bool_use_gpu,
+            n_gpu_per_process=self.n_gpu_per_process,
+            bool_tune_hyperparams=self.bool_tune_hyperparams,
+        )
+
         # initialize the output variable
-        output_full_level = dict()
-        output_full_level["sinPB"] = dict()
-        output_full_level["sfsPB"] = dict()
+        output_full = dict()
+        output_full["sinPB"] = dict()
+        output_full["sfsPB"] = dict()
 
         # loop through the various dynamics lengths first
         for n_dynamics in tqdm.trange(
@@ -72,33 +82,29 @@ class SFSDynamicsTrainer(SFSTrainer):
             )
 
             # perform SFS inner loop and iterate through the repetitions
-            output_med_level = self.SFS_inner_loop(
+            output_dyna = self.SFS_inner_loop(
                 features,
                 y_class,
                 y_stim,
                 labels_cell,
+                model_cfg,
+                trainer_cfg,
             )
 
             # append to outer list
             # initialize the dictionary if not already done
-            if (
-                "n_dynamics_{}".format(n_dynamics)
-                not in output_full_level["sinPB"].keys()
-            ):
-                output_full_level["sinPB"]["n_dynamics_{}".format(n_dynamics)] = []
-                output_full_level["sfsPB"]["n_dynamics_{}".format(n_dynamics)] = []
-            output_full_level["sinPB"]["n_dynamics_{}".format(n_dynamics)].append(
-                output_med_level["sinPB"]
-            )
-            output_full_level["sfsPB"]["n_dynamics_{}".format(n_dynamics)].append(
-                output_med_level["sfsPB"]
-            )
+            str_n_dyna = "n_dynamics_{}".format(n_dynamics)
+            if str_n_dyna not in output_full["sinPB"].keys():
+                output_full["sinPB"][str_n_dyna] = []
+                output_full["sfsPB"][str_n_dyna] = []
+            output_full["sinPB"][str_n_dyna].append(output_dyna["sinPB"])
+            output_full["sfsPB"][str_n_dyna].append(output_dyna["sfsPB"])
 
         # shutdown ray in case of using it
         self.terminate_ray(context)
 
         # save the output
-        self.save_output(output_full_level)
+        self.save_output(output_full)
 
         # final print statement for breakpoint
         if self.bool_debug:
