@@ -1,0 +1,11 @@
+defaults:
+  - base_ray_default
+
+bool_use_gpu: True
+bool_use_batch: True
+
+n_cpu: 128
+n_gpu: 2
+n_cpu_per_process: 1
+n_gpu_per_process: 0.10
+batch_size: 2

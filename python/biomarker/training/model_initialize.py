@@ -4,7 +4,7 @@ import typing as tp
 import numpy as np
 import numpy.typing as npt
 from hydra import compose
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from biomarker.training.model_infrastructure import *
 from biomarker.training.model_torch_infrastructure import (
@@ -47,7 +47,7 @@ def get_model_params(
     if model_cfg["model_type"] == "torch":
         model_cfg["model_kwargs"]["bool_use_ray"] = bool_use_ray
         model_cfg["model_kwargs"]["bool_use_gpu"] = bool_use_gpu
-        model_cfg["model_kwargs"]["n_gpu_per_process"] = n_gpu_per_process
+        model_cfg["model_kwargs"]["n_gpu_per_process"] = float(n_gpu_per_process)
 
     return model_cfg, train_cfg
 
