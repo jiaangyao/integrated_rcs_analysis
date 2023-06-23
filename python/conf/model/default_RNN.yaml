@@ -10,15 +10,15 @@ model_kwargs:
   cnn_stride: 3
   bool_cnn_dropout: False
   cnn_dropout: 0.5
-  n_rnn_layer: 1
-  rnn_dim: 4
+  n_rnn_layer: 2
+  rnn_dim: 2
   bool_bidirectional: True
-  rnn_dropout: 0.05
+  rnn_dropout: 0.5
   lam: 1e-5
   str_reg: 'L2'
   str_loss: 'CrossEntropy'
   str_opt: 'Adam'
-  lr: 1e-4
+  lr: 5e-5
   transform: null
   target_transform: null
   bool_use_ray: ???
