@@ -2,5 +2,5 @@ defaults:
   - base_no_tune_default
   - _self_
 
-num_samples: 2
-wandb_group: ${patient.str_subject}${patient.str_side}_debug
+num_samples: 1
+wandb_group: ${patient.str_subject}${patient.str_side}_exp1
