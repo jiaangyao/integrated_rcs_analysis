@@ -1,4 +1,4 @@
-import copy
+import pickle
 
 import numpy as np
 from ray import air, tune
@@ -36,7 +36,7 @@ def sfs_inner_loop_trainable(
     # unpack the configs
     model_cfg = OmegaConf.to_container(model_cfg_in, resolve=True)
     trainer_cfg = OmegaConf.to_container(trainer_cfg_in, resolve=True)
-    
+
     # for all the config keys, update the model_cfg
     for key, val in config.items():
         # update values in model_kwargs
@@ -46,12 +46,12 @@ def sfs_inner_loop_trainable(
         # update values in ensemble_kwargs
         if key in model_cfg["ensemble_kwargs"].keys():
             model_cfg["ensemble_kwargs"][key] = val
-            
+
     # initialize wandb
     wandb = setup_wandb(
         config=config,
         project="SFS_{}_Tune".format(cfg["meta"]["str_model"]),
-        group=cfg['tune']["wandb_group"],
+        group=cfg["tune"]["wandb_group"],
     )
 
     # run the SFS process
@@ -64,15 +64,15 @@ def sfs_inner_loop_trainable(
         trainer_cfg,
         n_ch=cfg["preproc"]["n_ch"],
         str_model=cfg["meta"]["str_model"],
-        str_metric = cfg["meta"]["str_metric"],
-        n_candidate_peak = cfg["feature_selection"]["n_candidate_peak"],
-        n_candidate_pb = cfg["feature_selection"]["n_candidate_pb"],
-        width = cfg["feature_selection"]["width"],
-        max_width = cfg["feature_selection"]["max_width"],
-        bool_force_sfs_acc = cfg["feature_selection"]["bool_force_sfs_acc"],
-        random_seed = cfg["feature_selection"]["random_seed"],
-        n_fold = cfg["feature_selection"]["n_fold"],
-        bool_use_strat_kfold = cfg["feature_selection"]["bool_use_strat_kfold"],
+        str_metric=cfg["meta"]["str_metric"],
+        n_candidate_peak=cfg["feature_selection"]["n_candidate_peak"],
+        n_candidate_pb=cfg["feature_selection"]["n_candidate_pb"],
+        width=cfg["feature_selection"]["width"],
+        max_width=cfg["feature_selection"]["max_width"],
+        bool_force_sfs_acc=cfg["feature_selection"]["bool_force_sfs_acc"],
+        random_seed=cfg["feature_selection"]["random_seed"],
+        n_fold=cfg["feature_selection"]["n_fold"],
+        bool_use_strat_kfold=cfg["feature_selection"]["bool_use_strat_kfold"],
         bool_use_ray=False,
         bool_use_gpu=cfg["parallel"]["bool_use_gpu"],
         bool_tune_hyperparams=cfg["feature_selection"]["bool_tune_hyperparams"],
@@ -84,14 +84,14 @@ def sfs_inner_loop_trainable(
     avg_auc = output_init["vec_auc"][0]
 
     session.report({"avg_acc": avg_acc, "avg_auc": avg_auc})
-    wandb.log({'summary': dict(avg_acc=avg_acc, avg_auc=avg_auc)})
-    
-    
+    wandb.log({"summary": dict(avg_acc=avg_acc, avg_auc=avg_auc)})
+
+
 class SFSTuneTrainer(SFSTrainer):
     def __init__(self, cfg) -> None:
         # intialize the parent class
         super().__init__(cfg)
-        
+
         # obtain tune related params
         self.num_samples = cfg["tune"]["num_samples"]
 
@@ -164,6 +164,27 @@ class SFSTuneTrainer(SFSTrainer):
 
         return run_config
 
+    def save_output(
+        self,
+        results,
+    ):
+        """save the output file
+
+        Args:
+            results : output from ray.tune
+        """
+        # append config to output
+        output = dict()
+        output["cfg"] = self.cfg
+        output["results"] = results
+
+        # confirm the output directory exists
+        self.p_output.mkdir(parents=True, exist_ok=True)
+
+        # dump output
+        with open(str(self.p_output / self.f_output), "wb") as f:
+            pickle.dump(output, f)
+
     def train_side_tune(self):
         # log into wandb and initialize
         wandb.login()
@@ -218,6 +239,9 @@ class SFSTuneTrainer(SFSTrainer):
 
         # now run the tuning
         results = tuner.fit()
+
+        # save the output
+        self.save_output(results)
 
         return results
 

@@ -6,7 +6,7 @@ defaults:
   - _self_
   - meta: med_MLP_auc_default
   - patient: RCS02R
-  - data_paths: model_id_step3
+  - data_paths: model_id_tune_step3
   - preproc: ur1_5s
   - feature_selection: sfs_settings_tune
   - parallel: home_ray_cpu_batch
