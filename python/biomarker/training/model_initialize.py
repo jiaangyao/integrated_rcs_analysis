@@ -17,6 +17,7 @@ _VEC_MODEL_DYNAMICS_ONLY = ["RNN"]
 
 def get_model_params(
     str_model: str,
+    bool_use_ray: bool = False,
     bool_use_gpu: bool = False,
     n_gpu_per_process: int | float = 0,
     bool_tune_hyperparams: bool = False,
@@ -44,6 +45,7 @@ def get_model_params(
     # update the GPU per process in case updated during initialization
     model_cfg["bool_use_gpu"] = bool_use_gpu
     if model_cfg["model_type"] == "torch":
+        model_cfg["model_kwargs"]["bool_use_ray"] = bool_use_ray
         model_cfg["model_kwargs"]["bool_use_gpu"] = bool_use_gpu
         model_cfg["model_kwargs"]["n_gpu_per_process"] = n_gpu_per_process
 

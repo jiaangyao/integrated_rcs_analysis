@@ -31,6 +31,7 @@ class PyTorchModelWrapper(BaseModel):
         lr,
         transform,
         target_transform,
+        bool_use_ray=False,
         bool_use_gpu=False,
         n_gpu_per_process: int | float = 0,
     ):
@@ -57,16 +58,19 @@ class PyTorchModelWrapper(BaseModel):
         self.transform = transform
         self.target_transform = target_transform
 
-        # initialize GPU utilization flag
+        # initialize ray and GPU utilization flag
+        self.bool_use_ray = bool_use_ray
         self.bool_use_gpu = bool_use_gpu
 
         # initialize GPU with memory constraints
         gpu_id = torch.cuda.current_device() if bool_use_gpu else 0
+        bool_use_best_gpu = False if self.bool_use_ray else True
+        bool_limit_gpu_mem = True if self.bool_use_ray else False
         ptu.init_gpu(
             use_gpu=bool_use_gpu,
             gpu_id=gpu_id,
-            bool_use_best_gpu=False,
-            bool_limit_gpu_mem=True,
+            bool_use_best_gpu=bool_use_best_gpu,
+            bool_limit_gpu_mem=bool_limit_gpu_mem,
             gpu_memory_fraction=n_gpu_per_process,
         )
         self.device = ptu.device
@@ -456,6 +460,7 @@ class MLPModelWrapper(PyTorchModelWrapper):
         lr=1e-4,
         transform=None,
         target_transform=None,
+        bool_use_ray=False,
         bool_use_gpu=False,
         n_gpu_per_process: int | float = 0,
     ):
@@ -470,6 +475,7 @@ class MLPModelWrapper(PyTorchModelWrapper):
             lr,
             transform,
             target_transform,
+            bool_use_ray=bool_use_ray,
             bool_use_gpu=bool_use_gpu,
             n_gpu_per_process=n_gpu_per_process,
         )
@@ -575,6 +581,7 @@ class RNNModelWrapper(PyTorchModelWrapper):
         lr=1e-4,
         transform=None,
         target_transform=None,
+        bool_use_ray=False,
         bool_use_gpu=False,
         n_gpu_per_process: int | float = 0,
     ):
@@ -589,6 +596,7 @@ class RNNModelWrapper(PyTorchModelWrapper):
             lr,
             transform,
             target_transform,
+            bool_use_ray=bool_use_ray,
             bool_use_gpu=bool_use_gpu,
             n_gpu_per_process=n_gpu_per_process,
         )

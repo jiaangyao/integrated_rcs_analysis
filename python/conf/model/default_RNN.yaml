@@ -21,6 +21,7 @@ model_kwargs:
   lr: 1e-4
   transform: null
   target_transform: null
+  bool_use_ray: ???
   bool_use_gpu: ???
   n_gpu_per_process: ???
 

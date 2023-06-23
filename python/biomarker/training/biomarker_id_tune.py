@@ -198,6 +198,7 @@ class SFSTuneTrainer(SFSTrainer):
         # load the model configurations (could be changed later)
         model_cfg, trainer_cfg = get_model_params(
             self.str_model,
+            bool_use_ray=True,
             bool_use_gpu=self.bool_use_gpu,
             n_gpu_per_process=self.n_gpu_per_process,
             bool_tune_hyperparams=self.bool_tune_hyperparams,
