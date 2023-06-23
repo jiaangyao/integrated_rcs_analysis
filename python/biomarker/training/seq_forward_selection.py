@@ -414,12 +414,15 @@ def seq_forward_selection(
         # optionally override the model and trainer configs
         str_model_cv = "LDA" if str_model == "QDA" and n_iter == 1 else str_model
         if str_model_cv != str_model:
-            model_cfg, trainer_cfg = get_model_params(
+            model_cfg_cv, trainer_cfg_cv = get_model_params(
                 str_model_cv,
                 bool_use_gpu=bool_use_gpu,
                 n_gpu_per_process=n_gpu_per_process,
                 bool_tune_hyperparams=bool_tune_hyperparams,
             )
+        else:
+            model_cfg_cv = model_cfg
+            trainer_cfg_cv = trainer_cfg
 
         # run parallelized version of feature sweep
         if bool_use_ray:
@@ -427,8 +430,8 @@ def seq_forward_selection(
                 vec_features_sub,
                 y_class,
                 y_stim,
-                model_cfg,
-                trainer_cfg,
+                model_cfg_cv,
+                trainer_cfg_cv,
                 n_fold=n_fold,
                 str_model=str_model_cv,
                 bool_use_strat_kfold=bool_use_strat_kfold,
@@ -445,8 +448,8 @@ def seq_forward_selection(
                 vec_features_sub,
                 y_class,
                 y_stim,
-                model_cfg,
-                trainer_cfg,
+                model_cfg_cv,
+                trainer_cfg_cv,
                 n_fold=n_fold,
                 str_model=str_model_cv,
                 bool_use_strat_kfold=bool_use_strat_kfold,
@@ -493,8 +496,8 @@ def seq_forward_selection(
                 vec_features_pb_sub,
                 y_class,
                 y_stim,
-                model_cfg,
-                trainer_cfg,
+                model_cfg_cv,
+                trainer_cfg_cv,
                 n_fold=n_fold,
                 str_model=str_model_sfs,
                 bool_use_strat_kfold=bool_use_strat_kfold,
@@ -511,8 +514,8 @@ def seq_forward_selection(
                 vec_features_pb_sub,
                 y_class,
                 y_stim,
-                model_cfg,
-                trainer_cfg,
+                model_cfg_cv,
+                trainer_cfg_cv,
                 n_fold=n_fold,
                 str_model=str_model_sfs,
                 bool_use_strat_kfold=bool_use_strat_kfold,
@@ -631,4 +634,4 @@ def seq_forward_selection(
         output_fin["sfsPB"].append(sfsPB_curr)
 
     # return the outputs
-    return output_fin, output_init, iter_used, orig_metric, model_cfg, trainer_cfg
+    return output_fin, output_init, iter_used, orig_metric, model_cfg_cv, trainer_cfg_cv
