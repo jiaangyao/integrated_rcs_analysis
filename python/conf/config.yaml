@@ -9,7 +9,7 @@ defaults:
   - data_paths: model_id_step3
   - preproc: ur1_5s
   - feature_selection: sfs_settings_default
-  - parallel: lambda_ray_gpu_batch
+  - parallel: home_ray_cpu_batch
   - tune: base_no_tune_default
   # - parallel: no_ray
   - dynamics: no_dynamics_default

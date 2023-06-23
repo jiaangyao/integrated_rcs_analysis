@@ -320,14 +320,17 @@ class TorchMLPModel(nn.Module):
         self.layers = nn.ModuleList()
 
         # initialize the MLP layers
-        for i in range(n_layer):
-            if i == 0:
-                self.layers.append(nn.Linear(n_input, hidden_size))
-            else:
-                self.layers.append(nn.Linear(hidden_size, hidden_size))
+        if n_layer > 0:
+            for i in range(n_layer):
+                if i == 0:
+                    self.layers.append(nn.Linear(n_input, hidden_size))
+                else:
+                    self.layers.append(nn.Linear(hidden_size, hidden_size))
 
-        # append the output layer
-        self.layers.append(nn.Linear(hidden_size, n_class))
+            # append the output layer
+            self.layers.append(nn.Linear(hidden_size, n_class))
+        else:
+            self.layers.append(nn.Linear(n_input, n_class))
 
     def forward(self, x):
         # forward pass

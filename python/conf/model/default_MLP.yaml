@@ -5,14 +5,14 @@ defaults:
 model_args: []
 model_kwargs:
   n_layer: 1
-  hidden_size: 16
-  dropout: 0.5
+  hidden_size: 2
+  dropout: 0.05
   lam: 1e-5
   str_act: 'relu'
   str_reg: 'L2'
   str_loss: 'CrossEntropy'
   str_opt: 'Adam'
-  lr: 5e-4
+  lr: 5e-5
   transform: null
   target_transform: null
   bool_use_ray: ???
