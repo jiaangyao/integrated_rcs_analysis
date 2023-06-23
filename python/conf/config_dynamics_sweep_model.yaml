@@ -4,7 +4,7 @@ main:
 
 defaults:
   - _self_
-  - meta: med_LDA_auc_default
+  - meta: ???
   - patient: RCS02R
   - data_paths: dynamics_step3
   - preproc: ur1_5s
