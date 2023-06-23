@@ -78,12 +78,13 @@ def load_model_id_results(output):
     return acc_python_top, auc_python_top, acc_python_top_sfs, auc_python_top_sfs
 
 
-def plot_dynamics_results():
+def plot_dynamics_results(str_subject="RCS02", str_side="R"):
     # hard code all paths
-    p_output = pathlib.Path("/home/jyao/Downloads/biomarker_id/dynamics/RCS02")
-    f_output_python = "RCS02_R_med_avg_auc_LDA_dynamics.pkl"
-    f_output_qda = "RCS02_R_med_avg_auc_QDA_dynamics.pkl"
-    f_output_svm = "RCS02_R_med_avg_auc_SVM_dynamics.pkl"
+    p_output = pathlib.Path("/home/jyao/Downloads/biomarker_id/dynamics/{}".format(str_subject))
+    f_output_python = f"{str_subject}_{str_side}_med_avg_auc_LDA_dynamics.pkl"
+    f_output_qda = f"{str_subject}_{str_side}_med_avg_auc_QDA_dynamics.pkl"
+    f_output_svm = f"{str_subject}_{str_side}_med_avg_auc_SVM_dynamics.pkl"
+    f_output_mlp = f"{str_subject}_{str_side}_med_avg_auc_MLP_dynamics.pkl"
 
     # load in the python values
     output = pickle.load(open(str(p_output / f_output_python), "rb"))
@@ -112,10 +113,18 @@ def plot_dynamics_results():
         auc_output_full_sfs_svm,
     ) = load_dyna_summary(output_svm)
     
+    # output_mlp = pickle.load(open(str(p_output / f_output_mlp), "rb"))
+    # (
+    #     acc_output_full_mlp,
+    #     auc_output_full_mlp,
+    #     acc_output_full_sfs_mlp,
+    #     auc_output_full_sfs_mlp,
+    # ) = load_dyna_summary(output_mlp)
+    
 
     # now plot the line plots for the top5 auc
     fig = plt.figure(figsize=(12, 6))
-    idx = np.arange(1, 6, 1)
+    idx = np.arange(1, 7, 1)
     x_ticks = [str(x) for x in idx]
     plt.subplot(1, 2, 1)
     plt.plot(idx, np.mean(acc_output_full[..., 0], axis=-1), "r", label="LDA")
@@ -140,16 +149,27 @@ def plot_dynamics_results():
         alpha=0.2,
     )
 
-    plt.plot(idx, np.mean(acc_output_full_svm[..., 0][:5], axis=-1), "g", label="SVM")
+    plt.plot(idx, np.mean(acc_output_full_svm[..., 0], axis=-1), "g", label="SVM")
     plt.fill_between(
         idx,
-        np.mean(acc_output_full_svm[..., 0][:5], axis=-1)
-        - np.std(acc_output_full_svm[..., 0][:5], axis=-1),
-        np.mean(acc_output_full_svm[..., 0][:5], axis=-1)
-        + np.std(acc_output_full_svm[..., 0][:5], axis=-1),
+        np.mean(acc_output_full_svm[..., 0], axis=-1)
+        - np.std(acc_output_full_svm[..., 0], axis=-1),
+        np.mean(acc_output_full_svm[..., 0], axis=-1)
+        + np.std(acc_output_full_svm[..., 0], axis=-1),
         color="g",
         alpha=0.2,
     )
+    
+    # plt.plot(idx, np.mean(acc_output_full_mlp[..., 0], axis=-1), "g", label="MLP")
+    # plt.fill_between(
+    #     idx,
+    #     np.mean(acc_output_full_mlp[..., 0], axis=-1)
+    #     - np.std(acc_output_full_mlp[..., 0], axis=-1),
+    #     np.mean(acc_output_full_mlp[..., 0], axis=-1)
+    #     + np.std(acc_output_full_mlp[..., 0], axis=-1),
+    #     color="g",
+    #     alpha=0.2,
+    # )
 
     plt.xlabel("# of windows provided to the model")
     plt.ylabel("Accuracy")
@@ -183,16 +203,28 @@ def plot_dynamics_results():
         alpha=0.2,
     )
 
-    plt.plot(idx, np.mean(auc_output_full_svm[..., 0][:5], axis=-1), "g", label="SVM")
+    plt.plot(idx, np.mean(auc_output_full_svm[..., 0], axis=-1), "g", label="SVM")
     plt.fill_between(
         idx,
-        np.mean(auc_output_full_svm[..., 0][:5], axis=-1)
-        - np.std(auc_output_full_svm[..., 0][:5], axis=-1),
-        np.mean(auc_output_full_svm[..., 0][:5], axis=-1)
-        + np.std(auc_output_full_svm[..., 0][:5], axis=-1),
+        np.mean(auc_output_full_svm[..., 0], axis=-1)
+        - np.std(auc_output_full_svm[..., 0], axis=-1),
+        np.mean(auc_output_full_svm[..., 0], axis=-1)
+        + np.std(auc_output_full_svm[..., 0], axis=-1),
         color="g",
         alpha=0.2,
     )
+    
+    # plt.plot(idx, np.mean(auc_output_full_mlp[..., 0], axis=-1), "g", label="MLP")
+    # plt.fill_between(
+    #     idx,
+    #     np.mean(auc_output_full_mlp[..., 0], axis=-1)
+    #     - np.std(auc_output_full_mlp[..., 0], axis=-1),
+    #     np.mean(auc_output_full_mlp[..., 0], axis=-1)
+    #     + np.std(auc_output_full_mlp[..., 0], axis=-1),
+    #     color="g",
+    #     alpha=0.2,
+    # )
+
 
     plt.xlabel("# of windows provided to the model")
     plt.ylabel("AUC")
@@ -203,9 +235,9 @@ def plot_dynamics_results():
     ax.spines["right"].set_visible(False)
     plt.legend(frameon=False)
 
-    plt.suptitle("sinPB: LDA Classification ACC and AUC for different dynamics")
+    plt.suptitle(f"sinPB: LDA Classification ACC and AUC for different dynamics - {str_subject}{str_side}")
     plt.savefig(
-        "/home/jyao/Downloads/biomarker_id/figures/dynamics/sinPB_acc_auc.png", dpi=300
+        f"/home/jyao/Downloads/biomarker_id/figures/dynamics/{str_subject}/{str_subject}_{str_side}_sinPB_acc_auc.png", dpi=300
     )
     plt.close(fig)
 
@@ -234,16 +266,27 @@ def plot_dynamics_results():
         alpha=0.2,
     )
 
-    plt.plot(idx, np.mean(acc_output_full_sfs_svm[..., 0][:5], axis=-1), "g", label="SVM")
+    plt.plot(idx, np.mean(acc_output_full_sfs_svm[..., 0], axis=-1), "g", label="SVM")
     plt.fill_between(
         idx,
-        np.mean(acc_output_full_sfs_svm[..., 0][:5], axis=-1)
-        - np.std(acc_output_full_sfs_svm[..., 0][:5], axis=-1),
-        np.mean(acc_output_full_sfs_svm[..., 0][:5], axis=-1)
-        + np.std(acc_output_full_sfs_svm[..., 0][:5], axis=-1),
+        np.mean(acc_output_full_sfs_svm[..., 0], axis=-1)
+        - np.std(acc_output_full_sfs_svm[..., 0], axis=-1),
+        np.mean(acc_output_full_sfs_svm[..., 0], axis=-1)
+        + np.std(acc_output_full_sfs_svm[..., 0], axis=-1),
         color="g",
         alpha=0.2,
     )
+    
+    # plt.plot(idx, np.mean(acc_output_full_sfs_mlp[..., 0], axis=-1), "g", label="MLP")
+    # plt.fill_between(
+    #     idx,
+    #     np.mean(acc_output_full_sfs_mlp[..., 0], axis=-1)
+    #     - np.std(acc_output_full_sfs_mlp[..., 0], axis=-1),
+    #     np.mean(acc_output_full_sfs_mlp[..., 0], axis=-1)
+    #     + np.std(acc_output_full_sfs_mlp[..., 0], axis=-1),
+    #     color="g",
+    #     alpha=0.2,
+    # )
 
     plt.xlabel("# of windows provided to the model")
     plt.ylabel("Accuracy")
@@ -277,16 +320,27 @@ def plot_dynamics_results():
         alpha=0.2,
     )
 
-    plt.plot(idx, np.mean(auc_output_full_sfs_svm[..., 0][:5], axis=-1), "g", label="SVM")
+    plt.plot(idx, np.mean(auc_output_full_sfs_svm[..., 0], axis=-1), "g", label="SVM")
     plt.fill_between(
         idx,
-        np.mean(auc_output_full_sfs_svm[..., 0][:5], axis=-1)
-        - np.std(auc_output_full_sfs_svm[..., 0][:5], axis=-1),
-        np.mean(auc_output_full_sfs_svm[..., 0][:5], axis=-1)
-        + np.std(auc_output_full_sfs_svm[..., 0][:5], axis=-1),
+        np.mean(auc_output_full_sfs_svm[..., 0], axis=-1)
+        - np.std(auc_output_full_sfs_svm[..., 0], axis=-1),
+        np.mean(auc_output_full_sfs_svm[..., 0], axis=-1)
+        + np.std(auc_output_full_sfs_svm[..., 0], axis=-1),
         color="g",
         alpha=0.2,
     )
+    
+    # plt.plot(idx, np.mean(auc_output_full_sfs_mlp[..., 0], axis=-1), "g", label="MLP")
+    # plt.fill_between(
+    #     idx,
+    #     np.mean(auc_output_full_sfs_mlp[..., 0], axis=-1)
+    #     - np.std(auc_output_full_sfs_mlp[..., 0], axis=-1),
+    #     np.mean(auc_output_full_sfs_mlp[..., 0], axis=-1)
+    #     + np.std(auc_output_full_sfs_mlp[..., 0], axis=-1),
+    #     color="g",
+    #     alpha=0.2,
+    # )
 
     plt.xlabel("# of windows provided to the model")
     plt.ylabel("AUC")
@@ -297,21 +351,22 @@ def plot_dynamics_results():
     ax.spines["right"].set_visible(False)
     plt.legend(frameon=False)
 
-    plt.suptitle("sfsPB: LDA Classification ACC and AUC for different dynamics")
+    plt.suptitle(f"sfsPB: LDA Classification ACC and AUC for different dynamics - {str_subject}{str_side}")
     plt.savefig(
-        "/home/jyao/Downloads/biomarker_id/figures/dynamics/sfsPB_acc_auc.png", dpi=300
+        f"/home/jyao/Downloads/biomarker_id/figures/dynamics/{str_subject}/{str_subject}_{str_side}_sfsPB_acc_auc.png", dpi=300
     )
     plt.close(fig)
 
     # load the various model id results
-    p_output = pathlib.Path('/home/jyao/Downloads/biomarker_id/model_id/RCS02')
-    f_output_python = 'RCS02_R_med_avg_auc_LDA.pkl'
+    p_output = pathlib.Path(f'/home/jyao/Downloads/biomarker_id/model_id/{str_subject}')
+    f_output_python = f'{str_subject}_{str_side}_med_avg_auc_LDA.pkl'
     f_output_python_UR60 = 'RCS02_R_med_avg_auc_LDA_UR60.pkl'
     f_output_python_UR90 = 'RCS02_R_med_avg_auc_LDA_UR90.pkl'
     f_output_python_UR120 = 'RCS02_R_med_avg_auc_LDA_UR120.pkl'
     f_output_python_UR150 = 'RCS02_R_med_avg_auc_LDA_UR150.pkl'
+    f_output_python_UR180 = 'RCS02_R_med_avg_auc_LDA_UR180.pkl'
     vec_f_output = [f_output_python, f_output_python_UR60, f_output_python_UR90, 
-                    f_output_python_UR120, f_output_python_UR150]
+                    f_output_python_UR120, f_output_python_UR150, f_output_python_UR180]
 
     # load the various model id results
     vec_acc_python_top = []
@@ -398,9 +453,9 @@ def plot_dynamics_results():
     ax.spines["right"].set_visible(False)
     plt.legend(frameon=False)
 
-    plt.suptitle("sinPB: LDA Classification ACC and AUC for Dynamics vs Avg")
+    plt.suptitle(f"sinPB: LDA Classification ACC and AUC for Dynamics vs Avg - {str_subject}{str_side}")
     plt.savefig(
-        "/home/jyao/Downloads/biomarker_id/figures/dynamics/sfsPB_acc_auc_dyna_avg_sinPB.png", dpi=300
+        f"/home/jyao/Downloads/biomarker_id/figures/dynamics/{str_subject}/{str_subject}_{str_side}_sfsPB_acc_auc_dyna_avg_sinPB.png", dpi=300
     )
     plt.close(fig)
     
@@ -471,13 +526,14 @@ def plot_dynamics_results():
     ax.spines["right"].set_visible(False)
     plt.legend(frameon=False)
 
-    plt.suptitle("sfsPB: LDA Classification ACC and AUC for Dynamics vs Avg")
+    plt.suptitle(f"sfsPB: LDA Classification ACC and AUC for Dynamics vs Avg - {str_subject}{str_side}")
     plt.savefig(
-        "/home/jyao/Downloads/biomarker_id/figures/dynamics/sfsPB_acc_auc_dyna_avg_sfsPB.png", dpi=300
+        f"/home/jyao/Downloads/biomarker_id/figures/dynamics/{str_subject}/{str_subject}_{str_side}_sfsPB_acc_auc_dyna_avg_sfsPB.png", dpi=300
     )
     plt.close(fig)
     print("debug")
 
 
 if __name__ == "__main__":
-    plot_dynamics_results()
+    # plot_dynamics_results()
+    plot_dynamics_results(str_subject="RCS08", str_side="R")
