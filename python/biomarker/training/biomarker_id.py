@@ -128,15 +128,16 @@ class SFSTrainer(DefaultModelTrainer):
         # set the right number of CPUs and GPUs to use
         if self.bool_use_ray:
             # first update according to batch size
-            n_band_max = self.n_ch * (self.freq_high_lim - self.freq_low_lim + 1)
-            self.n_cpu_per_process = (
-                np.ceil(self.n_cpu / np.ceil(n_band_max / self.batch_size))
-                if self.bool_use_batch
-                else self.n_cpu_per_process
-            )
+            if not self.bool_tune_hyperparams:
+                n_band_max = self.n_ch * (self.freq_high_lim - self.freq_low_lim + 1)
+                self.n_cpu_per_process = (
+                    np.ceil(self.n_cpu / np.ceil(n_band_max / self.batch_size))
+                    if self.bool_use_batch
+                    else self.n_cpu_per_process
+                )
 
             self.n_gpu_per_process = (
-                0.8 * self.n_gpu / np.round(self.n_cpu / self.n_cpu_per_process)
+                0.9 * self.n_gpu / np.round(self.n_cpu / self.n_cpu_per_process)
                 if self.bool_use_batch and self.bool_use_gpu
                 else self.n_gpu_per_process
             )
