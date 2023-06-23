@@ -597,15 +597,13 @@ def seq_forward_selection(
         ],
         axis=0,
     )
-    n_pb_lim = 5 if n_candidate_pb > 5 else n_candidate_pb
     pb_init_lim = np.stack(
         [
             [output_init["vec_pb_ord"][i][0], output_init["vec_pb_ord"][i][-1]]
-            for i in range(n_pb_lim)
+            for i in range(len(output_init["vec_pb_ord"]))
         ],
         axis=0,
     )
-
     # parse the power band labels
     vec_str_ch = [x[0] for x in labels_cell]
     vec_pb = [x[1] for x in labels_cell]
