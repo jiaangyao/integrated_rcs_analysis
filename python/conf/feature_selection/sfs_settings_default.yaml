@@ -13,3 +13,5 @@ random_seed: null
 
 width: 5
 max_width: 10
+
+bool_tune_hyperparams: False

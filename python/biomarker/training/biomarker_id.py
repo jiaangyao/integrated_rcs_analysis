@@ -12,6 +12,7 @@ from omegaconf import DictConfig, OmegaConf
 import hydra
 
 from biomarker.training.prepare_data import prepare_data
+from biomarker.training.model_initialize import get_model_params
 from biomarker.training.seq_forward_selection import seq_forward_selection
 from utils.parse_datetime import parse_dt_w_tz
 
@@ -37,14 +38,13 @@ class DefaultModelTrainer:
         unpack the parameters from the config
         """
         # append the entire configuration
-        self.cfg = cfg
+        self.cfg = OmegaConf.to_container(cfg, resolve=True)
 
         # unpack the experiment related meta parameters
         self.str_model = cfg["meta"]["str_model"]
         self.label_type = cfg["meta"]["label_type"]
         self.str_metric = cfg["meta"]["str_metric"]
         self.bool_debug = cfg["meta"]["bool_debug"]
-        self.bool_tune_hyperparams = cfg["meta"]["bool_tune_hyperparams"]
 
         # unpack the subject specfic configs
         self.str_subject = cfg["patient"]["str_subject"]
@@ -116,6 +116,8 @@ class SFSTrainer(DefaultModelTrainer):
         self.n_fold = cfg["feature_selection"]["n_fold"]
         self.bool_use_strat_kfold = cfg["feature_selection"]["bool_use_strat_kfold"]
         self.random_seed = cfg["feature_selection"]["random_seed"]
+        
+        self.bool_tune_hyperparams = cfg["feature_selection"]["bool_tune_hyperparams"]
 
         # sanity checks
         assert self.label_type in _VEC_LABEL_TYPE, "Label type must be defined"
@@ -145,6 +147,10 @@ class SFSTrainer(DefaultModelTrainer):
                 if self.bool_use_gpu
                 else self.n_cpu_per_process
             )
+            
+            # modify value in original config also
+            self.cfg['parallel']['n_cpu_per_process'] = self.n_cpu_per_process
+            self.cfg['parallel']['n_gpu_per_process'] = self.n_gpu_per_process
 
         # debug related flags
         if self.bool_debug:
@@ -244,6 +250,8 @@ class SFSTrainer(DefaultModelTrainer):
         y_class,
         y_stim,
         labels_cell,
+        model_cfg: DictConfig,
+        trainer_cfg: DictConfig,
     ):
         # iterate through the repetitions
         print("\nSequential Forward Selection")
@@ -259,11 +267,13 @@ class SFSTrainer(DefaultModelTrainer):
             output_label["sfsPB"] = []
 
             # perform the SFS
-            output_fin, output_init, _, _ = seq_forward_selection(
+            output_fin, output_init, _, _, model_cfg, trainer_cfg = seq_forward_selection(
                 features,
                 y_class,
                 y_stim,
                 labels_cell,
+                model_cfg,
+                trainer_cfg,
                 n_ch=self.n_ch,
                 str_model=self.str_model,
                 str_metric=self.str_metric,
@@ -291,13 +301,17 @@ class SFSTrainer(DefaultModelTrainer):
             print("Highest SFS auc: {:.4f}".format(output_fin["vec_auc"][-1]))
             print("Done with rep {}".format(idx_rep + 1))
             print("")
+            
+        # append final model config to most general config
+        self.cfg["model"] = model_cfg
+        self.cfg["trainer"] = trainer_cfg
 
         # return the output
         return output_label
 
     def train_side(self):
         """Training pipeline for a single side of the brain"""
-        
+
         # runtime sanity checks
         assert not self.bool_use_dyna, "Dynamics should not be used for model comp SFS"
 
@@ -306,6 +320,14 @@ class SFSTrainer(DefaultModelTrainer):
 
         # initialize ray
         context = self.initialize_ray()
+
+        # load the model configurations (could be changed later)
+        model_cfg, trainer_cfg = get_model_params(
+            self.str_model,
+            bool_use_gpu=self.bool_use_gpu,
+            n_gpu_per_process=self.n_gpu_per_process,
+            bool_tune_hyperparams=self.bool_tune_hyperparams,
+        )
 
         # obtain the features
         features, y_class, y_stim, labels_cell = self.extract_features(
@@ -319,6 +341,8 @@ class SFSTrainer(DefaultModelTrainer):
             y_class,
             y_stim,
             labels_cell,
+            model_cfg,
+            trainer_cfg,
         )
 
         # shutdown ray in case of using it

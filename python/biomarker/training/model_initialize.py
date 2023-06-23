@@ -111,7 +111,7 @@ def initialize_model_torch(
 
 def initialize_model(
     str_model: str,
-    model_cfg: DictConfig,
+    model_cfg: DictConfig | dict,
     n_input: int,
     n_class_model: int,
 ):

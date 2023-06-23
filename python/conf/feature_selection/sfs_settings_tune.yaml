@@ -1,0 +1,8 @@
+defaults:
+  - sfs_settings_default
+  - _self_
+
+n_rep: 1
+n_candidate_pb: 1
+
+bool_tune_hyperparams: True

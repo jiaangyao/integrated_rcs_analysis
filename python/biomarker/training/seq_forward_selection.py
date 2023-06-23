@@ -28,24 +28,26 @@ def sfs_feature_sweep(
     vec_features_sub: list[npt.NDArray],
     y_class: npt.NDArray,
     y_stim: npt.NDArray,
-    model_cfg: DictConfig,
-    trainer_cfg: DictConfig,
+    model_cfg: DictConfig | dict,
+    trainer_cfg: DictConfig | dict,
     n_fold: int,
     str_model: str,
     bool_use_strat_kfold: bool,
     random_seed: int | None,
+    bool_verbose: bool = True,
 ) -> list[dict]:
     """Set up SFS feature sweeping not using parallelization
     Args:
         vec_features_sub (list[npt.NDArray]): list of organized features for training
         y_class (npt.NDArray): class label
         y_stim (npt.NDArray): stim level label
-        model_cfg (DictConfig): model configuration loaded via hydra
-        trainer_cfg (DictConfig): trainer configuration loaded via hydra
+        model_cfg (DictConfig | dict): model configuration loaded via hydra
+        trainer_cfg (DictConfig | dict): trainer configuration loaded via hydra
         n_fold (int): number of folds for cross validation
         str_model (str): name of the model to use, latest list in model_infrastructure and torch_model_infrastructure
         bool_use_strat_kfold (bool): whether to use stratified kfold as cross validation scheme
         random_seed (int | None): random seed for performing the cross validation, if None then no seed is used
+        bool_verbose (bool, optional): whether to print out progress bar. Defaults to True.
 
     Returns:
         list[dict]: list of output dictionaries of same structure, each representing the output at a particular frequeney bin
@@ -57,6 +59,7 @@ def sfs_feature_sweep(
         leave=False,
         desc="SFS1",
         bar_format="{desc:<2.5}{percentage:3.0f}%|{bar:15}{r_bar}",
+        disable=not bool_verbose,
     ):
         vec_output.append(
             kfold_cv_training(
@@ -79,8 +82,8 @@ def sfs_feature_sweep_ray(
     vec_features_sub: list[npt.NDArray],
     y_class: npt.NDArray,
     y_stim: npt.NDArray,
-    model_cfg: DictConfig,
-    trainer_cfg: DictConfig,
+    model_cfg: DictConfig | dict,
+    trainer_cfg: DictConfig | dict,
     n_fold: int,
     str_model: str,
     bool_use_strat_kfold: bool,
@@ -96,8 +99,8 @@ def sfs_feature_sweep_ray(
         vec_features_sub (list[npt.NDArray]): list of organized features for training
         y_class (npt.NDArray): class label
         y_stim (npt.NDArray): stim level label
-        model_cfg (DictConfig): model configuration loaded via hydra
-        trainer_cfg (DictConfig): trainer configuration loaded via hydra
+        model_cfg (DictConfig | dict): model configuration loaded via hydra
+        trainer_cfg (DictConfig | dict): trainer configuration loaded via hydra
         n_fold (int): number of folds for cross validation
         str_model (str): name of the model to use, latest list in model_infrastructure and torch_model_infrastructure
         bool_use_strat_kfold (bool): whether to use stratified kfold as cross validation scheme
@@ -181,12 +184,13 @@ def sfs_pb_sweep(
     vec_features_pb_sub: list[npt.NDArray],
     y_class: npt.NDArray,
     y_stim: npt.NDArray,
-    model_cfg: DictConfig,
-    trainer_cfg: DictConfig,
+    model_cfg: DictConfig | dict,
+    trainer_cfg: DictConfig | dict,
     n_fold: int,
     str_model: str,
     bool_use_strat_kfold: bool,
     random_seed: int | None,
+    bool_verbose: bool = True,
 ) -> list[dict]:
     # form the list of output
     vec_output_sfs = []
@@ -195,6 +199,7 @@ def sfs_pb_sweep(
         leave=False,
         desc="SFS2",
         bar_format="{desc:<2.5}{percentage:3.0f}%|{bar:15}{r_bar}",
+        disable=not bool_verbose,
     ):
         vec_output_sfs.append(
             kfold_cv_training(
@@ -218,8 +223,8 @@ def sfs_pb_sweep_ray(
     vec_features_pb_sub: list[npt.NDArray],
     y_class: npt.NDArray,
     y_stim: npt.NDArray,
-    model_cfg: DictConfig,
-    trainer_cfg: DictConfig,
+    model_cfg: DictConfig | dict,
+    trainer_cfg: DictConfig | dict,
     n_fold: int,
     str_model: str,
     bool_use_strat_kfold: bool,
@@ -301,6 +306,8 @@ def seq_forward_selection(
     y_class,
     y_stim,
     labels_cell,
+    model_cfg: DictConfig | dict,
+    trainer_cfg: DictConfig | dict,
     n_ch: int = 3,
     str_model="LDA",
     str_metric="avg_auc",
@@ -319,6 +326,7 @@ def seq_forward_selection(
     bool_use_batch: bool = False,
     batch_size: int = 1,
     bool_tune_hyperparams: bool = False,
+    bool_verbose: bool = True,
 ):
     """_summary_
 
@@ -327,6 +335,8 @@ def seq_forward_selection(
         y_class (_type_): _description_
         y_stim (_type_): _description_
         labels_cell (_type_): _description_
+        model_cfg (DictConfig | dict): _description_
+        trainer_cfg (DictConfig | dict): _description_
         n_ch (int, optional): _description_. Defaults to 3.
         str_model (str, optional): _description_. Defaults to "LDA".
         str_metric (str, optional): _description_. Defaults to "avg_auc".
@@ -345,6 +355,10 @@ def seq_forward_selection(
         bool_use_batch (bool, optional): _description_. Defaults to False.
         batch_size (int, optional): _description_. Defaults to 1.
         bool_tune_hyperparams (bool, optional): _description_. Defaults to False.
+        bool_verbose (bool, optional): _description_. Defaults to True.
+
+    Returns:
+        _type_: _description_
     """
 
     # define initial variables
@@ -384,22 +398,24 @@ def seq_forward_selection(
         leave=False,
         desc="ITER",
         bar_format="{desc:<2.5}{percentage:3.0f}%|{bar:15}{r_bar}",
+        disable=not bool_verbose,
     ):
         # loop through the features
         # first form the features vector
-        str_model_cv = "LDA" if str_model == "QDA" and n_iter == 1 else str_model
         vec_features_sub = [
             correct_sfs_feature_dim(features, idx_feature, idx_used, n_iter)
             for idx_feature in range(features.shape[1])
         ]
 
-        # obtain the model parameters for later
-        model_cfg, trainer_cfg = get_model_params(
-            str_model_cv,
-            bool_use_gpu=bool_use_gpu,
-            n_gpu_per_process=n_gpu_per_process,
-            bool_tune_hyperparams=bool_tune_hyperparams,
-        )
+        # optionally override the model and trainer configs
+        str_model_cv = "LDA" if str_model == "QDA" and n_iter == 1 else str_model
+        if str_model_cv != str_model:
+            model_cfg, trainer_cfg = get_model_params(
+                str_model_cv,
+                bool_use_gpu=bool_use_gpu,
+                n_gpu_per_process=n_gpu_per_process,
+                bool_tune_hyperparams=bool_tune_hyperparams,
+            )
 
         # run parallelized version of feature sweep
         if bool_use_ray:
@@ -431,6 +447,7 @@ def seq_forward_selection(
                 str_model=str_model_cv,
                 bool_use_strat_kfold=bool_use_strat_kfold,
                 random_seed=random_seed,
+                bool_verbose=bool_verbose,
             )
 
         # obtain the initial AUC from first pass
@@ -496,6 +513,7 @@ def seq_forward_selection(
                 str_model=str_model_sfs,
                 bool_use_strat_kfold=bool_use_strat_kfold,
                 random_seed=random_seed,
+                bool_verbose=bool_verbose,
             )
 
         # now also organize the output
@@ -609,4 +627,4 @@ def seq_forward_selection(
         output_fin["sfsPB"].append(sfsPB_curr)
 
     # return the outputs
-    return output_fin, output_init, iter_used, orig_metric
+    return output_fin, output_init, iter_used, orig_metric, model_cfg, trainer_cfg

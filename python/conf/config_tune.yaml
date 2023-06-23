@@ -4,16 +4,14 @@ main:
 
 defaults:
   - _self_
-  - meta: ???
+  - meta: med_MLP_auc_default
   - patient: RCS02R
   - data_paths: model_id_step3
   - preproc: ur1_5s
-  - feature_selection: sfs_settings_default
+  - feature_selection: sfs_settings_tune
   - parallel: home_ray_cpu_batch
+  # - parallel: no_ray
   - dynamics: no_dynamics_default
 
-hydra:
-  sweeper:
-    params:
-      meta: glob(*, exclude=[base*, default*, *no_run*])
-      patient: glob(*, exclude=*no_run*)
+
+wandb_group: ${patient.str_subject}${patient.str_side}_exp_1

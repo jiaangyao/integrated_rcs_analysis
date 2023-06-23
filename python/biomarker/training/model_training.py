@@ -18,7 +18,7 @@ def train_model(
     vec_features: list[npt.NDArray],
     vec_y_class: list[npt.NDArray],
     y_stim_test: npt.NDArray,
-    trainer_cfg: DictConfig,
+    trainer_cfg: DictConfig | dict,
     n_class: int = 4,
     hashmap: dict[str, int] | None = None,
 ) -> dict[str, npt.NDArray | int | float | None]:

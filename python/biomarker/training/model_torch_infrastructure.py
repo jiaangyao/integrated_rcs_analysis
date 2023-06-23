@@ -337,7 +337,7 @@ class TorchMLPModel(nn.Module):
 
     def forward(self, x):
         # forward pass
-        for i in range(self.n_layer - 1):
+        for i in range(self.n_layer):
             x = self.layers[i](x)
             x = self.act_func(x)
             x = nn.Dropout(self.dropout)(x)
