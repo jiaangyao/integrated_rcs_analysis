@@ -19,15 +19,6 @@ from biomarker.training.model_infrastructure import BaseModel
 from biomarker.training.torch_dataset import NeuralDataset, NeuralDatasetTest
 
 
-# TODO: remove this
-def force_cudnn_initialization():
-    s = 32
-    dev = torch.device("cuda")
-    torch.nn.functional.conv2d(
-        torch.zeros(s, s, s, s, device=dev), torch.zeros(s, s, s, s, device=dev)
-    )
-
-
 class PyTorchModelWrapper(BaseModel):
     def __init__(
         self,
@@ -74,7 +65,7 @@ class PyTorchModelWrapper(BaseModel):
         ptu.init_gpu(
             use_gpu=bool_use_gpu,
             gpu_id=gpu_id,
-            bool_use_best_gpu=True,
+            bool_use_best_gpu=False,
             bool_limit_gpu_mem=True,
             gpu_memory_fraction=n_gpu_per_process,
         )
@@ -99,7 +90,6 @@ class PyTorchModelWrapper(BaseModel):
     ):
         # double check device selection
         if self.bool_use_gpu:
-            force_cudnn_initialization()
             assert torch.cuda.is_available(), "Make sure you have a GPU available"
             assert self.device.type == "cuda", "Make sure you are using GPU"
 
