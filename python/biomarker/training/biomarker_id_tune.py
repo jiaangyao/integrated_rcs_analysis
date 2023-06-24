@@ -12,6 +12,8 @@ from biomarker.training.model_initialize import get_model_params
 from biomarker.training.seq_forward_selection import seq_forward_selection
 from biomarker.training.biomarker_id import SFSTrainer
 
+from utils.wandb_utils import wandb_logging_sfs_outer
+
 
 @hydra.main(version_base=None, config_path="../../conf", config_name="config_tune")
 def biomarker_id_tune_sfs(
@@ -29,6 +31,7 @@ def sfs_inner_loop_trainable(
     y_class=None,
     y_stim=None,
     labels_cell=None,
+    n_dynamics: int = 1,
     model_cfg_in: DictConfig | None = None,
     trainer_cfg_in: DictConfig | None = None,
     cfg: dict | None = None,
@@ -49,42 +52,73 @@ def sfs_inner_loop_trainable(
 
     # initialize wandb
     wandb = setup_wandb(
-        config=config,
-        project="SFS_{}_Tune".format(cfg["meta"]["str_model"]),
-        group=cfg["tune"]["wandb_group"],
+        project=cfg["logging"]["wandb_project"],
+        group=cfg["logging"]["wandb_group"],
     )
+
+    # initialize the metrics
+    wandb.define_metric("SFS_ITER/rep")
+    wandb.define_metric("SFS_ITER/best_*", step_metric="SFS_ITER/rep")
 
     # run the SFS process
-    _, output_init, _, _, _, _ = seq_forward_selection(
-        features,
-        y_class,
-        y_stim,
-        labels_cell,
-        model_cfg,
-        trainer_cfg,
-        n_ch=cfg["preproc"]["n_ch"],
-        str_model=cfg["meta"]["str_model"],
-        str_metric=cfg["meta"]["str_metric"],
-        n_candidate_peak=cfg["feature_selection"]["n_candidate_peak"],
-        n_candidate_pb=cfg["feature_selection"]["n_candidate_pb"],
-        width=cfg["feature_selection"]["width"],
-        max_width=cfg["feature_selection"]["max_width"],
-        bool_force_sfs_acc=cfg["feature_selection"]["bool_force_sfs_acc"],
-        random_seed=cfg["feature_selection"]["random_seed"],
-        n_fold=cfg["feature_selection"]["n_fold"],
-        bool_use_strat_kfold=cfg["feature_selection"]["bool_use_strat_kfold"],
-        bool_use_ray=False,
-        bool_use_gpu=cfg["parallel"]["bool_use_gpu"],
-        bool_tune_hyperparams=cfg["feature_selection"]["bool_tune_hyperparams"],
-        bool_verbose=False,
-    )
+    for idx_rep in range(cfg["feature_selection"]["n_rep"]):
+        (
+            output_fin,
+            output_init,
+            _,
+            _,
+            model_cfg_out,
+            trainer_cfg_out,
+        ) = seq_forward_selection(
+            features,
+            y_class,
+            y_stim,
+            labels_cell,
+            model_cfg,
+            trainer_cfg,
+            n_ch=cfg["preproc"]["n_ch"],
+            str_model=cfg["meta"]["str_model"],
+            str_metric=cfg["meta"]["str_metric"],
+            n_fin_pb=cfg["feature_selection"]["n_fin_pb"],
+            n_candidate_peak=cfg["feature_selection"]["n_candidate_peak"],
+            n_candidate_pb=cfg["feature_selection"]["n_candidate_pb"],
+            width=cfg["feature_selection"]["width"],
+            max_width=cfg["feature_selection"]["max_width"],
+            bool_force_sfs_acc=cfg["feature_selection"]["bool_force_sfs_acc"],
+            random_seed=cfg["feature_selection"]["random_seed"],
+            n_fold=cfg["feature_selection"]["n_fold"],
+            bool_use_strat_kfold=cfg["feature_selection"]["bool_use_strat_kfold"],
+            bool_use_ray=False,
+            bool_use_gpu=cfg["parallel"]["bool_use_gpu"],
+            bool_tune_hyperparams=cfg["feature_selection"]["bool_tune_hyperparams"],
+            bool_verbose=False,
+        )
+        
+        # obtain the metric
+        avg_acc = output_init["vec_acc"][0]
+        avg_auc = output_init["vec_auc"][0]
 
-    # obtain the metric
-    avg_acc = output_init["vec_acc"][0]
-    avg_auc = output_init["vec_auc"][0]
+        session.report({"avg_acc": avg_acc, "avg_auc": avg_auc})
 
-    session.report({"avg_acc": avg_acc, "avg_auc": avg_auc})
-    wandb.log({"summary": dict(avg_acc=avg_acc, avg_auc=avg_auc)})
+        # optionally log to wandb
+        (
+            vec_wandb_sfsPB,
+            vec_wandb_sinPB,
+        ) = wandb_logging_sfs_outer(
+            output_fin=output_fin,
+            output_init=output_init,
+            idx_rep=idx_rep,
+            vec_wandb_sfsPB=vec_wandb_sfsPB,
+            vec_wandb_sinPB=vec_wandb_sinPB,
+            bool_use_wandb=True,
+            n_fin_pb=cfg["feature_selection"]["n_fin_pb"],
+            n_dynamics=n_dynamics,
+        )
+
+    # update the config
+    cfg["model"] = model_cfg_out
+    cfg["trainer"] = trainer_cfg_out
+    wandb.config.update(cfg)
 
 
 class SFSTuneTrainer(SFSTrainer):
@@ -240,6 +274,9 @@ class SFSTuneTrainer(SFSTrainer):
 
         # now run the tuning
         results = tuner.fit()
+
+        # close wandb
+        wandb.finish()
 
         # save the output
         self.save_output(results)

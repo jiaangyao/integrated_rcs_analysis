@@ -16,6 +16,7 @@ from utils.combine_struct import (
     create_output_struct,
     append_output_struct,
     arrayize_output_struct,
+    append_pred_output_struct,
     comp_summary_output_struct,
 )
 
@@ -33,6 +34,7 @@ def kfold_cv_training(
     str_model="LDA",
     bool_use_strat_kfold=True,
     random_seed: int | None = 0,
+    # bool_return_pred: bool = False,
 ):
     # create the training and test sets
     if bool_use_strat_kfold:
@@ -94,6 +96,7 @@ def kfold_cv_training(
             trainer_cfg,
             n_class=n_class,
             hashmap=hashmap,
+            # bool_return_pred=bool_return_pred,
         )
 
         # append the variables to outer list
@@ -104,14 +107,21 @@ def kfold_cv_training(
         else:
             output = append_output_struct(output, output_curr)
 
-    # convert the list to numpy array and compute the stats
+    # convert the list to numpy array
     output = arrayize_output_struct(output)
 
-    # create the output structure
+    # compute summary statistics
     output = comp_summary_output_struct(output)
+    
+    # # optionally append all the predictions
+    # if bool_return_pred:
+    #     output = append_pred_output_struct(output)
 
     # also append the index of current input
     output["idx_feature"] = idx_feature
+    
+    # also append the hashmap used
+    output["hashmap"] = hashmap
 
     return output
 

@@ -21,6 +21,7 @@ def train_model(
     trainer_cfg: DictConfig | dict,
     n_class: int = 4,
     hashmap: dict[str, int] | None = None,
+    # bool_return_pred: bool = False,
 ) -> dict[str, npt.NDArray | int | float | None]:
     # now train the model
     # if using pytorch models
@@ -85,5 +86,14 @@ def train_model(
     output["conf_mat"] = conf_mat
     # output['roc'] = roc
     output["auc"] = auc
+    
+    # # optionally return predictions as well
+    # if bool_return_pred:
+    #     output['pred'] = dict()
+    #     output['pred']['y_class_test'] = y_class_test
+    #     output['pred']['y_class_pred_scores'] = y_class_pred_scores
+        
+    #     output['pred']['full_label_test'] = full_label_test
+    #     output['pred']['full_label_pred'] = full_label_pred
 
     return output

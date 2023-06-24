@@ -2,6 +2,7 @@
 name: SFS
 
 n_rep: 5
+n_fin_pb: 5
 n_candidate_peak: 5
 n_candidate_pb: 5
 bool_force_sfs_acc: False

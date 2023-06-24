@@ -3,4 +3,3 @@ defaults:
   - _self_
 
 num_samples: 1
-wandb_group: ${patient.str_subject}${patient.str_side}_exp1

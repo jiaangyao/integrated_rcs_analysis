@@ -77,6 +77,29 @@ def arrayize_output_struct(
     return output_fin
 
 
+def append_pred_output_struct(
+    output_fin,
+):
+    # create gigantic list in final structure and append everything to it
+    output_fin['pred'] = dict()
+    for dict_curr in output_fin['vec_pred']:
+        for key, val in dict_curr.items():
+            if key not in output_fin['pred'].keys():
+                output_fin['pred'][key] = []
+            output_fin['pred'][key].append(val)
+    
+    n_folds = len(output_fin['vec_pred'])
+    for key, val in output_fin['pred'].items():
+        # sanity check
+        assert len(val) == n_folds, "Number of folds mismatch"
+        
+        # next turn into numpy array
+        val = np.concatenate(val, axis=0)
+        output_fin['pred'][key] = val
+        
+    return output_fin
+
+
 def comp_summary_output_struct(
     output_fin,
 ):

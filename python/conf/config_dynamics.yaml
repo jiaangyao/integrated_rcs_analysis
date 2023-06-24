@@ -7,8 +7,11 @@ defaults:
   - meta: med_LDA_auc_default
   - patient: RCS02R
   - data_paths: dynamics_step3
+  - logging: default_wandb
   - preproc: ur1_5s
   - feature_selection: sfs_settings_default
   - parallel: home_ray_cpu_batch
   - tune: base_no_tune_default
   - dynamics: dynamics_ur1_5s_default
+
+exp_type: "Dynamics"

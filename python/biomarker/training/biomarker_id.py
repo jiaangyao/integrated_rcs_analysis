@@ -10,11 +10,13 @@ import numpy as np
 import pandas as pd
 from omegaconf import DictConfig, OmegaConf
 import hydra
+import wandb
 
 from biomarker.training.prepare_data import prepare_data
 from biomarker.training.model_initialize import get_model_params
 from biomarker.training.seq_forward_selection import seq_forward_selection
 from utils.parse_datetime import parse_dt_w_tz
+from utils.wandb_utils import wandb_logging_sfs_outer
 
 _VEC_STR_SUBJECT = ("RCS02", "RCS08", "RCS17")
 _VEC_STR_SIDE = ("L", "R")
@@ -22,7 +24,7 @@ _VEC_LABEL_TYPE = "med"
 _VEC_STR_METRIC = ("avg_auc", "avg_acc", "avg_f1")
 
 
-@hydra.main(version_base=None, config_path="../../conf", config_name="config")
+@hydra.main(version_base=None, config_path="../../conf", config_name="config_debug")
 def biomarker_id_train_sfs(
     cfg: DictConfig,
     **kwargs,
@@ -67,6 +69,11 @@ class DefaultModelTrainer:
         # unpack the parameters to the feature selection pipeline
         # will be instantiated later in subclasses
 
+        # unpack the logging related parameters
+        self.bool_use_wandb = cfg["logging"]["bool_use_wandb"]
+        self.wandb_project = cfg["logging"]["wandb_project"]
+        self.wandb_group = cfg["logging"]["wandb_group"]
+
         # unapck the parallelization related parameters
         self.bool_use_ray = cfg["parallel"]["bool_use_ray"]
         self.bool_use_gpu = cfg["parallel"]["bool_use_gpu"]
@@ -105,8 +112,8 @@ class SFSTrainer(DefaultModelTrainer):
         self.str_feature_selection = cfg["feature_selection"]["name"]
 
         # unpack the meta settings for feature selection
-
         self.n_rep = cfg["feature_selection"]["n_rep"]
+        self.n_fin_pb = cfg["feature_selection"]["n_fin_pb"]
         self.n_candidate_peak = cfg["feature_selection"]["n_candidate_peak"]
         self.n_candidate_pb = cfg["feature_selection"]["n_candidate_pb"]
         self.width = cfg["feature_selection"]["width"]
@@ -116,7 +123,7 @@ class SFSTrainer(DefaultModelTrainer):
         self.n_fold = cfg["feature_selection"]["n_fold"]
         self.bool_use_strat_kfold = cfg["feature_selection"]["bool_use_strat_kfold"]
         self.random_seed = cfg["feature_selection"]["random_seed"]
-        
+
         self.bool_tune_hyperparams = cfg["feature_selection"]["bool_tune_hyperparams"]
 
         # sanity checks
@@ -148,10 +155,10 @@ class SFSTrainer(DefaultModelTrainer):
                 if self.bool_use_gpu
                 else self.n_cpu_per_process
             )
-            
+
             # modify value in original config also
-            self.cfg['parallel']['n_cpu_per_process'] = self.n_cpu_per_process
-            self.cfg['parallel']['n_gpu_per_process'] = self.n_gpu_per_process
+            self.cfg["parallel"]["n_cpu_per_process"] = self.n_cpu_per_process
+            self.cfg["parallel"]["n_gpu_per_process"] = self.n_gpu_per_process
 
         # debug related flags
         if self.bool_debug:
@@ -205,6 +212,30 @@ class SFSTrainer(DefaultModelTrainer):
         if self.bool_use_ray:
             ray.shutdown()
 
+    def initialize_wandb(self):
+        # log into wandb and initialize if enabled
+        if self.bool_use_wandb:
+            # initialize
+            wandb.login()
+            wandb.init(
+                config=self.cfg,
+                project=self.wandb_project,
+                group=self.wandb_group,
+            )
+
+            # define the summary metrics for SFS
+            wandb.define_metric("SFS_ITER/rep")
+            wandb.define_metric("SFS_ITER/best_*", step_metric="SFS_ITER/rep")
+
+    def terminate_wandb(self):
+        # shut down wandb if enabled
+        if self.bool_use_wandb:
+            # update config with model and trainer params
+            wandb.config.update(
+                {"model": self.cfg["model"], "trainer": self.cfg["trainer"]}
+            )
+            wandb.finish()
+
     def extract_features(
         self,
         data_hemi,
@@ -253,7 +284,16 @@ class SFSTrainer(DefaultModelTrainer):
         labels_cell,
         model_cfg: DictConfig,
         trainer_cfg: DictConfig,
+        n_dynamics: int = 1,
+        vec_wandb_sfsPB: list[wandb.Table] | None = None,
+        vec_wandb_sinPB: list[wandb.Table] | None = None,
+        bool_verbose: bool = True,
     ):
+        # initialize the output variable
+        output_label = dict()
+        output_label["sinPB"] = []
+        output_label["sfsPB"] = []
+
         # iterate through the repetitions
         print("\nSequential Forward Selection")
         for idx_rep in tqdm.trange(
@@ -262,13 +302,15 @@ class SFSTrainer(DefaultModelTrainer):
             desc="{} REP".format(self.str_feature_selection),
             bar_format="{desc:<2.5}{percentage:3.0f}%|{bar:15}{r_bar}",
         ):
-            # initialize the output variable
-            output_label = dict()
-            output_label["sinPB"] = []
-            output_label["sfsPB"] = []
-
             # perform the SFS
-            output_fin, output_init, _, _, model_cfg, trainer_cfg = seq_forward_selection(
+            (
+                output_fin,
+                output_init,
+                _,
+                _,
+                model_cfg,
+                trainer_cfg,
+            ) = seq_forward_selection(
                 features,
                 y_class,
                 y_stim,
@@ -278,6 +320,7 @@ class SFSTrainer(DefaultModelTrainer):
                 n_ch=self.n_ch,
                 str_model=self.str_model,
                 str_metric=self.str_metric,
+                n_fin_pb=self.n_fin_pb,
                 n_candidate_peak=self.n_candidate_peak,
                 n_candidate_pb=self.n_candidate_pb,
                 width=self.width,
@@ -293,28 +336,49 @@ class SFSTrainer(DefaultModelTrainer):
                 bool_use_batch=self.bool_use_batch,
                 batch_size=self.batch_size,
                 bool_tune_hyperparams=self.bool_tune_hyperparams,
+                bool_use_wandb=self.bool_use_wandb,
             )
 
             # append to outer list
             output_label["sinPB"].append(output_init)
             output_label["sfsPB"].append(output_fin)
-            print("\nHighest SinPB auc: {:.4f}".format(output_init["vec_auc"][0]))
-            print("Highest SFS auc: {:.4f}".format(output_fin["vec_auc"][-1]))
-            print("Done with rep {}".format(idx_rep + 1))
-            print("")
-            
+
+            if bool_verbose:
+                print("\nHighest SinPB auc: {:.4f}".format(output_init["vec_auc"][0]))
+                print("Highest SFS auc: {:.4f}".format(output_fin["vec_auc"][-1]))
+                print("Done with rep {}".format(idx_rep + 1))
+                print("")
+
+            # optionally log to wandb
+            (
+                vec_wandb_sfsPB,
+                vec_wandb_sinPB,
+            ) = wandb_logging_sfs_outer(
+                output_fin=output_fin,
+                output_init=output_init,
+                idx_rep=idx_rep,
+                vec_wandb_sfsPB=vec_wandb_sfsPB,
+                vec_wandb_sinPB=vec_wandb_sinPB,
+                bool_use_wandb=self.bool_use_wandb,
+                n_fin_pb=self.n_fin_pb,
+                n_dynamics=n_dynamics,
+            )
+
         # append final model config to most general config
         self.cfg["model"] = model_cfg
         self.cfg["trainer"] = trainer_cfg
 
         # return the output
-        return output_label
+        return output_label, vec_wandb_sfsPB, vec_wandb_sinPB
 
     def train_side(self):
         """Training pipeline for a single side of the brain"""
 
         # runtime sanity checks
         assert not self.bool_use_dyna, "Dynamics should not be used for model comp SFS"
+
+        # initialize wandb logger
+        self.initialize_wandb()
 
         # load the data
         data_hemi = self.load_data()
@@ -338,7 +402,7 @@ class SFSTrainer(DefaultModelTrainer):
         )
 
         # perform SFS inner loop and iterate through the repetitions
-        output_label = self.SFS_inner_loop(
+        output_label, _, _ = self.SFS_inner_loop(
             features,
             y_class,
             y_stim,
@@ -349,6 +413,9 @@ class SFSTrainer(DefaultModelTrainer):
 
         # shutdown ray in case of using it
         self.terminate_ray(context)
+
+        # close wandb in case of using it
+        self.terminate_wandb()
 
         # save the output
         self.save_output(output_label)
