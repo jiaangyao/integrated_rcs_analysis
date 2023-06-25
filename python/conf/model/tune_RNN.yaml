@@ -4,7 +4,7 @@ defaults:
 
 model_kwargs:
   n_rnn_layer:
-    tune_range: [1, 2, 3]
+    tune_range: [2, 3]
     bool_tune: true
     tune_op: 'choice'
     type: int
