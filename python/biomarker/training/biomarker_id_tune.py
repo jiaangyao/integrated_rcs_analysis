@@ -116,6 +116,7 @@ def sfs_inner_loop_trainable(
 
         # obtain the metric
         avg_acc = output_init["vec_acc"][0]
+        avg_f1 = output_init["vec_f1"][0]
         avg_auc = output_init["vec_auc"][0]
 
         session.report({"avg_acc": avg_acc, "avg_auc": avg_auc})
@@ -141,6 +142,7 @@ def sfs_inner_loop_trainable(
             log_dict = {
                 "SFS_ITER/rep": idx_rep + 1,
                 "SFS_ITER/best_vec_acc": avg_acc,
+                "SFS_ITER/best_vec_f1": avg_f1,
                 "SFS_ITER/best_vec_auc": avg_auc,
             }
             wandb.log(log_dict)
