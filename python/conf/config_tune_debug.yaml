@@ -15,4 +15,4 @@ defaults:
   - dynamics: no_dynamics_default
   - _self_
 
-exp_type: "Tune_${meta.str_model}"
+exp_type: "Tune_${meta.str_model}_debug"

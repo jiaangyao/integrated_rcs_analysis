@@ -91,9 +91,10 @@ def sfs_inner_loop_trainable(
             bool_use_ray=False,
             bool_use_gpu=cfg["parallel"]["bool_use_gpu"],
             bool_tune_hyperparams=cfg["feature_selection"]["bool_tune_hyperparams"],
+            bool_use_wandb=True,
             bool_verbose=False,
         )
-        
+
         # obtain the metric
         avg_acc = output_init["vec_acc"][0]
         avg_auc = output_init["vec_auc"][0]
@@ -121,6 +122,10 @@ def sfs_inner_loop_trainable(
     wandb.config.update(cfg)
 
 
+def stop_fn(trial_id: str, result: dict) -> bool:
+    return result['avg_auc'] >= 0.76
+
+
 class SFSTuneTrainer(SFSTrainer):
     def __init__(self, cfg) -> None:
         # intialize the parent class
@@ -128,12 +133,13 @@ class SFSTuneTrainer(SFSTrainer):
 
         # obtain tune related params
         self.num_samples = cfg["tune"]["num_samples"]
+        self.stop_criteria = cfg["tune"]["stop_criteria"]
 
         # Note: ray_parameters here will not be used and will be handled by the ray.tune instead
 
         # quick sanity checks for hyperparameter tuning
         assert self.n_rep == 1, "Need to perform one iteration only"
-        assert self.n_candidate_pb == 1, "Need to identify one power band only"
+        assert self.n_fin_pb == 1, "Need to identify one power band only"
         assert self.bool_tune_hyperparams, "Hyperparameter tuning is not enabled"
 
     def parse_tune_kwargs(self, kwargs: DictConfig):
@@ -169,6 +175,11 @@ class SFSTuneTrainer(SFSTrainer):
                             search_space[kwarg_key] = tune.grid_search(
                                 kwarg_val.tune_range
                             )
+                        elif kwarg_val.tune_op == "uniform":
+                            search_space[kwarg_key] = tune.uniform(
+                                kwarg_val.tune_range[0], kwarg_val.tune_range[1]
+                            )
+
                         else:
                             raise NotImplementedError(
                                 f"tune_op {kwarg_val.tune_op} is not implemented"
@@ -191,9 +202,7 @@ class SFSTuneTrainer(SFSTrainer):
 
     def initialize_run_config(self):
         run_config = air.RunConfig(
-            callbacks=[
-                WandbLoggerCallback(project="SFS_{}_Tune".format(self.str_model))
-            ]
+            stop=stop_fn,
         )
 
         return run_config
@@ -247,6 +256,7 @@ class SFSTuneTrainer(SFSTrainer):
         # obtain the different configs for ray.tune.Tuner
         search_space = self.initialize_search_space(model_cfg)
         tune_config = self.initialize_tune_config()
+        run_config = self.initialize_run_config()
 
         # initialize the ray.tune.Tuner
         resources = (
@@ -270,6 +280,7 @@ class SFSTuneTrainer(SFSTrainer):
             ),
             param_space=search_space,
             tune_config=tune_config,
+            run_config=run_config,
         )
 
         # now run the tuning
