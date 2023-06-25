@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
+import torchmetrics
 
 import ray
 import numpy as np
@@ -248,10 +249,15 @@ class PyTorchModelWrapper(BaseModel):
     def predict_proba(self, data):
         class_prob = softmax(self.predict(data), axis=1)
 
-        if class_prob.shape[1] == 2:
-            class_prob = class_prob[:, 1]
+        # if class_prob.shape[1] == 2:
+        #     class_prob = class_prob[:, 1]
 
         return class_prob
+    
+    def get_auc(self, scores: np.ndarray, label: np.ndarray):
+        auc = torchmetrics.AUROC(task='multiclass', num_classes=2)(torch.Tensor(scores), torch.Tensor(label).to(torch.long))
+        
+        return ptu.to_numpy(auc)
 
     def get_loss(self):
         if self.str_loss == "CrossEntropy":

@@ -77,11 +77,10 @@ def train_model(
 
     # obtain the ROC curve
     # roc = roc_curve(y_class_test, y_class_pred_scores)
-    auc = roc_auc_score(y_class_test, y_class_pred_scores)
-    if acc < 0.5 and auc > 0.5:
-        auc = 1 - auc
-    elif acc > 0.5 and auc < 0.5:
-        auc = 1 - auc
+    if model.bool_torch:
+        auc = model.get_auc(y_class_pred_scores, y_class_test)
+    else:
+        auc = roc_auc_score(y_class_test, y_class_pred_scores)
         
     # create the output dictionary
     output = dict()
