@@ -139,7 +139,7 @@ def sfs_inner_loop_trainable(
         # now log the outputs using lightweight wandb
         if bool_use_lightweight_wandb:
             log_dict = {
-                "SFS_ITER/rep": idx_rep,
+                "SFS_ITER/rep": idx_rep + 1,
                 "SFS_ITER/best_vec_acc": avg_acc,
                 "SFS_ITER/best_vec_auc": avg_auc,
             }
