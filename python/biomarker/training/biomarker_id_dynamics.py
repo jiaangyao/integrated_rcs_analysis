@@ -132,9 +132,7 @@ class SFSDynamicsTrainer(SFSTrainer):
 
         # runtime sanity checks
         assert self.bool_use_dyna, "Dynamics must be used for dynamics SFS"
-
-        self.n_rep = 2
-
+        
         # initialize wandb logger
         self.initialize_wandb()
 

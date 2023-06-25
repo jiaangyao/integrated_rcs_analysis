@@ -376,6 +376,9 @@ class SFSTrainer(DefaultModelTrainer):
 
         # runtime sanity checks
         assert not self.bool_use_dyna, "Dynamics should not be used for model comp SFS"
+        
+        self.n_rep = 1
+        self.n_fin_pb = 1
 
         # initialize wandb logger
         self.initialize_wandb()

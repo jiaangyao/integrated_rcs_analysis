@@ -59,6 +59,7 @@ def sfs_feature_sweep(
         bool_use_wandb (bool): whether to use wandb for logging
         n_iter (int): index of current iteration
         wandb_table (wandb.Table | None, optional): wandb table to log the output. Defaults to None.
+        bool_use_lightweight_wandb (bool, optional): whether to use lightweight wandb logging. Defaults to False.
         bool_verbose (bool, optional): whether to print out progress bar. Defaults to True.
 
     Returns:
@@ -117,6 +118,7 @@ def sfs_feature_sweep(
         str_sfs="SFS1",
         bool_use_wandb=bool_use_wandb,
         bool_use_ray=False,
+        bool_use_lightweight_wandb=bool_use_lightweight_wandb,
     )
 
     return vec_output, wandb_table
@@ -139,6 +141,7 @@ def sfs_feature_sweep_ray(
     bool_use_wandb: bool,
     n_iter: int,
     wandb_table: wandb.Table | None = None,
+    bool_use_lightweight_wandb: bool = False,
 ) -> list[dict]:
     """Set up SFS feature sweeping using Ray for parallelization
 
@@ -159,6 +162,7 @@ def sfs_feature_sweep_ray(
         bool_use_wandb (bool): whether to use wandb for logging
         n_iter (int): index of current iteration
         wandb_table (wandb.Table | None, optional): wandb table to log the output. Defaults to None.
+        bool_use_lightweight_wandb (bool, optional): whether to use lightweight wandb logging. Defaults to False.
 
     Returns:
         list[dict]: list of output dictionaries of same structure, each representing the output at a particular frequeney bin
@@ -234,6 +238,7 @@ def sfs_feature_sweep_ray(
         n_iter=n_iter,
         str_sfs="SFS1",
         bool_use_wandb=bool_use_wandb,
+        bool_use_lightweight_wandb=bool_use_lightweight_wandb,
         bool_use_ray=True,
     )
 
@@ -308,6 +313,7 @@ def sfs_pb_sweep(
         n_iter=n_iter,
         str_sfs="SFS2",
         bool_use_wandb=bool_use_wandb,
+        bool_use_lightweight_wandb=bool_use_lightweight_wandb,
         bool_use_ray=False,
     )
 
@@ -331,6 +337,7 @@ def sfs_pb_sweep_ray(
     bool_use_wandb: bool,
     n_iter: int,
     wandb_table: wandb.Table | None = None,
+    bool_use_lightweight_wandb: bool = False,
 ) -> list[dict]:
     # if use batching
     if bool_use_batch:
@@ -403,7 +410,9 @@ def sfs_pb_sweep_ray(
         n_iter=n_iter,
         str_sfs="SFS2",
         bool_use_wandb=bool_use_wandb,
+        bool_use_lightweight_wandb=bool_use_lightweight_wandb,
         bool_use_ray=True,
+        
     )
 
     return vec_output_sfs, wandb_table
@@ -556,6 +565,7 @@ def seq_forward_selection(
                 bool_use_wandb=bool_use_wandb,
                 n_iter=n_iter,
                 wandb_table=wandb_table_sfs1,
+                bool_use_lightweight_wandb=bool_use_lightweight_wandb,
             )
 
         # run serial version of feature sweep
@@ -629,6 +639,7 @@ def seq_forward_selection(
                 bool_use_wandb=bool_use_wandb,
                 n_iter=n_iter,
                 wandb_table=wandb_table_sfs2,
+                bool_use_lightweight_wandb=bool_use_lightweight_wandb,
             )
 
         # run serial version of feature combinationsweep
