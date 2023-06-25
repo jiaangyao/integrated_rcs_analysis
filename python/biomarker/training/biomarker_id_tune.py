@@ -148,7 +148,7 @@ def sfs_inner_loop_trainable(
     # update the config
     cfg["model"] = model_cfg_out
     cfg["trainer"] = trainer_cfg_out
-    wandb.config.update(cfg)
+    wandb.config.update(cfg, allow_val_change=True)
 
 
 def stop_fn(trial_id: str, result: dict) -> bool:
