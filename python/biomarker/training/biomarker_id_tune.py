@@ -15,7 +15,9 @@ from biomarker.training.biomarker_id import SFSTrainer
 from utils.wandb_utils import wandb_logging_sfs_outer
 
 
-@hydra.main(version_base=None, config_path="../../conf", config_name="config_tune_debug")
+@hydra.main(
+    version_base=None, config_path="../../conf", config_name="config_tune_debug"
+)
 def biomarker_id_tune_sfs(
     cfg: DictConfig,
     **kwargs,
@@ -64,7 +66,7 @@ def sfs_inner_loop_trainable(
     # create variables for later
     vec_wandb_sfsPB = None
     vec_wandb_sinPB = None
-    
+
     # if bool_use_lightweight_wandb:
     #     # define the SFS1 related metrics
     #     wandb.define_metric("SFS1/center_freq")
@@ -133,7 +135,7 @@ def sfs_inner_loop_trainable(
             n_dynamics=n_dynamics,
             bool_use_lightweight_wandb=bool_use_lightweight_wandb,
         )
-        
+
         # now log the outputs using lightweight wandb
         if bool_use_lightweight_wandb:
             log_dict = {
@@ -150,7 +152,7 @@ def sfs_inner_loop_trainable(
 
 
 def stop_fn(trial_id: str, result: dict) -> bool:
-    return result['avg_auc'] >= 0.76
+    return result["avg_auc"] >= 0.76
 
 
 class SFSTuneTrainer(SFSTrainer):
@@ -262,6 +264,8 @@ class SFSTuneTrainer(SFSTrainer):
         # runtime sanity checks
         assert not self.bool_use_dyna, "Dynamics should not be used for model comp SFS"
 
+        self.num_samples = 1
+
         # load the data
         data_hemi = self.load_data()
 
@@ -315,9 +319,6 @@ class SFSTuneTrainer(SFSTrainer):
 
         # close wandb
         wandb.finish()
-
-        # save the output
-        self.save_output(results)
 
         return results
 
