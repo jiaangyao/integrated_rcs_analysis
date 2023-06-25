@@ -222,10 +222,9 @@ def wandb_logging_dyna(
         log_dict = {
             "SFS_DYNA_TOP/n_dyna": n_dynamics,
             "SFS_DYNA_TOP/best_avg_sinPB_auc": avg_sinPB_auc_ys[0][-1],
-            "SFS_DYNA_TOP/best_avg_sfsPB_auc": avg_sfsPB_auc_ys[-1][-1]
+            "SFS_DYNA_TOP/best_avg_sfsPB_auc": avg_sfsPB_auc_ys[-1][-1],
         }
         wandb.log(log_dict)
-
 
     return wandb_sfsPB_dyna, wandb_sinPB_dyna
 
@@ -239,163 +238,165 @@ def wandb_logging_sfs_outer(
     bool_use_wandb: bool,
     n_fin_pb: int,
     n_dynamics: int,
+    bool_use_lightweight_wandb: bool = False,
 ):
     # use wandb for logging
     if bool_use_wandb:
-        # compute the number of PBs possible
-        n_pb = min(n_fin_pb, _MAX_NUMEBER_OF_FINAL_PB)
+        if not bool_use_lightweight_wandb:
+            # compute the number of PBs possible
+            n_pb = min(n_fin_pb, _MAX_NUMEBER_OF_FINAL_PB)
 
-        # form the rows in the output table
-        # start with the SFS output
-        vec_sfsPB_values = [
-            [
-                n_dynamics,
-                idx_rep + 1,
-                output_fin["sfsPB"][idx_pb][0],
-                output_fin["sfsPB"][idx_pb][1],
-                output_fin["sfsPB"][idx_pb][2],
-                output_fin["vec_acc"][idx_pb],
-                output_fin["vec_f1"][idx_pb],
-                output_fin["vec_auc"][idx_pb],
+            # form the rows in the output table
+            # start with the SFS output
+            vec_sfsPB_values = [
+                [
+                    n_dynamics,
+                    idx_rep + 1,
+                    output_fin["sfsPB"][idx_pb][0],
+                    output_fin["sfsPB"][idx_pb][1],
+                    output_fin["sfsPB"][idx_pb][2],
+                    output_fin["vec_acc"][idx_pb],
+                    output_fin["vec_f1"][idx_pb],
+                    output_fin["vec_auc"][idx_pb],
+                ]
+                for idx_pb in range(0, n_pb)
             ]
-            for idx_pb in range(0, n_pb)
-        ]
 
-        # create the column headers
-        vec_sfsPB_columns = [
-            [
-                "SFS_n_dyna",
-                "SFS_rep",
-                f"PB{idx_pb}_ch",
-                f"PB{idx_pb}_freq_low",
-                f"PB{idx_pb}_freq_high",
-                f"PB{idx_pb}_acc",
-                f"PB{idx_pb}_f1",
-                f"PB{idx_pb}_auc",
+            # create the column headers
+            vec_sfsPB_columns = [
+                [
+                    "SFS_n_dyna",
+                    "SFS_rep",
+                    f"PB{idx_pb}_ch",
+                    f"PB{idx_pb}_freq_low",
+                    f"PB{idx_pb}_freq_high",
+                    f"PB{idx_pb}_acc",
+                    f"PB{idx_pb}_f1",
+                    f"PB{idx_pb}_auc",
+                ]
+                for idx_pb in range(1, n_pb + 1)
             ]
-            for idx_pb in range(1, n_pb + 1)
-        ]
 
-        # next form the sinPB output
-        vec_sinPB_values = [
-            [
-                n_dynamics,
-                idx_rep + 1,
-                output_init["sinPB"][idx_pb][0],
-                output_init["sinPB"][idx_pb][1],
-                output_init["sinPB"][idx_pb][2],
-                output_init["vec_acc"][idx_pb],
-                output_init["vec_f1"][idx_pb],
-                output_init["vec_auc"][idx_pb],
+            # next form the sinPB output
+            vec_sinPB_values = [
+                [
+                    n_dynamics,
+                    idx_rep + 1,
+                    output_init["sinPB"][idx_pb][0],
+                    output_init["sinPB"][idx_pb][1],
+                    output_init["sinPB"][idx_pb][2],
+                    output_init["vec_acc"][idx_pb],
+                    output_init["vec_f1"][idx_pb],
+                    output_init["vec_auc"][idx_pb],
+                ]
+                for idx_pb in range(0, n_pb)
             ]
-            for idx_pb in range(0, n_pb)
-        ]
 
-        # create the column headers
-        vec_sinPB_columns = [
-            [
-                "SFS_n_dyna",
-                "SFS_rep",
-                f"PB{idx_pb}_ch",
-                f"PB{idx_pb}_freq_low",
-                f"PB{idx_pb}_freq_high",
-                f"PB{idx_pb}_acc",
-                f"PB{idx_pb}_f1",
-                f"PB{idx_pb}_auc",
+            # create the column headers
+            vec_sinPB_columns = [
+                [
+                    "SFS_n_dyna",
+                    "SFS_rep",
+                    f"PB{idx_pb}_ch",
+                    f"PB{idx_pb}_freq_low",
+                    f"PB{idx_pb}_freq_high",
+                    f"PB{idx_pb}_acc",
+                    f"PB{idx_pb}_f1",
+                    f"PB{idx_pb}_auc",
+                ]
+                for idx_pb in range(1, n_pb + 1)
             ]
-            for idx_pb in range(1, n_pb + 1)
-        ]
 
-        # next proceed with updating sfsPB table
-        # if table doesn't exist then create it
-        if vec_wandb_sfsPB is None:
-            # create the respective tables
-            vec_wandb_sfsPB = []
-            for i in range(n_pb):
-                # for each power band create the dataframe and the wandB table
-                wandb_table_curr = wandb.Table(
-                    data=pd.DataFrame(
+            # next proceed with updating sfsPB table
+            # if table doesn't exist then create it
+            if vec_wandb_sfsPB is None:
+                # create the respective tables
+                vec_wandb_sfsPB = []
+                for i in range(n_pb):
+                    # for each power band create the dataframe and the wandB table
+                    wandb_table_curr = wandb.Table(
+                        data=pd.DataFrame(
+                            data={
+                                vec_sfsPB_columns[i][j]: vec_sfsPB_values[i][j]
+                                for j in range(len(vec_sfsPB_columns[i]))
+                            },
+                            index=[idx_rep],
+                        )
+                    )
+                    vec_wandb_sfsPB.append(wandb_table_curr)
+
+            # otherwise append to existing table
+            else:
+                for i in range(n_pb):
+                    # concatenate the dataframe
+                    df_existing = vec_wandb_sfsPB[i].get_dataframe()
+                    df_curr = pd.DataFrame(
                         data={
                             vec_sfsPB_columns[i][j]: vec_sfsPB_values[i][j]
                             for j in range(len(vec_sfsPB_columns[i]))
                         },
                         index=[idx_rep],
                     )
-                )
-                vec_wandb_sfsPB.append(wandb_table_curr)
+                    df_full = pd.concat([df_existing, df_curr])
 
-        # otherwise append to existing table
-        else:
-            for i in range(n_pb):
-                # concatenate the dataframe
-                df_existing = vec_wandb_sfsPB[i].get_dataframe()
-                df_curr = pd.DataFrame(
-                    data={
-                        vec_sfsPB_columns[i][j]: vec_sfsPB_values[i][j]
-                        for j in range(len(vec_sfsPB_columns[i]))
-                    },
-                    index=[idx_rep],
-                )
-                df_full = pd.concat([df_existing, df_curr])
+                    # mutate the table
+                    vec_wandb_sfsPB[i] = wandb.Table(data=df_full)
 
-                # mutate the table
-                vec_wandb_sfsPB[i] = wandb.Table(data=df_full)
+            # next proceed with updating sinPB table
+            if vec_wandb_sinPB is None:
+                # create the respective tables
+                vec_wandb_sinPB = []
+                for i in range(n_pb):
+                    # for each power band create the dataframe and the wandB table
+                    wandb_table_curr = wandb.Table(
+                        data=pd.DataFrame(
+                            data={
+                                vec_sinPB_columns[i][j]: vec_sinPB_values[i][j]
+                                for j in range(len(vec_sinPB_columns[i]))
+                            },
+                            index=[idx_rep],
+                        )
+                    )
+                    vec_wandb_sinPB.append(wandb_table_curr)
 
-        # next proceed with updating sinPB table
-        if vec_wandb_sinPB is None:
-            # create the respective tables
-            vec_wandb_sinPB = []
-            for i in range(n_pb):
-                # for each power band create the dataframe and the wandB table
-                wandb_table_curr = wandb.Table(
-                    data=pd.DataFrame(
+            # otherwise append to existing table
+            else:
+                for i in range(n_pb):
+                    vec_wandb_sinPB[i].add_data(*vec_sinPB_values[i])
+
+                    # concatenate the dataframe
+                    df_existing = vec_wandb_sinPB[i].get_dataframe()
+                    df_curr = pd.DataFrame(
                         data={
                             vec_sinPB_columns[i][j]: vec_sinPB_values[i][j]
                             for j in range(len(vec_sinPB_columns[i]))
                         },
                         index=[idx_rep],
                     )
-                )
-                vec_wandb_sinPB.append(wandb_table_curr)
+                    df_full = pd.concat([df_existing, df_curr])
 
-        # otherwise append to existing table
-        else:
+                    # mutate the table
+                    vec_wandb_sinPB[i] = wandb.Table(data=df_full)
+
+            # log sfsPB tables to wandb
+            log_dict_sfsPB_table = dict()
             for i in range(n_pb):
-                vec_wandb_sinPB[i].add_data(*vec_sinPB_values[i])
+                log_dict_sfsPB_table[f"sfsPB/sfsPB_PB{i + 1}"] = vec_wandb_sfsPB[i]
+            wandb.log(log_dict_sfsPB_table)
 
-                # concatenate the dataframe
-                df_existing = vec_wandb_sinPB[i].get_dataframe()
-                df_curr = pd.DataFrame(
-                    data={
-                        vec_sinPB_columns[i][j]: vec_sinPB_values[i][j]
-                        for j in range(len(vec_sinPB_columns[i]))
-                    },
-                    index=[idx_rep],
-                )
-                df_full = pd.concat([df_existing, df_curr])
+            # log sinPB tables to wandb
+            log_dict_sinPB_table = dict()
+            for i in range(n_pb):
+                log_dict_sinPB_table[f"sinPB/sinPB_PB{i + 1}"] = vec_wandb_sinPB[i]
+            wandb.log(log_dict_sinPB_table)
 
-                # mutate the table
-                vec_wandb_sinPB[i] = wandb.Table(data=df_full)
-
-        # log sfsPB tables to wandb
-        log_dict_sfsPB_table = dict()
-        for i in range(n_pb):
-            log_dict_sfsPB_table[f"sfsPB/sfsPB_PB{i + 1}"] = vec_wandb_sfsPB[i]
-        wandb.log(log_dict_sfsPB_table)
-
-        # log sinPB tables to wandb
-        log_dict_sinPB_table = dict()
-        for i in range(n_pb):
-            log_dict_sinPB_table[f"sinPB/sinPB_PB{i + 1}"] = vec_wandb_sinPB[i]
-        wandb.log(log_dict_sinPB_table)
-
-        # first create the simple plots
-        log_dict = {
-            "SFS_ITER/rep": idx_rep + 1,
-            "SFS_ITER/best_sinPB_auc": output_init["vec_auc"][0],
-            "SFS_ITER/best_sfsPB_auc": output_fin["vec_auc"][-1],
-        }
-        wandb.log(log_dict)
+            # first create the simple plots
+            log_dict = {
+                "SFS_ITER/rep": idx_rep + 1,
+                "SFS_ITER/best_sinPB_auc": output_init["vec_auc"][0],
+                "SFS_ITER/best_sfsPB_auc": output_fin["vec_auc"][-1],
+            }
+            wandb.log(log_dict)
 
     return vec_wandb_sfsPB, vec_wandb_sinPB
 
@@ -506,5 +507,5 @@ def wandb_logging_sfs_inner(
                     ),
                 }
             )
-            
+
     return wandb_table

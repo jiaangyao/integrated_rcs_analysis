@@ -103,8 +103,9 @@ def sfs_feature_sweep(
         # otherwise if use lightweight wandb, then log the simple output
         elif bool_use_lightweight_wandb:
             log_dict = {
-                "acg_acc": output_curr["avg_acc"],
-                "acg_auc": output_curr["avg_auc"],
+                "SFS1/center_freq": idx_feature + 1,
+                "SFS1/acg_acc": output_curr["avg_acc"],
+                "SFS1/acg_auc": output_curr["avg_auc"],
             }
             wandb.log(log_dict)
 
@@ -294,8 +295,9 @@ def sfs_pb_sweep(
         # otherwise if use lightweight wandb, then log the simple output
         elif bool_use_lightweight_wandb:
             log_dict = {
-                "acg_acc": output_curr["avg_acc"],
-                "acg_auc": output_curr["avg_auc"],
+                "SFS2/freq_index": idx_feature + 1,
+                "SFS2/acg_acc": output_curr["avg_acc"],
+                "SFS2/acg_auc": output_curr["avg_auc"],
             }
             wandb.log(log_dict)
 

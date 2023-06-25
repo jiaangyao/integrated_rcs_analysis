@@ -35,6 +35,7 @@ def sfs_inner_loop_trainable(
     model_cfg_in: DictConfig | None = None,
     trainer_cfg_in: DictConfig | None = None,
     cfg: dict | None = None,
+    bool_use_lightweight_wandb: bool = True,
 ):
     # unpack the configs
     model_cfg = OmegaConf.to_container(model_cfg_in, resolve=True)
@@ -59,6 +60,17 @@ def sfs_inner_loop_trainable(
     # initialize the metrics
     wandb.define_metric("SFS_ITER/rep")
     wandb.define_metric("SFS_ITER/best_*", step_metric="SFS_ITER/rep")
+    
+    if bool_use_lightweight_wandb:
+        # define the SFS1 related metrics
+        wandb.define_metric("SFS1/center_freq")
+        wandb.define_metric("SFS1/acg_acc", step_metric="SFS1/center_freq")
+        wandb.define_metric("SFS1/acg_auc", step_metric="SFS1/center_freq")
+
+        # define the SFS2 related metrics
+        wandb.define_metric("SFS2/freq_index")
+        wandb.define_metric("SFS2/acg_acc", step_metric="SFS2/freq_index")
+        wandb.define_metric("SFS2/acg_auc", step_metric="SFS2/freq_index")
 
     # run the SFS process
     for idx_rep in range(cfg["feature_selection"]["n_rep"]):
@@ -92,7 +104,7 @@ def sfs_inner_loop_trainable(
             bool_use_gpu=cfg["parallel"]["bool_use_gpu"],
             bool_tune_hyperparams=cfg["feature_selection"]["bool_tune_hyperparams"],
             bool_use_wandb=True,
-            bool_use_lightweight_wandb=True,
+            bool_use_lightweight_wandb=bool_use_lightweight_wandb,
             bool_verbose=False,
         )
 
@@ -115,7 +127,17 @@ def sfs_inner_loop_trainable(
             bool_use_wandb=True,
             n_fin_pb=cfg["feature_selection"]["n_fin_pb"],
             n_dynamics=n_dynamics,
+            bool_use_lightweight_wandb=bool_use_lightweight_wandb,
         )
+        
+        # now log the outputs using lightweight wandb
+        if bool_use_lightweight_wandb:
+            log_dict = {
+                "SFS_ITER/rep": idx_rep,
+                "SFS_ITER/best_vec_acc": avg_acc,
+                "SFS_ITER/best_vec_auc": avg_auc,
+            }
+            wandb.log(log_dict)
 
     # update the config
     cfg["model"] = model_cfg_out
