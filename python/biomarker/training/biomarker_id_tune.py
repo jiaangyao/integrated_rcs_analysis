@@ -92,6 +92,7 @@ def sfs_inner_loop_trainable(
             bool_use_gpu=cfg["parallel"]["bool_use_gpu"],
             bool_tune_hyperparams=cfg["feature_selection"]["bool_tune_hyperparams"],
             bool_use_wandb=True,
+            bool_use_lightweight_wandb=True,
             bool_verbose=False,
         )
 
