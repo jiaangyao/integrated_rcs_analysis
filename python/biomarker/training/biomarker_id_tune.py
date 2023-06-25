@@ -60,17 +60,21 @@ def sfs_inner_loop_trainable(
     # initialize the metrics
     wandb.define_metric("SFS_ITER/rep")
     wandb.define_metric("SFS_ITER/best_*", step_metric="SFS_ITER/rep")
-    
-    if bool_use_lightweight_wandb:
-        # define the SFS1 related metrics
-        wandb.define_metric("SFS1/center_freq")
-        wandb.define_metric("SFS1/acg_acc", step_metric="SFS1/center_freq")
-        wandb.define_metric("SFS1/acg_auc", step_metric="SFS1/center_freq")
 
-        # define the SFS2 related metrics
-        wandb.define_metric("SFS2/freq_index")
-        wandb.define_metric("SFS2/acg_acc", step_metric="SFS2/freq_index")
-        wandb.define_metric("SFS2/acg_auc", step_metric="SFS2/freq_index")
+    # create variables for later
+    vec_wandb_sfsPB = None
+    vec_wandb_sinPB = None
+    
+    # if bool_use_lightweight_wandb:
+    #     # define the SFS1 related metrics
+    #     wandb.define_metric("SFS1/center_freq")
+    #     wandb.define_metric("SFS1/acg_acc", step_metric="SFS1/center_freq")
+    #     wandb.define_metric("SFS1/acg_auc", step_metric="SFS1/center_freq")
+    #
+    #     # define the SFS2 related metrics
+    #     wandb.define_metric("SFS2/freq_index")
+    #     wandb.define_metric("SFS2/acg_acc", step_metric="SFS2/freq_index")
+    #     wandb.define_metric("SFS2/acg_auc", step_metric="SFS2/freq_index")
 
     # run the SFS process
     for idx_rep in range(cfg["feature_selection"]["n_rep"]):
