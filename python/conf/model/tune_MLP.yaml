@@ -10,7 +10,7 @@ model_kwargs:
     type: int
 
   hidden_size:
-    tune_range: [1, 2, 3, 4]
+    tune_range: [1, 2, 4, 8]
     bool_tune: true
     tune_op: 'choice'
     type: int
@@ -22,7 +22,7 @@ model_kwargs:
     type: string
 
   dropout:
-    tune_range: [0.005, 0.10]
+    tune_range: [0.05, 0.5]
     bool_tune: true
     tune_op: 'uniform'
     type: float
