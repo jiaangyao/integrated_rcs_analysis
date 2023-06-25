@@ -10,7 +10,7 @@ model_kwargs:
     type: int
 
   hidden_size:
-    tune_range: [1, 2, 3, 4]
+    tune_range: [1, 2, 3, 4, 8]
     bool_tune: true
     tune_op: 'choice'
     type: int
