@@ -42,6 +42,7 @@ def sfs_feature_sweep(
     bool_use_wandb: bool,
     n_iter: int,
     wandb_table: wandb.Table | None = None,
+    bool_use_lightweight_wandb: bool = False,
     bool_verbose: bool = True,
 ) -> list[dict]:
     """Set up SFS feature sweeping not using parallelization
@@ -90,7 +91,7 @@ def sfs_feature_sweep(
         vec_output.append(output_curr)
 
         # incrementally update wandb table if already initialized
-        if bool_use_wandb and wandb_table is not None:
+        if bool_use_wandb and not bool_use_lightweight_wandb and wandb_table is not None:
             wandb_table.add_data(
                 idx_feature + 1,
                 output_curr["avg_acc"],
@@ -98,6 +99,14 @@ def sfs_feature_sweep(
                 output_curr["avg_auc"],
                 n_iter,
             )
+            
+        # otherwise if use lightweight wandb, then log the simple output
+        elif bool_use_lightweight_wandb:
+            log_dict = {
+                "acg_acc": output_curr["avg_acc"],
+                "acg_auc": output_curr["avg_auc"],
+            }
+            wandb.log(log_dict)
 
     # perform logging using wandb
     wandb_table = wandb_logging_sfs_inner(
@@ -243,6 +252,7 @@ def sfs_pb_sweep(
     bool_use_wandb: bool,
     n_iter: int,
     wandb_table: wandb.Table | None = None,
+    bool_use_lightweight_wandb: bool = False,
     bool_verbose: bool = True,
 ) -> list[dict]:
     # form the list of output
@@ -280,6 +290,14 @@ def sfs_pb_sweep(
                 output_curr["avg_auc"],
                 n_iter,
             )
+            
+        # otherwise if use lightweight wandb, then log the simple output
+        elif bool_use_lightweight_wandb:
+            log_dict = {
+                "acg_acc": output_curr["avg_acc"],
+                "acg_auc": output_curr["avg_auc"],
+            }
+            wandb.log(log_dict)
 
     # perform logging using wandb
     wandb_table = wandb_logging_sfs_inner(
@@ -416,6 +434,7 @@ def seq_forward_selection(
     batch_size: int = 1,
     bool_tune_hyperparams: bool = False,
     bool_use_wandb: bool = False,
+    bool_use_lightweight_wandb: bool = False,
     bool_verbose: bool = True,
 ):
     """_summary_
@@ -552,6 +571,7 @@ def seq_forward_selection(
                 bool_use_wandb=bool_use_wandb,
                 n_iter=n_iter,
                 wandb_table=wandb_table_sfs1,
+                bool_use_lightweight_wandb=bool_use_lightweight_wandb,
                 bool_verbose=bool_verbose,
             )
 
@@ -624,6 +644,7 @@ def seq_forward_selection(
                 bool_use_wandb=bool_use_wandb,
                 n_iter=n_iter,
                 wandb_table=wandb_table_sfs2,
+                bool_use_lightweight_wandb=bool_use_lightweight_wandb,
                 bool_verbose=bool_verbose,
             )
 

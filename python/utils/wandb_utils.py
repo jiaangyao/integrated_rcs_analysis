@@ -406,101 +406,105 @@ def wandb_logging_sfs_inner(
     n_iter: int,
     str_sfs: str,
     bool_use_wandb: bool,
+    bool_use_lightweight_wandb: bool,
     bool_use_ray: bool,
 ):
     # use wandb for logging
     if bool_use_wandb:
-        # now check if input table exists already and if not exist then create
-        if wandb_table is None:
-            # if none then create a new table
-            # obtain the various variables to log
-            center_freq = np.arange(1, len(vec_output) + 1)
-            vec_avg_acc = []
-            vec_avg_f1 = []
-            vec_avg_auc = []
-            vec_n_iter = np.ones_like(center_freq) * n_iter
+        # if use the full wandb features
+        if not bool_use_lightweight_wandb:
+            # now check if input table exists already and if not exist then create
+            if wandb_table is None:
+                # if none then create a new table
+                # obtain the various variables to log
+                center_freq = np.arange(1, len(vec_output) + 1)
+                vec_avg_acc = []
+                vec_avg_f1 = []
+                vec_avg_auc = []
+                vec_n_iter = np.ones_like(center_freq) * n_iter
 
-            # loop through the output
-            for idx_feature in range(len(vec_output)):
-                vec_avg_acc.append(vec_output[idx_feature]["avg_acc"])
-                vec_avg_f1.append(vec_output[idx_feature]["avg_f1"])
-                vec_avg_auc.append(vec_output[idx_feature]["avg_auc"])
-            vec_avg_acc = np.stack(vec_avg_acc, axis=0)
-            vec_avg_f1 = np.stack(vec_avg_f1, axis=0)
-            vec_avg_auc = np.stack(vec_avg_auc, axis=0)
+                # loop through the output
+                for idx_feature in range(len(vec_output)):
+                    vec_avg_acc.append(vec_output[idx_feature]["avg_acc"])
+                    vec_avg_f1.append(vec_output[idx_feature]["avg_f1"])
+                    vec_avg_auc.append(vec_output[idx_feature]["avg_auc"])
+                vec_avg_acc = np.stack(vec_avg_acc, axis=0)
+                vec_avg_f1 = np.stack(vec_avg_f1, axis=0)
+                vec_avg_auc = np.stack(vec_avg_auc, axis=0)
 
-            wandb_table = wandb.Table(
-                data=pd.DataFrame(
-                    {
-                        f"{str_sfs}_center_freq": center_freq,
-                        f"{str_sfs}_avg_acc": vec_avg_acc,
-                        f"{str_sfs}_avg_f1": vec_avg_f1,
-                        f"{str_sfs}_avg_auc": vec_avg_auc,
-                        f"{str_sfs}_n_iter": vec_n_iter,
-                    }
+                wandb_table = wandb.Table(
+                    data=pd.DataFrame(
+                        {
+                            f"{str_sfs}_center_freq": center_freq,
+                            f"{str_sfs}_avg_acc": vec_avg_acc,
+                            f"{str_sfs}_avg_f1": vec_avg_f1,
+                            f"{str_sfs}_avg_auc": vec_avg_auc,
+                            f"{str_sfs}_n_iter": vec_n_iter,
+                        }
+                    )
                 )
+
+            elif bool_use_ray and wandb_table is not None:
+                # otherwise parse the output structure from ray and append to existing table
+                for idx_feature in range(len(vec_output)):
+                    wandb_table.add_data(
+                        idx_feature + 1,
+                        vec_output[idx_feature]["avg_acc"],
+                        vec_output[idx_feature]["avg_f1"],
+                        vec_output[idx_feature]["avg_auc"],
+                        n_iter,
+                    )
+
+            # log the output
+            wandb.log({f"{str_sfs}/{str_sfs}_table": wandb_table})
+            wandb_table_df = wandb_table.get_dataframe()
+            center_freq_xs = wandb_table_df[f"{str_sfs}_center_freq"].to_numpy()
+            vec_unique_iter = pd.unique(wandb_table_df[f"{str_sfs}_n_iter"])
+            avg_acc_ys = [
+                wandb_table_df[wandb_table_df[f"{str_sfs}_n_iter"] == unique_iter][
+                    f"{str_sfs}_avg_acc"
+                ].to_numpy()
+                for unique_iter in vec_unique_iter
+            ]
+            avg_f1_ys = [
+                wandb_table_df[wandb_table_df[f"{str_sfs}_n_iter"] == unique_iter][
+                    f"{str_sfs}_avg_f1"
+                ].to_numpy()
+                for unique_iter in vec_unique_iter
+            ]
+            avg_auc_ys = [
+                wandb_table_df[wandb_table_df[f"{str_sfs}_n_iter"] == unique_iter][
+                    f"{str_sfs}_avg_auc"
+                ].to_numpy()
+                for unique_iter in vec_unique_iter
+            ]
+            n_iter_keys = [f"iter_{n_iter}" for n_iter in vec_unique_iter]
+
+            # log the plots
+            wandb.log(
+                {
+                    f"{str_sfs}/avg_acc_plot": wandb.plot.line_series(
+                        xs=center_freq_xs,
+                        ys=avg_acc_ys,
+                        keys=n_iter_keys,
+                        title=f"{str_sfs}_avg_acc",
+                        xname=f"{str_sfs}_center_freq",
+                    ),
+                    f"{str_sfs}/avg_f1_plot": wandb.plot.line_series(
+                        xs=center_freq_xs,
+                        ys=avg_f1_ys,
+                        keys=n_iter_keys,
+                        title=f"{str_sfs}_avg_f1",
+                        xname=f"{str_sfs}_center_freq",
+                    ),
+                    f"{str_sfs}/avg_auc_plot": wandb.plot.line_series(
+                        xs=center_freq_xs,
+                        ys=avg_auc_ys,
+                        keys=n_iter_keys,
+                        title=f"{str_sfs}_avg_auc",
+                        xname=f"{str_sfs}_center_freq",
+                    ),
+                }
             )
-
-        elif bool_use_ray and wandb_table is not None:
-            # otherwise parse the output structure from ray and append to existing table
-            for idx_feature in range(len(vec_output)):
-                wandb_table.add_data(
-                    idx_feature + 1,
-                    vec_output[idx_feature]["avg_acc"],
-                    vec_output[idx_feature]["avg_f1"],
-                    vec_output[idx_feature]["avg_auc"],
-                    n_iter,
-                )
-
-        # log the output
-        wandb.log({f"{str_sfs}/{str_sfs}_table": wandb_table})
-        wandb_table_df = wandb_table.get_dataframe()
-        center_freq_xs = wandb_table_df[f"{str_sfs}_center_freq"].to_numpy()
-        vec_unique_iter = pd.unique(wandb_table_df[f"{str_sfs}_n_iter"])
-        avg_acc_ys = [
-            wandb_table_df[wandb_table_df[f"{str_sfs}_n_iter"] == unique_iter][
-                f"{str_sfs}_avg_acc"
-            ].to_numpy()
-            for unique_iter in vec_unique_iter
-        ]
-        avg_f1_ys = [
-            wandb_table_df[wandb_table_df[f"{str_sfs}_n_iter"] == unique_iter][
-                f"{str_sfs}_avg_f1"
-            ].to_numpy()
-            for unique_iter in vec_unique_iter
-        ]
-        avg_auc_ys = [
-            wandb_table_df[wandb_table_df[f"{str_sfs}_n_iter"] == unique_iter][
-                f"{str_sfs}_avg_auc"
-            ].to_numpy()
-            for unique_iter in vec_unique_iter
-        ]
-        n_iter_keys = [f"iter_{n_iter}" for n_iter in vec_unique_iter]
-
-        # log the plots
-        wandb.log(
-            {
-                f"{str_sfs}/avg_acc_plot": wandb.plot.line_series(
-                    xs=center_freq_xs,
-                    ys=avg_acc_ys,
-                    keys=n_iter_keys,
-                    title=f"{str_sfs}_avg_acc",
-                    xname=f"{str_sfs}_center_freq",
-                ),
-                f"{str_sfs}/avg_f1_plot": wandb.plot.line_series(
-                    xs=center_freq_xs,
-                    ys=avg_f1_ys,
-                    keys=n_iter_keys,
-                    title=f"{str_sfs}_avg_f1",
-                    xname=f"{str_sfs}_center_freq",
-                ),
-                f"{str_sfs}/avg_auc_plot": wandb.plot.line_series(
-                    xs=center_freq_xs,
-                    ys=avg_auc_ys,
-                    keys=n_iter_keys,
-                    title=f"{str_sfs}_avg_auc",
-                    xname=f"{str_sfs}_center_freq",
-                ),
-            }
-        )
+            
     return wandb_table
