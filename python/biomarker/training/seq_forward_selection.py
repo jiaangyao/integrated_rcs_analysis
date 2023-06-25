@@ -100,14 +100,14 @@ def sfs_feature_sweep(
                 n_iter,
             )
             
-        # otherwise if use lightweight wandb, then log the simple output
-        elif bool_use_lightweight_wandb:
-            log_dict = {
-                "SFS1/center_freq": idx_feature + 1,
-                "SFS1/acg_acc": output_curr["avg_acc"],
-                "SFS1/acg_auc": output_curr["avg_auc"],
-            }
-            wandb.log(log_dict)
+        # # otherwise if use lightweight wandb, then log the simple output
+        # elif bool_use_lightweight_wandb:
+        #     log_dict = {
+        #         "SFS1/center_freq": idx_feature + 1,
+        #         "SFS1/acg_acc": output_curr["avg_acc"],
+        #         "SFS1/acg_auc": output_curr["avg_auc"],
+        #     }
+        #     wandb.log(log_dict)
 
     # perform logging using wandb
     wandb_table = wandb_logging_sfs_inner(
@@ -292,14 +292,14 @@ def sfs_pb_sweep(
                 n_iter,
             )
             
-        # otherwise if use lightweight wandb, then log the simple output
-        elif bool_use_lightweight_wandb:
-            log_dict = {
-                "SFS2/freq_index": idx_feature + 1,
-                "SFS2/acg_acc": output_curr["avg_acc"],
-                "SFS2/acg_auc": output_curr["avg_auc"],
-            }
-            wandb.log(log_dict)
+        # # otherwise if use lightweight wandb, then log the simple output
+        # elif bool_use_lightweight_wandb:
+        #     log_dict = {
+        #         "SFS2/freq_index": idx_feature + 1,
+        #         "SFS2/acg_acc": output_curr["avg_acc"],
+        #         "SFS2/acg_auc": output_curr["avg_auc"],
+        #     }
+        #     wandb.log(log_dict)
 
     # perform logging using wandb
     wandb_table = wandb_logging_sfs_inner(
