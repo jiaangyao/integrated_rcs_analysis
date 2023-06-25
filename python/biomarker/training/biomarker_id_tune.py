@@ -15,7 +15,7 @@ from biomarker.training.biomarker_id import SFSTrainer
 from utils.wandb_utils import wandb_logging_sfs_outer
 
 
-@hydra.main(version_base=None, config_path="../../conf", config_name="config_tune")
+@hydra.main(version_base=None, config_path="../../conf", config_name="config_tune_debug")
 def biomarker_id_tune_sfs(
     cfg: DictConfig,
     **kwargs,
