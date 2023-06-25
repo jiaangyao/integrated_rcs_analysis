@@ -4,31 +4,31 @@ defaults:
 
 model_kwargs:
   n_layer:
-    tune_range: [1, 2]
+    tune_range: [0, 1, 2]
     bool_tune: true
     tune_op: 'choice'
     type: int
 
   hidden_size:
-    tune_range: [1, 2, 4, 8]
+    tune_range: [1, 2, 3, 4, 8]
     bool_tune: true
     tune_op: 'choice'
     type: int
 
   str_act:
-    tune_range: ['relu', 'leaky_relu', 'selu']
+    tune_range: ['relu', 'leaky_relu', 'identity']
     bool_tune: true
     tune_op: 'choice'
     type: string
 
   dropout:
-    tune_range: [0.005, 0.05]
+    tune_range: [0.005, 0.10]
     bool_tune: true
     tune_op: 'uniform'
     type: float
 
   lam:
-    tune_range: [5e-6, 5e-5]
+    tune_range: [1e-5, 1e-3]
     bool_tune: true
     tune_op: 'uniform'
     type: float

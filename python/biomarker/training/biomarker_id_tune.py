@@ -152,7 +152,7 @@ def sfs_inner_loop_trainable(
 
 
 def stop_fn(trial_id: str, result: dict) -> bool:
-    return result["avg_auc"] >= 0.76
+    return result["avg_auc"] >= 0.80
 
 
 class SFSTuneTrainer(SFSTrainer):

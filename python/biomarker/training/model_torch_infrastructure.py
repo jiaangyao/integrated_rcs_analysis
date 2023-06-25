@@ -333,14 +333,20 @@ class TorchMLPModel(nn.Module):
             self.layers.append(nn.Linear(n_input, n_class))
 
     def forward(self, x):
-        # forward pass
-        for i in range(self.n_layer):
-            x = self.layers[i](x)
-            x = self.act_func(x)
-            x = nn.Dropout(self.dropout)(x)
+        if self.n_layer > 0:
+            # forward pass
+            for i in range(self.n_layer):
+                x = self.layers[i](x)
+                x = self.act_func(x)
+                x = nn.Dropout(self.dropout)(x)
 
-        # output layer
-        out = self.layers[-1](x)
+            # output layer
+            out = self.layers[-1](x)
+        else:
+            # output layer with dropout and activation
+            x = self.layers[0](x)
+            x = self.act_func(x)
+            out = nn.Dropout(self.dropout)(x)
 
         return out
 

@@ -4,7 +4,7 @@ defaults:
 
 model_args: []
 model_kwargs:
-  n_layer: 1
+  n_layer: 0
   hidden_size: 2
   dropout: 0.05
   lam: 1e-5
