@@ -264,8 +264,6 @@ class SFSTuneTrainer(SFSTrainer):
         # runtime sanity checks
         assert not self.bool_use_dyna, "Dynamics should not be used for model comp SFS"
 
-        self.num_samples = 1
-
         # load the data
         data_hemi = self.load_data()
 
