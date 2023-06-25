@@ -1,0 +1,7 @@
+n_epoch: 100
+batch_size: 64
+bool_early_stopping: True
+es_patience: 5
+es_delta: 1e-5
+bool_shuffle: True
+bool_verbose: False

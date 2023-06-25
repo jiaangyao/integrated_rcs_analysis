@@ -3,17 +3,15 @@ main:
   user: ${oc.env:USER}
 
 defaults:
-  - _self_
   - meta: med_LDA_auc_default
   - patient: RCS02R
   - data_paths: dynamics_step3
+  - logging: default_wandb
   - preproc: ur1_5s
   - feature_selection: sfs_settings_default
-  - parallel: lambda_ray_cpu_batch
+  - parallel: home_ray_cpu_batch
+  - tune: base_no_tune_default
   - dynamics: dynamics_ur1_5s_default
+  - _self_
 
-hydra:
-  sweeper:
-    params:
-      meta: glob(*, exclude=base*)
-      patient: glob(*, exclude=*no_run*)
+exp_type: "Dynamics_debug"

@@ -7,7 +7,12 @@ defaults:
   - meta: med_LDA_auc_default
   - patient: RCS02R
   - data_paths: model_id_step3
+  - logging: default_wandb
   - preproc: ur1_5s
   - feature_selection: sfs_settings_default
   - parallel: home_ray_cpu_batch
+  # - parallel: no_ray
+  - tune: base_no_tune_default
   - dynamics: no_dynamics_default
+
+exp_type: "ModelID"

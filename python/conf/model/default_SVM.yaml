@@ -1,0 +1,26 @@
+defaults:
+  - base_model
+  - _self_
+
+model_args: []
+model_kwargs:
+  C: 1.0
+  kernel: 'rbf'
+  degree: 3
+  gamma: 'scale'
+  coef0: 0.0
+  shrinking: True
+  probability: True # modifed from default
+  tol: 1e-3
+  cache_size: 200
+  class_weight: null
+  verbose: False
+  max_iter: -1
+  decision_function_shape: 'ovr'
+  break_ties: False
+  random_state: null
+
+ensemble_args: []
+ensemble_kwargs: {}
+
+model_type: 'sklearn'

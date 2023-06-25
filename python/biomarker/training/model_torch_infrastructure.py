@@ -19,54 +19,6 @@ from biomarker.training.model_infrastructure import BaseModel
 from biomarker.training.torch_dataset import NeuralDataset, NeuralDatasetTest
 
 
-_VEC_MODEL_DYNAMICS_ONLY = ["RNN"]
-
-
-# TODO: remove this
-def force_cudnn_initialization():
-    s = 32
-    dev = torch.device("cuda")
-    torch.nn.functional.conv2d(
-        torch.zeros(s, s, s, s, device=dev), torch.zeros(s, s, s, s, device=dev)
-    )
-
-
-def get_dynamics_model() -> list:
-    return _VEC_MODEL_DYNAMICS_ONLY
-
-
-def get_model_ray(
-    str_model,
-    model_params: dict | MappingProxyType = MappingProxyType(dict()),
-    bool_use_ray: bool = False,
-    bool_use_gpu: bool = False,
-    n_cpu_per_process: int | float = 1,
-    n_gpu_per_process: int | float = 0,
-):
-    if str_model == "MLP":
-        # TODO: look into args and kwargs
-        # initialize the model
-        model = MLPModelWrapper(
-            *model_params["args"],
-            **model_params["kwargs"],
-            bool_use_gpu=bool_use_gpu,
-            n_gpu_per_process=n_gpu_per_process,
-        )
-
-    elif str_model == "RNN":
-        # initalize the model
-        model = RNNModelWrapper(
-            *model_params["args"],
-            **model_params["kwargs"],
-            bool_use_gpu=bool_use_gpu,
-            n_gpu_per_process=n_gpu_per_process,
-        )
-    else:
-        raise NotImplementedError
-
-    return model
-
-
 class PyTorchModelWrapper(BaseModel):
     def __init__(
         self,
@@ -79,6 +31,7 @@ class PyTorchModelWrapper(BaseModel):
         lr,
         transform,
         target_transform,
+        bool_use_ray=False,
         bool_use_gpu=False,
         n_gpu_per_process: int | float = 0,
     ):
@@ -105,19 +58,25 @@ class PyTorchModelWrapper(BaseModel):
         self.transform = transform
         self.target_transform = target_transform
 
-        # initialize GPU utilization flag
+        # initialize ray and GPU utilization flag
+        self.bool_use_ray = bool_use_ray
         self.bool_use_gpu = bool_use_gpu
 
         # initialize GPU with memory constraints
         gpu_id = torch.cuda.current_device() if bool_use_gpu else 0
+        bool_use_best_gpu = False if self.bool_use_ray else True
+        bool_limit_gpu_mem = True if self.bool_use_ray else False
         ptu.init_gpu(
             use_gpu=bool_use_gpu,
             gpu_id=gpu_id,
-            bool_use_best_gpu=True,
-            bool_limit_gpu_mem=True,
+            bool_use_best_gpu=bool_use_best_gpu,
+            bool_limit_gpu_mem=bool_limit_gpu_mem,
             gpu_memory_fraction=n_gpu_per_process,
         )
         self.device = ptu.device
+
+        # additional flags
+        self.bool_torch = True
 
     def train(
         self,
@@ -135,7 +94,6 @@ class PyTorchModelWrapper(BaseModel):
     ):
         # double check device selection
         if self.bool_use_gpu:
-            force_cudnn_initialization()
             assert torch.cuda.is_available(), "Make sure you have a GPU available"
             assert self.device.type == "cuda", "Make sure you are using GPU"
 
@@ -303,10 +261,10 @@ class PyTorchModelWrapper(BaseModel):
 
         return loss
 
-    def get_activation(self):
+    def get_activation(self, str_act):
         act_hash_map = ptu.get_act_func()
-        if self.str_act in act_hash_map.keys():
-            act = act_hash_map[self.str_act]
+        if str_act in act_hash_map.keys():
+            act = act_hash_map[str_act]
         else:
             raise NotImplementedError
 
@@ -362,18 +320,21 @@ class TorchMLPModel(nn.Module):
         self.layers = nn.ModuleList()
 
         # initialize the MLP layers
-        for i in range(n_layer):
-            if i == 0:
-                self.layers.append(nn.Linear(n_input, hidden_size))
-            else:
-                self.layers.append(nn.Linear(hidden_size, hidden_size))
+        if n_layer > 0:
+            for i in range(n_layer):
+                if i == 0:
+                    self.layers.append(nn.Linear(n_input, hidden_size))
+                else:
+                    self.layers.append(nn.Linear(hidden_size, hidden_size))
 
-        # append the output layer
-        self.layers.append(nn.Linear(hidden_size, n_class))
+            # append the output layer
+            self.layers.append(nn.Linear(hidden_size, n_class))
+        else:
+            self.layers.append(nn.Linear(n_input, n_class))
 
     def forward(self, x):
         # forward pass
-        for i in range(self.n_layer - 1):
+        for i in range(self.n_layer):
             x = self.layers[i](x)
             x = self.act_func(x)
             x = nn.Dropout(self.dropout)(x)
@@ -502,6 +463,7 @@ class MLPModelWrapper(PyTorchModelWrapper):
         lr=1e-4,
         transform=None,
         target_transform=None,
+        bool_use_ray=False,
         bool_use_gpu=False,
         n_gpu_per_process: int | float = 0,
     ):
@@ -516,6 +478,7 @@ class MLPModelWrapper(PyTorchModelWrapper):
             lr,
             transform,
             target_transform,
+            bool_use_ray=bool_use_ray,
             bool_use_gpu=bool_use_gpu,
             n_gpu_per_process=n_gpu_per_process,
         )
@@ -540,7 +503,7 @@ class MLPModelWrapper(PyTorchModelWrapper):
         self.model = TorchMLPModel(
             n_input,
             n_class,
-            self.get_activation(),
+            self.get_activation(self.str_act),
             self.get_loss(),
             n_layer,
             hidden_size,
@@ -593,6 +556,7 @@ class MLPModelWrapper(PyTorchModelWrapper):
 @ray.remote(num_cpus=1, num_gpus=0.2)
 class MLPModelWrapperRay(MLPModelWrapper):
     def __init__(self, *args, **kwargs):
+        # TODO: actor is deprecated, need to remove
         super().__init__(*args, **kwargs)
 
 
@@ -602,7 +566,7 @@ class RNNModelWrapper(PyTorchModelWrapper):
         n_input,
         n_class,
         bool_cnn=True,
-        cnn_act_func=None,
+        str_cnn_act="identity",
         cnn_ks=5,
         cnn_stride=3,
         bool_cnn_dropout=False,
@@ -620,6 +584,7 @@ class RNNModelWrapper(PyTorchModelWrapper):
         lr=1e-4,
         transform=None,
         target_transform=None,
+        bool_use_ray=False,
         bool_use_gpu=False,
         n_gpu_per_process: int | float = 0,
     ):
@@ -627,13 +592,14 @@ class RNNModelWrapper(PyTorchModelWrapper):
         super().__init__(
             n_class,
             str_loss,
-            cnn_act_func,
+            str_cnn_act,
             str_reg,
             lam,
             str_opt,
             lr,
             transform,
             target_transform,
+            bool_use_ray=bool_use_ray,
             bool_use_gpu=bool_use_gpu,
             n_gpu_per_process=n_gpu_per_process,
         )
@@ -641,7 +607,7 @@ class RNNModelWrapper(PyTorchModelWrapper):
         # initialize fields for RNN params
         self.n_input = n_input
         self.bool_cnn = bool_cnn
-        self.cnn_act_func = cnn_act_func
+        self.str_cnn_act = str_cnn_act
         self.cnn_ks = cnn_ks
         self.cnn_stride = cnn_stride
         self.bool_cnn_dropout = bool_cnn_dropout
@@ -668,7 +634,7 @@ class RNNModelWrapper(PyTorchModelWrapper):
             n_class,
             self.get_loss(),
             bool_cnn,
-            self.get_activation(),
+            self.get_activation(self.str_cnn_act),
             cnn_ks,
             cnn_stride,
             bool_cnn_dropout,
@@ -728,4 +694,5 @@ class RNNModelWrapper(PyTorchModelWrapper):
 @ray.remote(num_cpus=1, num_gpus=0.2)
 class RNNModelWrapperRay(RNNModelWrapper):
     def __init__(self, *args, **kwargs):
+        # TODO: actor is deprecated, need to remove
         super().__init__(*args, **kwargs)

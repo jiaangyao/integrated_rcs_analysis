@@ -18,7 +18,7 @@ def combine_labels(
 
     # first check if the labels are the same
     if np.all(label1 == label2):
-        return np.array(label1)
+        return np.array(label1), None
     else:
         # get the cartesian product and figure out the number of unique values
         catesian_product = list(zip(label1, label2))

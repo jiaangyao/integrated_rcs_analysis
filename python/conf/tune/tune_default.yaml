@@ -1,0 +1,6 @@
+defaults:
+  - base_no_tune_default
+  - _self_
+
+num_samples: 1
+stop_criteria: 0.76

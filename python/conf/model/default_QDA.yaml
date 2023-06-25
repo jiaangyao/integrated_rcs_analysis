@@ -1,0 +1,15 @@
+defaults:
+  - base_model
+  - _self_
+
+model_args: []
+model_kwargs:
+  priors: null
+  reg_param: 0.0
+  store_covariance: False
+  tol: 1e-9 # modifed from default
+
+ensemble_args: []
+ensemble_kwargs: {}
+
+model_type: 'sklearn'

@@ -21,31 +21,6 @@ from sklearn.ensemble import (
 )
 
 
-def get_model(
-    str_model,
-    model_params: MappingProxyType | dict = MappingProxyType(dict()),
-    adaboost_params: MappingProxyType | dict = MappingProxyType(dict()),
-):
-    if str_model == "LDA":
-        model = LDAModel(model_params)
-    elif str_model == "QDA":
-        model = QDAModel(model_params)
-    elif str_model == "SVM":
-        model = SVMModel(model_params)
-    elif str_model == "RF":
-        model = RandomForestModel(model_params)
-    elif str_model == "AdaBoost":
-        model = AdaBoostModel(model_params, adaboost_params)
-    elif str_model == "GP":
-        model = GPModel(model_params)
-    elif str_model == "GB":
-        model = GradientBoostingModel(model_params)
-    else:
-        raise NotImplementedError
-
-    return model
-
-
 class BaseModel:
     def __init__(self):
         self.model = None
@@ -70,6 +45,7 @@ class SKLearnModel(BaseModel):
         # initiate the fields
         self.n_class = None
         self.model = DummyClassifier()
+        self.bool_torch = False
 
     def train(self, data, label):
         # train the model
@@ -90,6 +66,8 @@ class SKLearnModel(BaseModel):
     def predict_proba(self, data):
         # generate the prediction probabilities
         data = self._check_input(data)
+
+        # oragnize prediction score based on documention of sklearn.metrics.roc_auc_score
         if self.n_class == 2:
             scores = self.model.predict_proba(data)[:, 1]  # type: ignore
         else:
@@ -99,58 +77,60 @@ class SKLearnModel(BaseModel):
 
 
 class LDAModel(SKLearnModel):
-    def __init__(self, model_params):
+    def __init__(self, model_args, model_kwargs):
         super().__init__()
 
         # initialize the model
-        self.model = LinearDiscriminantAnalysis(**model_params)
+        self.model = LinearDiscriminantAnalysis(*model_args, **model_kwargs)
 
 
 class QDAModel(SKLearnModel):
-    def __init__(self, model_params):
+    def __init__(self, model_args, model_kwargs):
         super().__init__()
 
         # initialize the model
-        self.model = QuadraticDiscriminantAnalysis(**model_params)
+        self.model = QuadraticDiscriminantAnalysis(*model_args, **model_kwargs)
 
 
 class SVMModel(SKLearnModel):
-    def __init__(self, model_params):
+    def __init__(self, model_args, model_kwargs):
         super().__init__()
 
         # initialize the model
-        self.model = SVC(**model_params)
+        self.model = SVC(*model_args, **model_kwargs)
 
 
 class GPModel(SKLearnModel):
-    def __init__(self, model_params):
+    def __init__(self, model_args, model_kwargs):
         super().__init__()
 
         # initialize the model
-        self.model = GaussianProcessClassifier(1.0 * RBF(1.0), **model_params)
+        self.model = GaussianProcessClassifier(*model_args, **model_kwargs)
 
 
 class GradientBoostingModel(SKLearnModel):
-    def __init__(self, model_params):
+    def __init__(self, model_args, model_kwargs):
         super().__init__()
 
         # initialize the model
-        self.model = GradientBoostingClassifier(**model_params)
+        self.model = GradientBoostingClassifier(*model_args, **model_kwargs)
 
 
 class AdaBoostModel(SKLearnModel):
-    def __init__(self, svm_model_params, adaboost_model_params):
+    def __init__(self, model_args, model_kwargs, ensemble_args, ensemble_kwargs):
         super().__init__()
 
         # initialize the model
         self.model = AdaBoostClassifier(
-            estimator=SVC(**svm_model_params), **adaboost_model_params
+            *ensemble_args,
+            estimator=SVC(*model_args, **model_kwargs),
+            **ensemble_kwargs
         )
 
 
 class RandomForestModel(SKLearnModel):
-    def __init__(self, model_params):
+    def __init__(self, model_args, model_kwargs):
         super().__init__()
 
         # initialize the model
-        self.model = RandomForestClassifier(**model_params)
+        self.model = RandomForestClassifier(*model_args, **model_kwargs)

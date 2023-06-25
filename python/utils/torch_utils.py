@@ -72,6 +72,8 @@ def init_gpu(
 
     if torch.cuda.is_available() and use_gpu:
         device = torch.device("cuda:" + str(gpu_id))
+
+        force_cudnn_initialization()
         if verbose:
             print("Using GPU id {}".format(gpu_id))
         
@@ -124,3 +126,11 @@ def get_act_func() -> dict:
     }
 
     return _str_to_activation
+
+
+def force_cudnn_initialization():
+    s = 32
+    dev = torch.device("cuda")
+    torch.nn.functional.conv2d(
+        torch.zeros(s, s, s, s, device=dev), torch.zeros(s, s, s, s, device=dev)
+    )

@@ -1,9 +1,9 @@
 bool_use_ray: False
-bool_use_gpu: False
+bool_use_gpu: True
 bool_use_batch: False
 
 n_cpu: 0
 n_gpu: 0
 n_cpu_per_process: 0
-n_gpu_per_process: 0
+n_gpu_per_process: 0.8
 batch_size: 0

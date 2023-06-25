@@ -6,3 +6,4 @@ tqdm
 hydra
 torch
 sklearn
+wandb

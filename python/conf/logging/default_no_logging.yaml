@@ -1,0 +1,3 @@
+bool_use_wandb: False
+wandb_project: ""
+wandb_group: ""

@@ -1,0 +1,18 @@
+defaults:
+  - base_model
+  - _self_
+
+model_args: []
+model_kwargs:
+  solver: 'svd'
+  shrinkage: null
+  priors: null
+  n_components: null
+  store_covariance: False
+  tol: 1e-4
+  covariance_estimator: null
+
+ensemble_args: []
+ensemble_kwargs: {}
+
+model_type: 'sklearn'

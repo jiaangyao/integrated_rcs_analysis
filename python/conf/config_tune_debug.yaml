@@ -1,0 +1,18 @@
+main:
+  source: file
+  user: ${oc.env:USER}
+
+defaults:
+  - meta: med_MLP_auc_default
+  - patient: RCS02R
+  - data_paths: model_id_tune_step3
+  - logging: default_wandb
+  - preproc: ur1_5s
+  - feature_selection: sfs_settings_tune
+  - parallel: home_ray_cpu
+    # - parallel: no_ray
+  - tune: tune_default
+  - dynamics: no_dynamics_default
+  - _self_
+
+exp_type: "Tune_${meta.str_model}_debug"
