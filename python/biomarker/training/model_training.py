@@ -8,7 +8,8 @@ from sklearn.metrics import (
     roc_curve,
     roc_auc_score,
 )
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
+from torch.nn.functional import normalize
 
 from utils.combine_labels import combine_labels
 
@@ -29,7 +30,34 @@ def train_model(
         # unpack the features first
         features_train, features_valid, features_test = vec_features
         y_class_train, y_class_valid, y_class_test = vec_y_class
-
+        
+        # if asked to normalize the features
+        # TODO: integrate this into the DataLoader class in torch
+        if trainer_cfg['bool_whiten_feature']:
+            # calculate mean and std from training set
+            mean_train = np.mean(features_train, axis=0)
+            sigma_train = np.std(features_train, axis=0)
+            
+            # apply normalization to all sets
+            features_train = (features_train - mean_train) / sigma_train
+            features_valid = (features_valid - mean_train) / sigma_train
+            features_test = (features_test - mean_train) / sigma_train
+            
+        # optionally perform L2 normalization
+        # TODO: verify this function
+        if trainer_cfg['bool_l2_normalize_feature']:
+            # calculate l2 norm from training set
+            l2_norm_train = np.linalg.norm(features_train, axis=1)
+            
+            # apply normalization to all sets
+            features_train = features_train / l2_norm_train[:, None]
+            features_valid = features_valid / l2_norm_train[:, None]
+            features_test = features_test / l2_norm_train[:, None]
+        
+        trainer_cfg = OmegaConf.to_container(trainer_cfg, resolve=True)
+        trainer_cfg.pop('bool_whiten_feature')
+        trainer_cfg.pop('bool_l2_normalize_feature')
+        
         # train the model
         model.train(
             features_train,
