@@ -1,0 +1,13 @@
+# patient specific settings subject to change later
+str_subject: "RCS11"
+str_side: "L"
+stim_settings:
+  L:
+    active_group: "D"
+    amp_in_mA:
+      - 2.0
+      - 3.3
+    rate_in_Hz:
+      - 130.2
+    pulse_width_in_us:
+      - 60
