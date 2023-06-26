@@ -1,3 +1,5 @@
+import copy
+
 import ray
 import numpy as np
 import numpy.typing as npt
@@ -55,10 +57,12 @@ def train_model(
             features_test = features_test / l2_norm_train[:, None]
         
         # TODO: get rid of following line, trainer_cfg should not be a dict
-        if trainer_cfg is not dict:
-            trainer_cfg = OmegaConf.to_container(trainer_cfg, resolve=True)
-            trainer_cfg.pop('bool_whiten_feature')
-            trainer_cfg.pop('bool_l2_normalize_feature')
+        if OmegaConf.is_config(trainer_cfg):
+            trainer_cfg_model = OmegaConf.to_container(trainer_cfg, resolve=True)
+        else:
+            trainer_cfg_model = copy.deepcopy(trainer_cfg)
+        trainer_cfg_model.pop('bool_whiten_feature')
+        trainer_cfg_model.pop('bool_l2_normalize_feature')
         
         # train the model
         model.train(
@@ -66,7 +70,7 @@ def train_model(
             y_class_train,
             valid_data=features_valid,
             valid_label=y_class_valid,
-            **trainer_cfg
+            **trainer_cfg_model
         )
 
     # if using sklearn models
