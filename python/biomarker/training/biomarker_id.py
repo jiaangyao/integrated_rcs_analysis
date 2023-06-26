@@ -18,7 +18,7 @@ from biomarker.training.seq_forward_selection import seq_forward_selection
 from utils.parse_datetime import parse_dt_w_tz
 from utils.wandb_utils import wandb_logging_sfs_outer
 
-_VEC_STR_SUBJECT = ("RCS02", "RCS08", "RCS17")
+_VEC_STR_SUBJECT = ("RCS02", "RCS08", "RCS11", "RCS12", "RCS17", "RCS18")
 _VEC_STR_SIDE = ("L", "R")
 _VEC_LABEL_TYPE = "med"
 _VEC_STR_METRIC = ("avg_auc", "avg_acc", "avg_f1")
