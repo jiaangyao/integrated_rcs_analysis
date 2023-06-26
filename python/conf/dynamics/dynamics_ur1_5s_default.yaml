@@ -4,4 +4,4 @@ defaults:
 
 bool_use_dyna: True
 n_dyna_start: 1
-n_dyna_stop: 7
+n_dyna_stop: 6
