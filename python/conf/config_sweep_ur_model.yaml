@@ -1,0 +1,24 @@
+main:
+  source: file
+  user: ${oc.env:USER}
+
+defaults:
+  - _self_
+  - meta: ???
+  - patient: ???
+  - data_paths: model_id_step3
+  - logging: default_wandb
+  - preproc: ???
+  - feature_selection: sfs_settings_dynamics
+  - parallel: home_ray_cpu_batch
+  - tune: base_no_tune_default
+  - dynamics: no_dynamics_default
+
+exp_type: "Dynamics_UR"
+
+hydra:
+  sweeper:
+    params:
+      meta: glob(*, exclude=[base*, default*, *no_run*])
+      patient: glob(*, exclude=*no_run*)
+      preproc: glob(*, exclude=[*no_run*, base*])
