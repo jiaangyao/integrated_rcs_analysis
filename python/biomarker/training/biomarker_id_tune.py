@@ -231,12 +231,12 @@ class SFSTuneTrainer(SFSTrainer):
 
         return tune_config
 
-    def initialize_run_config(self):
-        run_config = air.RunConfig(
-            stop=stop_fn,
-        )
+    # def initialize_run_config(self):
+    #     run_config = air.RunConfig(
+    #         stop=stop_fn,
+    #     )
 
-        return run_config
+    #     return run_config
 
     def save_output(
         self,
@@ -287,7 +287,7 @@ class SFSTuneTrainer(SFSTrainer):
         # obtain the different configs for ray.tune.Tuner
         search_space = self.initialize_search_space(model_cfg)
         tune_config = self.initialize_tune_config()
-        run_config = self.initialize_run_config()
+        # run_config = self.initialize_run_config()
 
         # initialize the ray.tune.Tuner
         resources = (
@@ -311,7 +311,7 @@ class SFSTuneTrainer(SFSTrainer):
             ),
             param_space=search_space,
             tune_config=tune_config,
-            run_config=run_config,
+            # run_config=run_config,
         )
 
         # now run the tuning
