@@ -10,7 +10,7 @@ model_kwargs:
     type: int
 
   criterion:
-    tune_range: [“gini”, “entropy”, “log_loss”]
+    tune_range: ['gini', 'entropy', 'log_loss']
     bool_tune: true
     tune_op: 'grid_search'
     type: string
