@@ -12,7 +12,7 @@ model_kwargs:
   rnn_dim:
     tune_range: [2, 4, 8, 16]
     bool_tune: true
-    tune_op: 'choice'
+    tune_op: 'grid_search'
     type: int
 
   rnn_dropout:
