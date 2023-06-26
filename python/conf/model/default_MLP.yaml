@@ -5,10 +5,10 @@ defaults:
 model_args: []
 model_kwargs:
   n_layer: 2
-  hidden_size: 4
+  hidden_size: 16
   dropout: 0.1
   lam: 1e-5
-  str_act: 'relu'
+  str_act: 'leaky_relu'
   str_reg: 'L2'
   str_loss: 'CrossEntropy'
   str_opt: 'Adam'
