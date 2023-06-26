@@ -4,14 +4,15 @@ main:
 
 defaults:
   - _self_
-  - meta: med_MLP_auc_default
+  - meta: med_RNN_auc_default
+  # - meta: med_MLP_auc_default
   - patient: RCS02R
   - data_paths: model_id_step3
-  - logging: default_wandb
+  - logging: default_no_logging
   - preproc: ur1_5s
   - feature_selection: sfs_settings_default
-  - parallel: home_ray_cpu
-  # - parallel: no_ray
+  # - parallel: home_ray_cpu
+  - parallel: no_ray
   - tune: base_no_tune_default
   - dynamics: no_dynamics_default
 
