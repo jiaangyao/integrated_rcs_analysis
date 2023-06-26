@@ -1,8 +1,8 @@
 n_epoch: 1000
 batch_size: 256
 bool_early_stopping: True
-es_patience: 5
-es_delta: 3e-4
+es_patience: 4
+es_delta: 4e-4
 # es_metric: 'val_acc'
 es_metric: 'val_loss'
 bool_shuffle: True
