@@ -54,9 +54,11 @@ def train_model(
             features_valid = features_valid / l2_norm_train[:, None]
             features_test = features_test / l2_norm_train[:, None]
         
-        trainer_cfg = OmegaConf.to_container(trainer_cfg, resolve=True)
-        trainer_cfg.pop('bool_whiten_feature')
-        trainer_cfg.pop('bool_l2_normalize_feature')
+        # TODO: get rid of following line, trainer_cfg should not be a dict
+        if trainer_cfg is not dict:
+            trainer_cfg = OmegaConf.to_container(trainer_cfg, resolve=True)
+            trainer_cfg.pop('bool_whiten_feature')
+            trainer_cfg.pop('bool_l2_normalize_feature')
         
         # train the model
         model.train(
