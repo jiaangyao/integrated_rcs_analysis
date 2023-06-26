@@ -1,0 +1,16 @@
+defaults:
+  - default_RF
+  - _self_
+
+model_kwargs:
+  n_estimators:
+    tune_range: [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]
+    bool_tune: true
+    tune_op: 'grid_search'
+    type: int
+
+  criterion:
+    tune_range: [“gini”, “entropy”, “log_loss”]
+    bool_tune: true
+    tune_op: 'grid_search'
+    type: string
