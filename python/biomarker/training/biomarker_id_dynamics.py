@@ -9,11 +9,6 @@ from biomarker.training.model_initialize import get_model_params
 from biomarker.training.biomarker_id import SFSTrainer
 from utils.wandb_utils import wandb_logging_dyna
 
-_VEC_STR_SUBJECT = ("RCS02", "RCS08", "RCS17")
-_VEC_STR_SIDE = ("L", "R")
-_VEC_LABEL_TYPE = "med"
-_VEC_STR_METRIC = ("avg_auc", "avg_acc", "avg_f1")
-
 
 @hydra.main(
     version_base=None, config_path="../../conf", config_name="config_dynamics_debug"
@@ -52,7 +47,9 @@ class SFSDynamicsTrainer(SFSTrainer):
 
             # define the summary metrics for SFS
             wandb.define_metric("SFS_DYNA_TOP/n_dyna")
-            wandb.define_metric("SFS_DYNA_TOP/best_*", step_metric="SFS_DYNA_TOP/n_dyna")
+            wandb.define_metric(
+                "SFS_DYNA_TOP/best_*", step_metric="SFS_DYNA_TOP/n_dyna"
+            )
 
     def SFS_outer_loop(
         self,
@@ -132,7 +129,7 @@ class SFSDynamicsTrainer(SFSTrainer):
 
         # runtime sanity checks
         assert self.bool_use_dyna, "Dynamics must be used for dynamics SFS"
-        
+
         # initialize wandb logger
         self.initialize_wandb()
 
