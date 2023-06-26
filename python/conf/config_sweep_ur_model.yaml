@@ -6,8 +6,8 @@ defaults:
   - _self_
   - meta: ???
   - patient: ???
-  - data_paths: model_id_step3
-  - logging: default_wandb
+  - data_paths: dynamics_ur_step3
+  - logging: wandb_ur
   - preproc: ???
   - feature_selection: sfs_settings_dynamics
   - parallel: home_ray_cpu_batch
