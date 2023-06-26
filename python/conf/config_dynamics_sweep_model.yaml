@@ -5,7 +5,7 @@ main:
 defaults:
   - _self_
   - meta: ???
-  - patient: RCS02R
+  - patient: ???
   - data_paths: dynamics_step3
   - logging: default_wandb
   - preproc: ur1_5s
