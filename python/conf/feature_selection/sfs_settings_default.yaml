@@ -11,7 +11,8 @@ n_fold: 10
 bool_use_strat_kfold: True
 random_seed: null
 
+# TODO: change this back
 width: 5
-max_width: 10
+max_width: 8
 
 bool_tune_hyperparams: False
