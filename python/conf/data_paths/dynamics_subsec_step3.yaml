@@ -1,0 +1,7 @@
+defaults:
+  - model_id_woart_step3
+  - _self_
+
+# overwrite the output directories
+p_output: "/home/jyao/Downloads/biomarker_id/dynamics_subsec/${patient.str_subject}"
+f_output: "${patient.str_subject}_${patient.str_side}_${meta.label_type}_${meta.str_metric}_${meta.str_model}_dynamics_subsec.pkl"
