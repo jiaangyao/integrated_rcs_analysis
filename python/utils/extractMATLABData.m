@@ -1,11 +1,17 @@
 % str_subject = "RCS02";
 % str_subject = "RCS08";
-% str_subject = "RCS11";
+str_subject = "RCS11";
 % str_subject = "RCS12";
-str_subject = "RCS18";
+% str_subject = "RCS18";
 
-p_input = sprintf("/home/jyao/local/data/starrlab/Structured_aDBS_pipeline/Data/%s/Step3_in_clinic_neural_recordings/", str_subject);
-f_input = sprintf("%s_Step3_DataLab_paper_wArt", str_subject);
+bool_use_wArt = false;
+if bool_use_wArt
+    p_input = sprintf("/home/jyao/local/data/starrlab/Structured_aDBS_pipeline/Data/%s/Step3_in_clinic_neural_recordings/", str_subject);
+    f_input = sprintf("%s_Step3_DataLab_paper_wArt", str_subject);
+else
+    p_input = sprintf("/home/jyao/local/data/starrlab/Structured_aDBS_pipeline/Data/%s/Step3_in_clinic_neural_recordings/old", str_subject);
+    f_input = sprintf("%s_Step3_DataLab", str_subject);
+end
 
 % load the data
 load(fullfile(p_input, f_input));
