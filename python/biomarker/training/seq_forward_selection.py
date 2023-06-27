@@ -689,21 +689,22 @@ def seq_forward_selection(
         vec_output_sfs = [vec_output_sfs[i] for i in idx_sort]
 
         # initialize the initial output structure for the single power bands
+        n_pb_init = min([n_fin_pb, len(vec_output_sfs)])
         if len(output_fin["vec_pb_ord"]) == 0:
             output_init["vec_pb_ord"] = [
-                idx_all[vec_output_sfs[i]["pb_best"]] for i in range(n_fin_pb)
+                idx_all[vec_output_sfs[i]["pb_best"]] for i in range(n_pb_init)
             ]
             output_init["vec_acc"] = [
-                vec_output_sfs[i]["avg_acc"] for i in range(n_fin_pb)
+                vec_output_sfs[i]["avg_acc"] for i in range(n_pb_init)
             ]
             output_init["vec_f1"] = [
-                vec_output_sfs[i]["avg_f1"] for i in range(n_fin_pb)
+                vec_output_sfs[i]["avg_f1"] for i in range(n_pb_init)
             ]
             output_init["vec_conf_mat"] = [
-                vec_output_sfs[i]["avg_conf_mat"] for i in range(n_fin_pb)
+                vec_output_sfs[i]["avg_conf_mat"] for i in range(n_pb_init)
             ]
             output_init["vec_auc"] = [
-                vec_output_sfs[i]["avg_auc"] for i in range(n_fin_pb)
+                vec_output_sfs[i]["avg_auc"] for i in range(n_pb_init)
             ]
 
         # for the SFS output, pick the top power band and proceed
