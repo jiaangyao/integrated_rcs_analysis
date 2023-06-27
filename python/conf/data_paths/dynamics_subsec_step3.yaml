@@ -1,5 +1,5 @@
 defaults:
-  - model_id_woart_step3
+  - model_id_step3
   - _self_
 
 # overwrite the output directories
