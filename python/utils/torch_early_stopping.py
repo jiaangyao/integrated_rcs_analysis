@@ -47,14 +47,21 @@ class EarlyStopping:
 
     def __call__(
         self,
-        val_loss,
+        val_metric,
         model,
+        mode="min",
     ):
-        score = -val_loss
+        if mode == "min":
+            score = -val_metric
+        elif mode == "max":
+            score = val_metric
+        else:
+            raise ValueError("mode must be min or max")
+            
         # initialize
         if self.best_score is None:
             self.best_score = score
-            self.save_model(val_loss, model)
+            self.save_model(val_metric, model)
 
         # terminate if no improvement
         elif score < self.best_score + self.delta:
@@ -69,7 +76,7 @@ class EarlyStopping:
         # if model has improved
         else:
             self.best_score = score
-            self.save_model(val_loss, model)
+            self.save_model(val_metric, model)
             self.counter = 0
 
     def save_model(

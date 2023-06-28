@@ -50,14 +50,6 @@ def kfold_cv_training(
     n_input = features_sub.shape[1]
     n_class_model = len(np.unique(y_class))
 
-    # initialize the model for training
-    model = initialize_model(
-        str_model,
-        model_cfg,
-        n_input,
-        n_class_model,
-    )
-
     # obtain the number of classes
     n_class = len(np.unique(y_class)) * len(np.unique(y_stim))
 
@@ -66,6 +58,14 @@ def kfold_cv_training(
 
     # loop through the folds
     for train_idx, test_idx in skf.split(features_sub, y_class):
+        # initialize the model for training
+        model = initialize_model(
+            str_model,
+            model_cfg,
+            n_input,
+            n_class_model,
+        )
+        
         # obtain data for train set
         features_train = features_sub[train_idx, ...]
         y_class_train = y_class[train_idx, ...]

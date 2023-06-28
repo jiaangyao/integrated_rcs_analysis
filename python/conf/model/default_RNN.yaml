@@ -11,14 +11,14 @@ model_kwargs:
   bool_cnn_dropout: False
   cnn_dropout: 0.5
   n_rnn_layer: 2
-  rnn_dim: 2
+  rnn_dim: 16
   bool_bidirectional: True
   rnn_dropout: 0.5
   lam: 1e-5
   str_reg: 'L2'
   str_loss: 'CrossEntropy'
   str_opt: 'Adam'
-  lr: 5e-5
+  lr: 3e-3
   transform: null
   target_transform: null
   bool_use_ray: ???

@@ -1,0 +1,6 @@
+defaults:
+  - model_id_woart_step3
+  - _self_
+
+# overwrite the output directories
+f_output: "${patient.str_subject}_${patient.str_side}_${meta.label_type}_${meta.str_metric}_${meta.str_model}_UR${preproc.update_rate}_woart.pkl"

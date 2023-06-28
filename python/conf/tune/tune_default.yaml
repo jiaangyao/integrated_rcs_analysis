@@ -3,4 +3,4 @@ defaults:
   - _self_
 
 num_samples: 1
-stop_criteria: 0.76
+stop_criteria: 0.80

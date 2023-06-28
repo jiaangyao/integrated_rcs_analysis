@@ -1,0 +1,5 @@
+defaults:
+  - default_wandb
+  - _self_
+
+wandb_group: ${patient.str_subject}${patient.str_side}_UR${preproc.update_rate}_exp1

@@ -4,6 +4,7 @@ main:
 
 defaults:
   - _self_
+  # - meta: med_RNN_auc_default
   - meta: med_MLP_auc_default
   - patient: RCS02R
   - data_paths: model_id_step3

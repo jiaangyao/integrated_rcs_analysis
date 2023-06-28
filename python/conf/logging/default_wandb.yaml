@@ -2,5 +2,5 @@ defaults:
   - default_no_logging
 
 bool_use_wandb: True
-wandb_project: ${feature_selection.name}_${patient.str_subject}${patient.str_side}_${exp_type}
-wandb_group: ${meta.str_model}_exp1
+wandb_project: ${feature_selection.name}_${exp_type}
+wandb_group: ${patient.str_subject}${patient.str_side}_exp1

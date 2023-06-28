@@ -5,11 +5,11 @@ main:
 defaults:
   - _self_
   - meta: ???
-  - patient: RCS02R
+  - patient: ???
   - data_paths: dynamics_step3
   - logging: default_wandb
   - preproc: ur1_5s
-  - feature_selection: sfs_settings_default
+  - feature_selection: sfs_settings_dynamics
   - parallel: home_ray_cpu_batch
   - tune: base_no_tune_default
   - dynamics: dynamics_ur1_5s_default

@@ -5,12 +5,12 @@ defaults:
 model_args: []
 model_kwargs:
   n_estimators: 50 # modified from default
-  criterion: 'gini'
+  criterion: 'entropy'
   max_depth: null
   min_samples_split: 2
   min_samples_leaf: 1
   min_weight_fraction_leaf: 0.0
-  max_features: 'sqrt'
+  max_features: 'log2'
   max_leaf_nodes: null
   min_impurity_decrease: 0.0
   bootstrap: True

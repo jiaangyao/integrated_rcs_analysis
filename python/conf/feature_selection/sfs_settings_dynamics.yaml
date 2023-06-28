@@ -1,0 +1,5 @@
+defaults:
+  - sfs_settings_default
+  - _self_
+
+n_rep: 3

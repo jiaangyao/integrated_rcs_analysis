@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
+import torchmetrics
 
 import ray
 import numpy as np
@@ -89,6 +90,7 @@ class PyTorchModelWrapper(BaseModel):
         bool_early_stopping=True,
         es_patience=5,
         es_delta=1e-5,
+        es_metric="val_loss",
         bool_shuffle=True,
         bool_verbose=True,
     ):
@@ -111,6 +113,12 @@ class PyTorchModelWrapper(BaseModel):
         train_dataloader = DataLoader(
             train_dataset, batch_size=batch_size, shuffle=bool_shuffle
         )
+
+        # define task for accuracy metric
+        if self.n_class == 2:
+            str_task = "binary"
+        else:
+            str_task = "multiclass"
 
         # initialize the dataset and dataloader for validation set
         bool_run_validation = valid_data is not None and valid_label is not None
@@ -136,20 +144,19 @@ class PyTorchModelWrapper(BaseModel):
         for epoch in range(n_epoch):
             # initialize the loss and the model
             vec_loss = []
+            vec_acc = []
             vec_valid_loss = []
+            vec_valid_acc = []
             self.model.train()
 
             # iterate through the dataset
-            for idx_batch, (x, y) in enumerate(train_dataloader):
+            for idx_batch, (x_train, y) in enumerate(train_dataloader):
                 assert (
                     self.model.training
                 ), "make sure your network is in train mode with `.train()`"
 
-                # zero the parameter gradients
-                optimizer.zero_grad()
-
                 # forward pass
-                y_pred = self.model(x)
+                y_pred = self.model(x_train)
 
                 # compute the loss
                 loss = loss_fn(y_pred, y)
@@ -157,10 +164,20 @@ class PyTorchModelWrapper(BaseModel):
                 # backward pass
                 loss.backward()
                 optimizer.step()
+                optimizer.zero_grad()
+
+                # append loss
                 vec_loss.append(loss.item())
+
+                # compute the accuracy
+                acc = torchmetrics.functional.accuracy(
+                    torch.argmax(y_pred, dim=1), y, task=str_task
+                )
+                vec_acc.append(acc.item())
 
             # obtain the average loss
             loss = np.mean(np.stack(vec_loss, axis=0))
+            acc = np.mean(np.stack(vec_acc, axis=0))
             vec_avg_loss.append(loss)
 
             # now perform validation
@@ -182,20 +199,35 @@ class PyTorchModelWrapper(BaseModel):
                         valid_loss = loss_fn(y_valid_pred, y_valid)
                         vec_valid_loss.append(valid_loss.item())
 
+                        # compute the accuracy
+                        valid_acc = torchmetrics.functional.accuracy(
+                            torch.argmax(y_valid_pred, dim=1), y_valid, task=str_task
+                        )
+                        vec_valid_acc.append(valid_acc.item())
+
                     # obtain the average loss
                     valid_loss = np.mean(np.stack(vec_valid_loss, axis=0))
+                    valid_acc = np.mean(np.stack(vec_valid_acc, axis=0))
                     vec_avg_valid_loss.append(valid_loss)
                     str_valid_loss = ", Valid Loss: {:.4f}".format(valid_loss)
+                    str_valid_acc = ", Valid Acc: {:.4f}".format(valid_acc)
 
             # print the loss
             if bool_verbose:
                 print(
                     "Epoch: {}, Loss: {:.4f}{}".format(epoch + 1, loss, str_valid_loss)
                 )
+                print("Epoch: {}, Acc: {:.4f}{}".format(epoch + 1, acc, str_valid_acc))
 
             # call early stopping
             if bool_run_validation and bool_early_stopping:
-                early_stopper(valid_loss, self.model)
+                if es_metric == "val_loss":
+                    early_stopper(valid_loss, self.model)
+                elif es_metric == "val_acc":
+                    early_stopper(valid_acc, self.model, mode="max")
+                else:
+                    raise ValueError("es_metric must be either 'val_loss' or 'val_acc'")
+
                 if early_stopper.early_stop:
                     if bool_verbose:
                         print("Early stopping")
@@ -248,14 +280,23 @@ class PyTorchModelWrapper(BaseModel):
     def predict_proba(self, data):
         class_prob = softmax(self.predict(data), axis=1)
 
-        if class_prob.shape[1] == 2:
-            class_prob = class_prob[:, 1]
+        # if class_prob.shape[1] == 2:
+        #     class_prob = class_prob[:, 1]
 
         return class_prob
+
+    def get_auc(self, scores: np.ndarray, label: np.ndarray):
+        auc = torchmetrics.AUROC(task="multiclass", num_classes=self.n_class)(
+            torch.Tensor(scores), torch.Tensor(label).to(torch.long)
+        )
+
+        return ptu.to_numpy(auc)
 
     def get_loss(self):
         if self.str_loss == "CrossEntropy":
             loss = torch.nn.CrossEntropyLoss()
+        elif self.str_loss == "BCE":
+            loss = torch.nn.BCELoss()
         else:
             raise NotImplementedError
 
@@ -302,7 +343,7 @@ class TorchMLPModel(nn.Module):
         n_input,
         n_class,
         act_func,
-        loss_func,
+        str_loss,
         n_layer=3,
         hidden_size=32,
         dropout=0.5,
@@ -314,34 +355,60 @@ class TorchMLPModel(nn.Module):
         self.n_class = n_class
         self.n_layer = n_layer
         self.act_func = act_func
-        self.loss_func = loss_func
+        self.str_loss = str_loss
         self.hidden_size = hidden_size
         self.dropout = dropout
         self.layers = nn.ModuleList()
+        
+        # define n_output based on the loss function
+        if str_loss == "CrossEntropy":
+            n_output = n_class
+        else:
+            n_output = 1
 
         # initialize the MLP layers
         if n_layer > 0:
             for i in range(n_layer):
+                # append the linear layer
                 if i == 0:
                     self.layers.append(nn.Linear(n_input, hidden_size))
                 else:
                     self.layers.append(nn.Linear(hidden_size, hidden_size))
 
+                # append the activation function
+                self.layers.append(act_func)
+
+                # append the dropout
+                self.layers.append(nn.Dropout(self.dropout))
+
             # append the output layer
-            self.layers.append(nn.Linear(hidden_size, n_class))
+            self.layers.append(nn.Linear(hidden_size, n_output))
+                
         else:
-            self.layers.append(nn.Linear(n_input, n_class))
+            # append the output layer only
+            self.layers.append(nn.Linear(n_input, n_output))
+            
+            # append the activation function
+            self.layers.append(act_func)
+
+            # append the dropout
+            self.layers.append(nn.Dropout(self.dropout))
+        # sanity check
+        assert len(self.layers) == 3 * self.n_layer + 1 if n_layer > 0 else 3
 
     def forward(self, x):
-        # forward pass
-        for i in range(self.n_layer):
-            x = self.layers[i](x)
-            x = self.act_func(x)
-            x = nn.Dropout(self.dropout)(x)
+        if self.n_layer > 0:
+            # forward pass
+            for i in range(self.n_layer):
+                x = self.layers[i](x)
 
-        # output layer
-        out = self.layers[-1](x)
-
+            # output layer
+            out = self.layers[-1](x)
+        else:
+            # output layer with dropout and activation
+            x = self.layers[0](x)
+            x = self.layers[1](x)
+            out = self.layers[2](x)
         return out
 
 
@@ -350,7 +417,7 @@ class TorchRNNModel(nn.Module):
         self,
         n_input,
         n_class,
-        loss_func,
+        str_loss,
         bool_cnn=True,
         cnn_act_func=None,
         cnn_ks=5,
@@ -369,8 +436,14 @@ class TorchRNNModel(nn.Module):
         # initialize the fields
         self.n_input = n_input
         self.n_class = n_class
-        self.loss_func = loss_func
-
+        self.str_loss = str_loss
+        
+        # define n_output based on the loss function
+        if str_loss == "CrossEntropy":
+            n_output = n_class
+        else:
+            n_output = 1
+        
         # cnn preprocessing layer parameters
         self.bool_cnn = bool_cnn
         self.cnn_act_func = cnn_act_func
@@ -410,7 +483,7 @@ class TorchRNNModel(nn.Module):
         )
 
         # initialize the final output layer
-        self.output = nn.Linear(self.rnn_dim * self.multi, self.n_class)
+        self.output = nn.Linear(self.rnn_dim * self.multi, n_output)
         self.final_dropout_layer = nn.Dropout(self.final_dropout)
 
     def forward(self, x):
@@ -503,8 +576,8 @@ class MLPModelWrapper(PyTorchModelWrapper):
         self.model = TorchMLPModel(
             n_input,
             n_class,
-            self.get_activation(self.str_act),
-            self.get_loss(),
+            self.get_activation(str_act),
+            str_loss,
             n_layer,
             hidden_size,
             dropout,
@@ -522,6 +595,7 @@ class MLPModelWrapper(PyTorchModelWrapper):
         bool_early_stopping: bool = True,
         es_patience: int = 5,
         es_delta: float = 1e-5,
+        es_metric: str = "val_loss",
         bool_shuffle: bool = True,
         bool_verbose: bool = True,
     ) -> tp.Tuple[npt.NDArray, npt.NDArray]:
@@ -539,6 +613,7 @@ class MLPModelWrapper(PyTorchModelWrapper):
             bool_early_stopping,
             es_patience,
             es_delta,
+            es_metric,
             bool_shuffle,
             bool_verbose,
         )
@@ -632,7 +707,7 @@ class RNNModelWrapper(PyTorchModelWrapper):
         self.model = TorchRNNModel(
             n_input,
             n_class,
-            self.get_loss(),
+            str_loss,
             bool_cnn,
             self.get_activation(self.str_cnn_act),
             cnn_ks,
@@ -660,6 +735,7 @@ class RNNModelWrapper(PyTorchModelWrapper):
         bool_early_stopping: bool = True,
         es_patience: int = 5,
         es_delta: float = 1e-5,
+        es_metric: str = "val_loss",
         bool_shuffle: bool = True,
         bool_verbose: bool = True,
     ) -> tp.Tuple[npt.NDArray, npt.NDArray]:
@@ -677,6 +753,7 @@ class RNNModelWrapper(PyTorchModelWrapper):
             bool_early_stopping,
             es_patience,
             es_delta,
+            es_metric,
             bool_shuffle,
             bool_verbose,
         )

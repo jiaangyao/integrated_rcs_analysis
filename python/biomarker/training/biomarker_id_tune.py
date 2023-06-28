@@ -116,6 +116,7 @@ def sfs_inner_loop_trainable(
 
         # obtain the metric
         avg_acc = output_init["vec_acc"][0]
+        avg_f1 = output_init["vec_f1"][0]
         avg_auc = output_init["vec_auc"][0]
 
         session.report({"avg_acc": avg_acc, "avg_auc": avg_auc})
@@ -139,8 +140,9 @@ def sfs_inner_loop_trainable(
         # now log the outputs using lightweight wandb
         if bool_use_lightweight_wandb:
             log_dict = {
-                "SFS_ITER/rep": idx_rep,
+                "SFS_ITER/rep": idx_rep + 1,
                 "SFS_ITER/best_vec_acc": avg_acc,
+                "SFS_ITER/best_vec_f1": avg_f1,
                 "SFS_ITER/best_vec_auc": avg_auc,
             }
             wandb.log(log_dict)
@@ -148,11 +150,11 @@ def sfs_inner_loop_trainable(
     # update the config
     cfg["model"] = model_cfg_out
     cfg["trainer"] = trainer_cfg_out
-    wandb.config.update(cfg)
+    wandb.config.update(cfg, allow_val_change=True)
 
 
 def stop_fn(trial_id: str, result: dict) -> bool:
-    return result["avg_auc"] >= 0.76
+    return result["avg_auc"] >= 0.80
 
 
 class SFSTuneTrainer(SFSTrainer):
@@ -229,12 +231,12 @@ class SFSTuneTrainer(SFSTrainer):
 
         return tune_config
 
-    def initialize_run_config(self):
-        run_config = air.RunConfig(
-            stop=stop_fn,
-        )
+    # def initialize_run_config(self):
+    #     run_config = air.RunConfig(
+    #         stop=stop_fn,
+    #     )
 
-        return run_config
+    #     return run_config
 
     def save_output(
         self,
@@ -264,8 +266,6 @@ class SFSTuneTrainer(SFSTrainer):
         # runtime sanity checks
         assert not self.bool_use_dyna, "Dynamics should not be used for model comp SFS"
 
-        self.num_samples = 1
-
         # load the data
         data_hemi = self.load_data()
 
@@ -287,7 +287,7 @@ class SFSTuneTrainer(SFSTrainer):
         # obtain the different configs for ray.tune.Tuner
         search_space = self.initialize_search_space(model_cfg)
         tune_config = self.initialize_tune_config()
-        run_config = self.initialize_run_config()
+        # run_config = self.initialize_run_config()
 
         # initialize the ray.tune.Tuner
         resources = (
@@ -311,7 +311,7 @@ class SFSTuneTrainer(SFSTrainer):
             ),
             param_space=search_space,
             tune_config=tune_config,
-            run_config=run_config,
+            # run_config=run_config,
         )
 
         # now run the tuning

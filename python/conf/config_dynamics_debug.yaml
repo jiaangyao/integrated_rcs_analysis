@@ -4,12 +4,13 @@ main:
 
 defaults:
   - meta: med_LDA_auc_default
-  - patient: RCS02R
+  - patient: RCS08R
   - data_paths: dynamics_step3
   - logging: default_wandb
   - preproc: ur1_5s
-  - feature_selection: sfs_settings_default
-  - parallel: home_ray_cpu_batch
+  - feature_selection: sfs_settings_dynamics
+  # - parallel: home_ray_cpu_batch
+  - parallel: no_ray
   - tune: base_no_tune_default
   - dynamics: dynamics_ur1_5s_default
   - _self_

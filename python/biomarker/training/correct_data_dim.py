@@ -55,7 +55,9 @@ def correct_sfs_feature_dim(
             else features_sub
         )
 
+    # if multiple frequency bins in current poewr band
     else:
+        # if only one power band selected
         if len(idx_feature) == 1:
             features_sub = features[:, idx_feature, ...]
             features_sub = (
@@ -63,6 +65,7 @@ def correct_sfs_feature_dim(
                 if len(features_sub.shape) == 2
                 else features_sub
             )
+        # if multiple power bands already exist
         else:
             features_sub = np.sum(features[:, idx_feature, ...], axis=1, keepdims=True)
             features_sub = (
