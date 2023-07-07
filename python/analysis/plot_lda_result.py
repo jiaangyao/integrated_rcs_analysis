@@ -21,12 +21,12 @@ def load_model_id_results(output, n_pb=4):
         [output["sinPB"][i]["vec_auc"][:n_pb] for i in range(len(output["sinPB"]))],
         axis=1,
     ).T
-    acc_python_top = [
-        output["sinPB"][i]["vec_acc"][0] for i in range(len(output["sinPB"]))
-    ]
-    auc_python_top = [
-        output["sinPB"][i]["vec_auc"][0] for i in range(len(output["sinPB"]))
-    ]
+    # acc_python_top = [
+    #     output["sinPB"][i]["vec_acc"][0] for i in range(len(output["sinPB"]))
+    # ]
+    # auc_python_top = [
+    #     output["sinPB"][i]["vec_auc"][0] for i in range(len(output["sinPB"]))
+    # ]
 
     # load the sfsPB results
     acc_python_full_sfs = np.stack(
@@ -37,33 +37,148 @@ def load_model_id_results(output, n_pb=4):
         [output["sfsPB"][i]["vec_auc"][:n_pb] for i in range(len(output["sfsPB"]))],
         axis=1,
     ).T
-    acc_python_top_sfs = [
-        output["sfsPB"][i]["vec_acc"][-1] for i in range(len(output["sfsPB"]))
-    ]
-    auc_python_top_sfs = [
-        output["sfsPB"][i]["vec_auc"][-1] for i in range(len(output["sfsPB"]))
-    ]
+    # acc_python_top_sfs = [
+    #     output["sfsPB"][i]["vec_acc"][-1] for i in range(len(output["sfsPB"]))
+    # ]
+    # auc_python_top_sfs = [
+    #     output["sfsPB"][i]["vec_auc"][-1] for i in range(len(output["sfsPB"]))
+    # ]
+
+    # load the PB results
+    sinPB = [output["sinPB"][i]["sinPB"][:n_pb] for i in range(len(output["sinPB"]))]
+    sfsPB = [output["sfsPB"][i]["sfsPB"][:n_pb] for i in range(len(output["sfsPB"]))]
 
     return (
         acc_python_full,
         auc_python_full,
-        acc_python_top,
-        auc_python_top,
+        sinPB,
         acc_python_full_sfs,
         auc_python_full_sfs,
-        acc_python_top_sfs,
-        auc_python_top_sfs,
+        sfsPB,
     )
 
 
-def plot_lda_matlab_results(vec_str_subject, vec_str_side, str_model_id="model_id", n_pb=4, n_rep=5):
+def plot_python_matlab_diff_sub(
+    auc_python,
+    auc_matlab,
+    n_pb,
+    n_rep,
+    p_figure_output,
+    f_figure_output,
+    figsize=(10, 6),
+):
+    fig = plt.figure(figsize=figsize)
+    for i in range(n_pb):
+        plt.subplot(1, 4, i + 1)
+
+        # append the python results
+        dict_results_auc = {"Program": [], "AUC": []}
+        for j in range(n_rep):
+            dict_results_auc["Program"].append("Python")
+            dict_results_auc["AUC"].append(auc_python[j, i])
+
+        # append the MATLAB results for both
+        dict_results_auc["Program"].append("MATLAB")
+        dict_results_auc["AUC"].append(auc_matlab[i, 0])
+
+        # compute the mean difference
+        mean_diff = np.abs(np.mean(auc_python[:, i]) - auc_matlab[i, 0])
+
+        # plot
+        results_auc = pd.DataFrame(dict_results_auc)
+        sns.boxplot(data=results_auc, x="Program", y="AUC", orient="v")
+        ax = plt.gca()
+
+        # set the labels
+        if i == 0:
+            ax.set(ylabel="AUC")
+        else:
+            ax.set(ylabel=None)
+        ax.set(xlabel=None)
+        ax.set(title=f"PB{i + 1}, mean diff: {mean_diff:.2E}")
+        ax.set(ylim=[0.5, 1])
+
+        # remove the top and right spines
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+
+    # get tight layout
+    plt.tight_layout()
+
+    # save output figure
+    fig.savefig(f"{p_figure_output}/{f_figure_output}.png", dpi=300)
+    plt.close(fig)
+
+
+def plot_model_comp(
+    vec_metric_python_full,
+    vec_str_model,
+    vec_colormap,
+    str_subject,
+    str_side,
+    str_metric,
+    p_figure_output,
+    f_figure_output,
+    figsize=(8, 6),
+):
+    # create the index for plotting
+    fig = plt.figure(figsize=figsize)
+    idx = np.arange(1, vec_metric_python_full[0].shape[1] + 1, 1)
+    x_ticks = [str(x) for x in idx]
+
+    # now loop through the different models
+    for i in range(len(vec_metric_python_full)):
+        vec_metric_python_curr = vec_metric_python_full[i]
+
+        plt.plot(
+            idx,
+            np.mean(vec_metric_python_curr, axis=0),
+            vec_colormap[i],
+            label=vec_str_model[i],
+        )
+        plt.fill_between(
+            idx,
+            np.mean(vec_metric_python_curr, axis=0)
+            - np.std(vec_metric_python_curr, axis=0),
+            np.mean(vec_metric_python_curr, axis=0)
+            + np.std(vec_metric_python_curr, axis=0),
+            color=vec_colormap[i],
+            alpha=0.2,
+        )
+
+    # get the labels right
+    plt.xlabel("Number of Power Bands Included")
+    plt.ylabel(f"{str_metric} with Algorithms")
+    plt.title(
+        f"Comparison of {str_metric} for Top 4 Power Bands: {str_subject}_{str_side}"
+    )
+    plt.legend(frameon=False)
+    plt.xticks(idx, x_ticks)
+
+    ax = plt.gca()
+    ax.set_xticks(idx)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    # save the figure
+    fig.savefig(str(p_figure_output / f_figure_output), dpi=300)
+    plt.close(fig)
+
+
+def plot_lda_matlab_results(
+    vec_str_subject, vec_str_side, str_model_id="model_id", n_pb=4, n_rep=5
+):
     # quick function for comparing matlab with python results
 
     vec_auc_python_full = []
+    vec_sinPB_python = []
     vec_auc_python_full_sfs = []
-    
+    vec_sfsPB_python = []
+
     vec_auc_matlab = []
+    vec_sinPB_matlab = []
     vec_auc_matlab_sfs = []
+    vec_sfsPB_matlab = []
     for i in range(len(vec_str_subject)):
         str_subject = vec_str_subject[i]
         str_side = vec_str_side[i]
@@ -86,72 +201,80 @@ def plot_lda_matlab_results(vec_str_subject, vec_str_side, str_model_id="model_i
         (
             _,
             auc_python_full,
-            _,
-            _,
+            sinPB,
             _,
             auc_python_full_sfs,
-            _,
-            _,
+            sfsPB,
         ) = load_model_id_results(output)
-        
+
         # append to the outer list
         vec_auc_python_full.append(auc_python_full)
+        vec_sinPB_python.append(sinPB)
         vec_auc_python_full_sfs.append(auc_python_full_sfs)
-        
+        vec_sfsPB_python.append(sfsPB)
+
         # laod the MATLAB results
         mat = sio.loadmat(str(p_output / f_output_matlab))
         auc_matlab = mat["auc_sin"]
+        sinPB_matlab = mat["pb_sin"]
         auc_matlab_sfs = mat["auc_sfs"]
+        sfsPB_matlab = mat["pb_sfs"]
         
         vec_auc_matlab.append(auc_matlab)
+        vec_sinPB_matlab.append(sinPB_matlab)
         vec_auc_matlab_sfs.append(auc_matlab_sfs)
+        vec_sfsPB_matlab.append(sfsPB_matlab)
+
+        # plot the single PB results
+        f_figure_output_sinPB = f"matlab_python_auc_comp_{str_subject}_sinPB"
+        plot_python_matlab_diff_sub(
+            auc_python_full,
+            auc_matlab,
+            n_pb,
+            n_rep,
+            p_figure_output,
+            f_figure_output_sinPB,
+            figsize=(10, 6),
+        )
+
+        # plot the SFS PB results
+        f_figure_output_sfsPB = f"matlab_python_auc_comp_{str_subject}_sfsPB"
+        plot_python_matlab_diff_sub(
+            auc_python_full_sfs,
+            auc_matlab_sfs,
+            n_pb,
+            n_rep,
+            p_figure_output,
+            f_figure_output_sfsPB,
+            figsize=(10, 6),
+        )
+
+        # get the best sinPB based on avg AUC from the rep
+        sinPB_python_best = sinPB[np.argmax(auc_python_full[:, 0])]
+        sfsPB_python_best = sfsPB[np.argmax(auc_python_full_sfs[:, -1])]
         
-        if str_subject == "RCS18":
-            fig = plt.figure()
-            
-            for i in range(n_pb):
-                plt.subplot(1, 4, i + 1)
-                dict_results_auc = {'Program': [], "AUC": []}
-                for j in range(n_rep):
-                    dict_results_auc["Program"].append("Python")
-                    dict_results_auc["AUC"].append(auc_python_full[j, i])
-                
-                dict_results_auc["Program"].append("MATLAB")
-                dict_results_auc["AUC"].append(auc_matlab[i, 0])
-                
-                # plot
-                results_auc = pd.DataFrame(dict_results_auc)
-                sns.boxplot(data=results_auc, x='Program', y='AUC', orient='v')
-                ax = plt.gca()
+        # now print out the power bands
+        print(f"Subject: {str_subject}, Side: {str_side}")
+        print(f"Python sinPB: {sinPB_python_best}")
+        print(f"MATLAB sinPB: {sinPB_matlab}")
+        print(f"Python sfsPB: {sfsPB_python_best}")
+        print(f"MATLAB sfsPB: {sfsPB_matlab}")
+        
+        print("")
 
-                # set the labels
-                if i == 0:
-                    ax.set(ylabel='AUC')
-                ax.set(xlabel=None)
-                ax.set(title=f"PB{i + 1}")
-                ax.set(ylim=[0.5, 1])
+    # reshape and form pandas dataframe
+    vec_auc_python_full = np.stack(vec_auc_python_full, axis=0)
+    vec_auc_python_full_sfs = np.stack(vec_auc_python_full_sfs, axis=0)
+    vec_auc_matlab = np.stack(vec_auc_matlab, axis=0)
+    vec_auc_matlab_sfs = np.stack(vec_auc_matlab_sfs, axis=0)
 
-                # # remove the top and right spines
-                ax.spines['top'].set_visible(False)
-                ax.spines['right'].set_visible(False)
-                
-            fig.savefig(f"{p_figure_output}/auc_comparison.png", dpi=300)
-            plt.close(fig)
-            t1 = 1
-             
-    
-    # # reshape and form pandas dataframe
-    # vec_auc_python_full = np.stack(vec_auc_python_full, axis=0)
-    # vec_auc_python_full_sfs = np.stack(vec_auc_python_full_sfs, axis=0)
-    # vec_auc_matlab = np.stack(vec_auc_matlab, axis=0)
-    # vec_auc_matlab_sfs = np.stack(vec_auc_matlab_sfs, axis=0)
+    t1 = 1
 
     # # now loop
-    # for i in range(n_pb):
     # results_dict = {"str_subject": [], "AUC": [], "PB": [], "Method": []}
     # results_dict_sfs = {"str_subject": [], "AUC": [], "PB": [], "Method": []}
-    # for i in range(len(vec_str_subject)): 
-    #     # load python   
+    # for i in range(len(vec_str_subject)):
+    #     # load python
     #     for j in range(n_pb):
     #         for k in range(n_rep):
     #             # load sin PB
@@ -159,201 +282,59 @@ def plot_lda_matlab_results(vec_str_subject, vec_str_side, str_model_id="model_i
     #             results_dict["PB"].append(j + 1)
     #             results_dict["AUC"].append(vec_auc_python_full[i, k, j])
     #             results_dict["Method"].append("Python")
-                
+
     #             # load sfs PB
     #             results_dict_sfs["str_subject"].append(vec_str_subject[i])
     #             results_dict_sfs["PB"].append(j + 1)
     #             results_dict_sfs["AUC"].append(vec_auc_python_full_sfs[i, k, j])
     #             results_dict_sfs["Method"].append("Python")
-                
-    #     # load MATLAB
-    #     for j in range(n_pb):
-    # t1 = 1
-        
-        
-        
-        # # plot the figure for auc
-        # fig = plt.figure()
-        # sns.boxplot(data=results_auc, x='Program', y='AUC', orient='v')
-        # ax = plt.gca()
-
-        # # set the labels
-        # ax.set(xlabel=None)
-        # ax.set(ylabel='AUC with LDA')
-        # ax.set(title='AUC with LDA for Top 1 Power Band')
-
-        # # set the ranges
-        # ax.set_ylim([0.62, 0.80])
-
-        # # remove the top and right spines
-        # ax.spines['top'].set_visible(False)
-        # ax.spines['right'].set_visible(False)
-
-        # fig.savefig(str(p_figure_output / 'RCS02_R_med_level_auc_LDA.png'), dpi=300)
-        # plt.close(fig)
-
-        # # plot the figure for accuracy
-        # fig = plt.figure()
-        # sns.boxplot(data=results_auc, x='Program', y='ACC', orient='v')
-        # ax = plt.gca()
-
-        # # set the labels
-        # ax.set(xlabel=None)
-        # ax.set(ylabel='ACC with LDA')
-        # ax.set(title='ACC with LDA for Top 1 Power Band')
-
-        # # set the ranges
-        # ax.set_ylim([0.60, 0.75])
-
-        # # remove the top and right spines
-        # ax.spines['top'].set_visible(False)
-        # ax.spines['right'].set_visible(False)
 
 
 def plot_lda_results(str_model_id="model_id", str_subject="RCS02", str_side="R"):
-    
     if str_model_id == "model_id_woart":
         # hard code all paths
         p_output = pathlib.Path(
             "/home/jyao/Downloads/biomarker_id/dynamics_woart/{}".format(str_subject)
         )
         f_output_python = f"{str_subject}_{str_side}_med_avg_auc_LDA_dynamics_woart.pkl"
-        
+
         output_full = pickle.load(open(str(p_output / f_output_python), "rb"))
-        
+
         output = dict()
-        output['sinPB'] = output_full['sinPB']["n_dynamics_1"]
-        output['sfsPB'] = output_full['sfsPB']["n_dynamics_1"]
+        output["sinPB"] = output_full["sinPB"]["n_dynamics_1"]
+        output["sfsPB"] = output_full["sfsPB"]["n_dynamics_1"]
         (
             acc_python_full,
             auc_python_full,
-            acc_python_top,
-            auc_python_top,
+            sinPB,
             acc_python_full_sfs,
             auc_python_full_sfs,
-            acc_python_top_sfs,
-            auc_python_top_sfs,
+            sfsPB,
         ) = load_model_id_results(output)
-        
+
     else:
         # hard code all paths
         p_output = pathlib.Path(
             "/home/jyao/Downloads/biomarker_id/{}/{}".format(str_model_id, str_subject)
         )
         f_output_python = f"{str_subject}_{str_side}_med_avg_auc_LDA.pkl"
-        
+
         output = pickle.load(open(str(p_output / f_output_python), "rb"))
         (
             acc_python_full,
             auc_python_full,
-            acc_python_top,
-            auc_python_top,
+            sinPB,
             acc_python_full_sfs,
             auc_python_full_sfs,
-            acc_python_top_sfs,
-            auc_python_top_sfs,
+            sfsPB,
         ) = load_model_id_results(output)
-        
-        
 
     p_figure_output = pathlib.Path(
-        "/home/jyao/Downloads/biomarker_id/figures/{}/{}".format(str_model_id, str_subject)
+        "/home/jyao/Downloads/biomarker_id/figures/{}/{}".format(
+            str_model_id, str_subject
+        )
     )
     p_figure_output.mkdir(parents=True, exist_ok=True)
-
-    # load in the python values
-
-
-    # # plot the figure for auc
-    # fig = plt.figure()
-    # sns.boxplot(data=results_auc, x='Program', y='AUC', orient='v')
-    # ax = plt.gca()
-
-    # # set the labels
-    # ax.set(xlabel=None)
-    # ax.set(ylabel='AUC with LDA')
-    # ax.set(title='AUC with LDA for Top 1 Power Band')
-
-    # # set the ranges
-    # ax.set_ylim([0.62, 0.80])
-
-    # # remove the top and right spines
-    # ax.spines['top'].set_visible(False)
-    # ax.spines['right'].set_visible(False)
-
-    # fig.savefig(str(p_figure_output / 'RCS02_R_med_level_auc_LDA.png'), dpi=300)
-    # plt.close(fig)
-
-    # # plot the figure for accuracy
-    # fig = plt.figure()
-    # sns.boxplot(data=results_auc, x='Program', y='ACC', orient='v')
-    # ax = plt.gca()
-
-    # # set the labels
-    # ax.set(xlabel=None)
-    # ax.set(ylabel='ACC with LDA')
-    # ax.set(title='ACC with LDA for Top 1 Power Band')
-
-    # # set the ranges
-    # ax.set_ylim([0.60, 0.75])
-
-    # # remove the top and right spines
-    # ax.spines['top'].set_visible(False)
-    # ax.spines['right'].set_visible(False)
-
-    # fig.savefig(str(p_figure_output / 'RCS02_R_med_level_acc_LDA.png'), dpi=300)
-    # plt.close(fig)
-
-    # # now plot the line plots for the top5 auc
-    # fig = plt.figure()
-    # idx = np.arange(1, 6, 1)
-    # x_ticks = [str(x) for x in idx]
-    # plt.plot(idx, np.mean(auc_python_full, axis=0), 'r', label='Python')
-    # plt.fill_between(idx, np.mean(auc_python_full, axis=0) - np.std(auc_python_full, axis=0),
-    #                  np.mean(auc_python_full, axis=0) + np.std(auc_python_full, axis=0), color='r', alpha=0.2)
-
-    # plt.plot(idx, np.mean(auc_matlab_full, axis=0), 'b', label='MATLAB')
-    # plt.fill_between(idx, np.mean(auc_matlab_full, axis=0) - np.std(auc_matlab_full, axis=0),
-    #                     np.mean(auc_matlab_full, axis=0) + np.std(auc_matlab_full, axis=0), color='b', alpha=0.2)
-    # plt.xlabel('Index of Power Bands')
-    # plt.ylabel('AUC with LDA')
-    # plt.title('Comparison of AUC with LDA for Top 5 Power Bands')
-    # plt.legend(frameon=False)
-
-    # ax = plt.gca()
-    # ax.set_xticks(idx)
-    # ax.spines['top'].set_visible(False)
-    # ax.spines['right'].set_visible(False)
-
-    # fig.savefig(str(p_figure_output / 'RCS02_R_med_level_auc_LDA_top5.png'), dpi=300)
-    # plt.close(fig)
-
-    # '''
-    # SFS plots
-    # '''
-    # # also plot the SFS combined AUC
-    # fig = plt.figure()
-    # idx = np.arange(1, 6, 1)
-    # x_ticks = [str(x) for x in idx]
-    # plt.plot(idx, np.mean(auc_combined_python, axis=0), 'r', label='Python')
-    # plt.fill_between(idx, np.mean(auc_combined_python, axis=0) - np.std(auc_combined_python, axis=0),
-    #                  np.mean(auc_combined_python, axis=0) + np.std(auc_combined_python, axis=0), color='r', alpha=0.2)
-
-    # plt.plot(idx, np.mean(auc_combined_matlab, axis=0), 'b', label='MATLAB')
-    # plt.fill_between(idx, np.mean(auc_combined_matlab, axis=0) - np.std(auc_combined_matlab, axis=0),
-    #                     np.mean(auc_combined_matlab, axis=0) + np.std(auc_combined_matlab, axis=0), color='b', alpha=0.2)
-    # plt.xlabel('Index of Power Bands')
-    # plt.ylabel('AUC with LDA')
-    # plt.title('Comparison of AUC with LDA for Top 5 Power Bands')
-    # plt.legend(frameon=False)
-
-    # ax = plt.gca()
-    # ax.set_xticks(idx)
-    # ax.spines['top'].set_visible(False)
-    # ax.spines['right'].set_visible(False)
-
-    # fig.savefig(str(p_figure_output / 'RCS02_R_med_level_auc_LDA_top5_combo.png'), dpi=300)
-    # plt.close(fig)
 
     # also load the SVM and QDA results
     f_output_python_QDA = f"{str_subject}_{str_side}_med_avg_auc_QDA.pkl"
@@ -362,165 +343,87 @@ def plot_lda_results(str_model_id="model_id", str_subject="RCS02", str_side="R")
     f_output_python_MLP = f"{str_subject}_{str_side}_med_avg_auc_MLP.pkl"
     f_output_python_RNN = f"{str_subject}_{str_side}_med_avg_auc_RNN.pkl"
 
-    output_QDA = pickle.load(open(str(p_output / f_output_python_QDA), "rb"))
-    (
-        _,
-        auc_python_full_QDA,
-        _,
-        _,
-        _,
-        auc_python_full_sfs_QDA,
-        _,
-        _,
-    ) = load_model_id_results(output_QDA)
+    # form the output vectors
+    vec_acc_python_full = [acc_python_full]
+    vec_auc_python_full = [auc_python_full]
+    vec_sinPB = [sinPB]
 
-    output_SVM = pickle.load(open(str(p_output / f_output_python_SVM), "rb"))
-    (
-        _,
-        auc_python_full_SVM,
-        _,
-        _,
-        _,
-        auc_python_full_sfs_SVM,
-        _,
-        _,
-    ) = load_model_id_results(output_SVM)
+    vec_acc_python_full_sfs = [acc_python_full_sfs]
+    vec_auc_python_full_sfs = [auc_python_full_sfs]
+    vec_sfsPB = [sfsPB]
+    # vec_str_model = ["LDA", "QDA", "SVM", "RF", "MLP", "RNN"]
+    # vec_colormap = ["r", "k", "g", "m", "b", "c"]
+    
+    vec_str_model = ["LDA", "QDA", "SVM", "MLP", "RNN"]
+    vec_colormap = ["r", "k", "g", "b", "c"]
 
-    output_RF = pickle.load(open(str(p_output / f_output_python_RF), "rb"))
-    (
-        _,
-        auc_python_full_RF,
-        _,
-        _,
-        _,
-        auc_python_full_sfs_RF,
-        _,
-        _,
-    ) = load_model_id_results(output_RF)
+    vec_f_output_python = [
+        f_output_python_QDA,
+        f_output_python_SVM,
+        # f_output_python_RF,
+        f_output_python_MLP,
+        f_output_python_RNN,
+    ]
+    for i in range(len(vec_f_output_python)):
+        # load and unpack output struct
+        output_curr = pickle.load(open(str(p_output / vec_f_output_python[i]), "rb"))
+        (
+            acc_python_full_curr,
+            auc_python_full_curr,
+            sinPB_curr,
+            acc_python_full_sfs_curr,
+            auc_python_full_sfs_curr,
+            sfsPB_curr,
+        ) = load_model_id_results(output_curr)
 
-    output_MLP = pickle.load(open(str(p_output / f_output_python_MLP), "rb"))
-    (
-        _,
-        auc_python_full_MLP,
-        _,
-        _,
-        _,
-        auc_python_full_sfs_MLP,
-        _,
-        _,
-    ) = load_model_id_results(output_MLP)
+        # append to the output vectors
+        vec_acc_python_full.append(acc_python_full_curr)
+        vec_auc_python_full.append(auc_python_full_curr)
+        vec_sinPB.append(sinPB_curr)
 
-    output_RNN = pickle.load(open(str(p_output / f_output_python_RNN), "rb"))
-    (
-        _,
-        auc_python_full_RNN,
-        _,
-        _,
-        _,
-        auc_python_full_sfs_RNN,
-        _,
-        _,
-    ) = load_model_id_results(output_RNN)
+        vec_acc_python_full_sfs.append(acc_python_full_sfs_curr)
+        vec_auc_python_full_sfs.append(auc_python_full_sfs_curr)
+        vec_sfsPB.append(sfsPB_curr)
 
-    fig = plt.figure()
-    idx = np.arange(1, 5, 1)
-    x_ticks = [str(x) for x in idx]
-    plt.plot(idx, np.mean(auc_python_full_sfs, axis=0), "r", label="LDA")
-    plt.fill_between(
-        idx,
-        np.mean(auc_python_full_sfs, axis=0) - np.std(auc_python_full_sfs, axis=0),
-        np.mean(auc_python_full_sfs, axis=0) + np.std(auc_python_full_sfs, axis=0),
-        color="r",
-        alpha=0.2,
+    # now plot the model comp figures
+    # start with AUC comparison for sinPB
+    str_metric = "AUC"
+    f_figure_output_sinPB = (
+        f"{str_subject}_{str_side}_med_level_{str_metric.lower()}_comp_sinPB.png"
     )
-
-    plt.plot(idx, np.mean(auc_python_full_sfs_QDA, axis=0), "k", label="QDA")
-    plt.fill_between(
-        idx,
-        np.mean(auc_python_full_sfs_QDA, axis=0)
-        - np.std(auc_python_full_sfs_QDA, axis=0),
-        np.mean(auc_python_full_sfs_QDA, axis=0)
-        + np.std(auc_python_full_sfs_QDA, axis=0),
-        color="k",
-        alpha=0.2,
+    plot_model_comp(
+        vec_auc_python_full,
+        vec_str_model,
+        vec_colormap,
+        str_subject,
+        str_side,
+        str_metric=str_metric,
+        p_figure_output=p_figure_output,
+        f_figure_output=f_figure_output_sinPB,
     )
-
-    plt.plot(idx, np.mean(auc_python_full_sfs_SVM, axis=0), "g", label="SVM")
-    plt.fill_between(
-        idx,
-        np.mean(auc_python_full_sfs_SVM, axis=0)
-        - np.std(auc_python_full_sfs_SVM, axis=0),
-        np.mean(auc_python_full_sfs_SVM, axis=0)
-        + np.std(auc_python_full_sfs_SVM, axis=0),
-        color="g",
-        alpha=0.2,
+    
+    # next plot the AUC for sfsPB
+    f_figure_output_sfsPB = (
+        f"{str_subject}_{str_side}_med_level_{str_metric.lower()}_comp_sfsPB.png"
     )
-
-    plt.plot(idx, np.mean(auc_python_full_sfs_RF, axis=0), "m", label="RF")
-    plt.fill_between(
-        idx,
-        np.mean(auc_python_full_sfs_RF, axis=0)
-        - np.std(auc_python_full_sfs_RF, axis=0),
-        np.mean(auc_python_full_sfs_RF, axis=0)
-        + np.std(auc_python_full_sfs_RF, axis=0),
-        color="m",
-        alpha=0.2,
+    plot_model_comp(
+        vec_auc_python_full_sfs,
+        vec_str_model,
+        vec_colormap,
+        str_subject,
+        str_side,
+        str_metric=str_metric,
+        p_figure_output=p_figure_output,
+        f_figure_output=f_figure_output_sfsPB,
     )
-
-    plt.plot(idx, np.mean(auc_python_full_sfs_MLP, axis=0), "b", label="MLP")
-    plt.fill_between(
-        idx,
-        np.mean(auc_python_full_sfs_MLP, axis=0)
-        - np.std(auc_python_full_sfs_MLP, axis=0),
-        np.mean(auc_python_full_sfs_MLP, axis=0)
-        + np.std(auc_python_full_sfs_MLP, axis=0),
-        color="b",
-        alpha=0.2,
-    )
-
-    plt.plot(idx, np.mean(auc_python_full_sfs_RNN, axis=0), "c", label="RNN")
-    plt.fill_between(
-        idx,
-        np.mean(auc_python_full_sfs_RNN, axis=0)
-        - np.std(auc_python_full_sfs_RNN, axis=0),
-        np.mean(auc_python_full_sfs_RNN, axis=0)
-        + np.std(auc_python_full_sfs_RNN, axis=0),
-        color="c",
-        alpha=0.2,
-    )
-
-    plt.xlabel("Number of Power Bands Included")
-    plt.ylabel("AUC with Algorithms")
-    plt.title(f"Comparison of AUC for Top 4 Power Bands: {str_subject}_{str_side}")
-    plt.legend(frameon=False)
-    plt.xticks(idx, x_ticks)
-
-    ax = plt.gca()
-    ax.set_xticks(idx)
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-
-    fig.savefig(
-        str(
-            p_figure_output
-            / f"{str_subject}_{str_side}_med_level_auc_comp_top5_combo.png"
-        ),
-        dpi=300,
-    )
-    plt.close(fig)
-
+    
     t1 = 1
 
 
 if __name__ == "__main__":
-    # plot_lda_matlab_results(["RCS02", "RCS11", "RCS12", "RCS18"], ["R", "L", "L", "L"])
+    plot_lda_matlab_results(["RCS02", "RCS11", "RCS12", "RCS18"], ["R", "L", "L", "L"])
     # plot_lda_results(str_subject="RCS02", str_side="R")
-    plot_lda_results(str_subject="RCS08", str_side="R")
+    # plot_lda_results(str_subject="RCS08", str_side="R")
     # plot_lda_results(str_subject="RCS11", str_side="L")
     # plot_lda_results(str_subject="RCS12", str_side="L")
     # plot_lda_results(str_subject="RCS18", str_side="L")
-    # plot_lda_results(str_subject="RCS17", str_side="L")
-    
-    
-    # plot_lda_results(str_subject="RCS02", str_side="R", str_model_id='model_id_woart')
-#
