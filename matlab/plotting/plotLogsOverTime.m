@@ -8,7 +8,7 @@ function plotLogsOverTime(pFigure, vec_output, pkgWatchTable, ...
 p = inputParser;
 p.KeepUnmatched = true;
 
-addParameter(p, 'boolSaveAsFig'p, false, ...
+addParameter(p, 'boolSaveAsFig', false, ...
     @(x) validateattributes(x, {'logical'}, {'nonempty'}));
 
 parse(p,varargin{:});
@@ -57,7 +57,8 @@ LD1_adaptiveMetaData = ....
 %% now plot for RCS17
 
 if strcmp(cfg.str_sub, 'RCS17')
-    if any(strcmp(cfg.str_data_day, {'20230704'}))
+    if any(strcmp(cfg.str_data_day, ...
+            {'20230704', '20230706', '20230707', '20230711'}))
         % unpack the log variables
         vecTime = vecTime;
         vecState = vecState;
@@ -89,8 +90,12 @@ if strcmp(cfg.str_sub, 'RCS17')
             ylimState = [-0.5, 4.5]; ylimAliasedState = [-0.5, 1.5];
             ylimCurrent = [0.5, 4];
         end
-
+    else
+        error('Please change date signature above')
     end
+
+else
+    error("Analysis undefined for current subject")
 end
 
 %% Plotting

@@ -78,7 +78,11 @@ legendFontSize = 13;
 tickFontSize = 13;
 
 % set the number of figures and figure size
-subplotNum = 4;
+if ~any(strcmp(cfg.str_no_pkg_data_day, cfg.str_data_day))
+    subplotNum = 4;
+else
+    subplotNum = 3;
+end
 figLogs = figure('position', [10, 10, 2200, 1500]);
 idxCurrSubplot = 1;
 

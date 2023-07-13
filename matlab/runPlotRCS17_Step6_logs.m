@@ -28,7 +28,10 @@ cfg.idx_aDBS_paradigm = cfg.idx_aDBS_paradigm{1};
 cfg.idx_aDBS_paradigm = str2num(cfg.idx_aDBS_paradigm(end));
 
 cfg.str_round = 'Round1';
-cfg.str_data_day = '20230704';
+% cfg.str_data_day = '20230704';
+% cfg.str_data_day = '20230706';
+% cfg.str_data_day = '20230707';
+cfg.str_data_day = '20230711';
 
 % cfg.vec_str_side = {'Left', 'Right'};
 cfg.vec_str_side = {'Left'};
@@ -38,7 +41,7 @@ cfg.figure_overwrite = false;
 cfg.thresCombo = false;
 cfg.boolSaveAsFig = false;
 
-cfg.str_no_pkg_data_day = {'20230605'};
+cfg.str_no_pkg_data_day = {'20230707', '20230711'};
 
 if strcmp(cfg.str_data_day, '3day_sprint') || contains(cfg.str_data_day, '2020')
     cfg.bool_old_recording = true;

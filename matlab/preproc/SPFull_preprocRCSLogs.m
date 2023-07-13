@@ -84,8 +84,15 @@ if length(vecPathLogFiles) ~= 1
     error('Should be one log file exactly')
 end
 
+% obtain the lags
+lag = getINSLags(cfg.str_sub);
+
+% define the import options
+opts = detectImportOptions(vecPathLogFiles{1});
+opts = setvartype(opts, "Var2", 'char');
+
 % load the log file
-logTable = readtable(vecPathLogFiles{1});
+logTable = readtable(vecPathLogFiles{1}, opts);
 
 % obtain the start and end datetime
 startDT = sprintf("%d/%d/%d 00:00:01 AM", output.metaData.sessionMonth, ...
@@ -103,28 +110,70 @@ vecOldState = [];
 vecNewTime = [];
 vecNewAmp = [];
 
+% figure out if the variables are cell or arrays
+if iscell(logTable.Var2)
+    boolVar2Cell = true;
+else
+    boolVar2Cell = false;
+    warning('Var2 is being loaded as an array')
+end
+
+if iscell(logTable.Var3)
+    boolVar3Cell = true;
+    warning("Var3 is being loaded as a cell array")
+else
+    boolVar3Cell = false;
+end
+
 for i = 1:length(logTable.LogEntry_Header)
     temp = contains('AdaptiveTherapyModificationEntry.NewState',logTable.LogEntry_Header(i));
     if temp == 1
         % get time of current entry
         currTime = logTable.Var3(i - 5);
+
+        % correct for lag in INS if defined for current subject
+        if lag ~= 0
+            currTime = currTime - lag;
+        end
+
         if currTime >= startDT & currTime <= endDT
 
             % append the indices
             newStateLogInd = [newStateLogInd, i];
             count = count + 1;
+
     
             % append the new state
-            vecNewState = [vecNewState; hex2dec(logTable.Var2{i})];
+            if boolVar2Cell
+                newState = hex2dec(logTable.Var2{i});
+            else
+                newState = logTable.Var2(i);
+            end
+            vecNewState = [vecNewState; newState];
 
             % append the old state
-            vecOldState = [vecOldState; hex2dec(logTable.Var2{i + 1})];
+            if boolVar2Cell
+                oldState = hex2dec(logTable.Var2{i + 1});
+            else
+                oldState = logTable.Var2(i + 1);
+            end
+            vecOldState = [vecOldState; oldState];
     
             % append the time
-            vecNewTime = [vecNewTime; logTable.Var3(i - 5)];
+            if boolVar3Cell
+                newTime = logTable.Var3{i - 5};
+            else
+                newTime = logTable.Var3(i - 5);
+            end
+            vecNewTime = [vecNewTime; newTime];
 
             % append the amplitude
-            vecNewAmp = [vecNewAmp; str2num(logTable.Var2{i + 7})];
+            if boolVar2Cell
+                newAmp = str2num(logTable.Var2{i + 7});
+            else
+                newAmp = logTable.Var2(i + 7);
+            end
+            vecNewAmp = [vecNewAmp; newAmp];
         end
     end
 end
