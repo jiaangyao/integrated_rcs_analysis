@@ -614,6 +614,7 @@ def seq_forward_selection(
             max_width=max_width,
             width=width,
             top_k=n_candidate_peak,
+            labels_cell=labels_cell,
         )
         vec_features_pb_sub = [
             correct_sfs_feature_dim(features, pb, idx_used, n_iter)

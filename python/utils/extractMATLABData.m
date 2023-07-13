@@ -1,7 +1,8 @@
 % str_subject = "RCS02";
 % str_subject = "RCS08";
-str_subject = "RCS11";
+% str_subject = "RCS11";
 % str_subject = "RCS12";
+ str_subject = "RCS17";
 % str_subject = "RCS18";
 
 bool_use_wArt = false;

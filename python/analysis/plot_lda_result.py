@@ -421,7 +421,9 @@ def plot_lda_results(str_model_id="model_id", str_subject="RCS02", str_side="R")
 
 
 if __name__ == "__main__":
-    plot_lda_matlab_results(["RCS02", "RCS11", "RCS12", "RCS18"], ["R", "L", "L", "L"])
+    # plot_lda_matlab_results(["RCS02", "RCS11", "RCS12", "RCS18"], ["R", "L", "L", "L"])
+    # plot_lda_matlab_results(["RCS17"], ["L"])
+    plot_lda_matlab_results(["RCS17"], ["R"])
     # plot_lda_results(str_subject="RCS02", str_side="R")
     # plot_lda_results(str_subject="RCS08", str_side="R")
     # plot_lda_results(str_subject="RCS11", str_side="L")
