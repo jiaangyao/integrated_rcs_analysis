@@ -32,6 +32,11 @@ if exist(userDir, 'dir')==7
     % external package path setting
     setenv('D_ANALYZE_RCS', fullfile(getenv('D_USER'), 'local', ...
         'gitprojects', 'Analysis-rcs-data'));
+    setenv('D_SPM', fullfile(getenv('D_USER'), 'local', ...
+        'gitprojects', 'spm12'));
+    setenv('D_LEADDBS', fullfile(getenv('D_USER'), 'local', ...
+        'gitprojects', 'lead_dbs'));
+
 
     % folder naming setting                              
     setenv('STR_DATA_TYPE', 'neural data');                                 % second organization level: neural data vs PKG vs AW
