@@ -15,12 +15,12 @@ import wandb
 from biomarker.training.prepare_data import prepare_data
 from biomarker.training.model_initialize import get_model_params
 from biomarker.training.seq_forward_selection import seq_forward_selection
-from utils.parse_datetime import parse_dt_w_tz
+from utils.parse_datetime import parse_dt, get_time_column
 from utils.wandb_utils import wandb_logging_sfs_outer
 
 _VEC_STR_SUBJECT = ("RCS02", "RCS08", "RCS11", "RCS12", "RCS17", "RCS18")
 _VEC_STR_SIDE = ("L", "R")
-_VEC_LABEL_TYPE = "med"
+_VEC_LABEL_TYPE = ["med", "sleep"]
 _VEC_STR_METRIC = ("avg_auc", "avg_acc", "avg_f1")
 
 
@@ -35,12 +35,12 @@ def biomarker_id_train_sfs(
 
 
 class DefaultModelTrainer:
-    def __init__(self, cfg) -> None:
+    def __init__(self, cfg):
         """
         unpack the parameters from the config
         """
         # append the entire configuration
-        self.cfg = OmegaConf.to_container(cfg, resolve=True)
+        self.cfg = dict(OmegaConf.to_container(cfg, resolve=True)) # type: ignore
 
         # unpack the experiment related meta parameters
         self.str_model = cfg["meta"]["str_model"]
@@ -61,6 +61,7 @@ class DefaultModelTrainer:
 
         # unpack the preprocessing related parameters
         self.n_ch = cfg["preproc"]["n_ch"]
+        self.fft_len = cfg["preproc"]["fft_len"]
         self.interval = cfg["preproc"]["interval"]
         self.update_rate = cfg["preproc"]["update_rate"]
         self.freq_low_lim = cfg["preproc"]["freq_low_lim"]
@@ -102,7 +103,7 @@ class DefaultModelTrainer:
 
 
 class SFSTrainer(DefaultModelTrainer):
-    def __init__(self, cfg) -> None:
+    def __init__(self, cfg):
         """
         unpack the parameters from the config
         """
@@ -169,11 +170,15 @@ class SFSTrainer(DefaultModelTrainer):
         # load the data from the desginated side
         data_hemi = pd.read_csv(str(self.p_data / self.f_data), header=0)
 
+        # obtain index of the time column
+        idx_time_col = get_time_column(data_hemi)
+        
         # quickly convert the time to pd.Timestamp
-        data_hemi["time"] = parse_dt_w_tz(
-            data_hemi["time"],
+        data_hemi['time'] = parse_dt(
+            data_hemi.iloc[:, idx_time_col],
             dt_fmt="%d-%b-%Y %H:%M:%S.%f",
             tz_str="America/Los_Angeles",
+            bool_to_pandas=True,
         )
 
         return data_hemi

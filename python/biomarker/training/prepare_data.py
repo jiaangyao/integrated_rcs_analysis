@@ -12,25 +12,24 @@ def prepare_data(
     str_side="L",
     stim_level: list = [],
     label_type="med",
+    fft_len=None,
     interval=0.05,
     update_rate=30,
     low_lim=2,
     high_lim=100,
     bool_use_dyna=False,
-    n_dynamics=3,
+    n_dynamics=1,
 ):
     print("\nCalculating High Resolution Spectra", end="")
     # first hardcode the side of the data and side of the opposite side
     str_contra_side = "R" if str_side.lower() == "l" else "L"
 
-    # also set up the parameters
+    # obtain the sampling rate from data
     vec_fs = data["samplerate"].unique()
     vec_fs_valid = vec_fs[np.logical_not(np.isnan(vec_fs))]
     assert len(vec_fs_valid) == 1
-
     fs = vec_fs_valid[0]
-    n_fft = fs
-
+    
     # now obtain the data from all cortical channels
     vec_ch_cort = [True if "key" in ch.lower() else False for ch in data.columns]
     vec_str_ch = data.columns[vec_ch_cort]
@@ -58,6 +57,9 @@ def prepare_data(
     if label_type.lower() == "med":
         data_label = data.loc[:, bool_col2use]
         label_time_domain = data["MedState"].values
+    elif label_type.lower() == "sleep":
+        data_label = data.loc[:, bool_col2use]
+        label_time_domain = data["SleepStageBinary"].values
     else:
         raise NotImplementedError
 
@@ -76,6 +78,7 @@ def prepare_data(
         data_label,
         label_time_domain,
         fs,
+        fft_len,
         interval,
         update_rate,
         stim_level,

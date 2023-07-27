@@ -7,7 +7,14 @@ from biomarker.signal_processing.extract_freq_features import extract_freq_featu
 
 
 def calc_high_res_spectra(
-    data_label, label_time_domain, fs, interval, update_rate, stim_level, ch2use
+    data_label,
+    label_time_domain,
+    fs,
+    fft_len,
+    interval,
+    update_rate,
+    stim_level,
+    ch2use,
 ):
     # create the end variables to return
     vec_features_full = []
@@ -20,8 +27,10 @@ def calc_high_res_spectra(
     for i in range(len(np.unique(label_time_domain))):
         print(".", end="")
 
-        # hardcode the NFFT and sampling period
-        NFFT = fs
+        # if fft_len is not specified, use closest power of 2 for one second
+        if fft_len is None:
+            fft_len = 1
+        NFFT = fs * fft_len
         T = NFFT / fs + interval * update_rate
 
         # now obtain the data from all cortical channels
@@ -68,13 +77,13 @@ def calc_high_res_spectra(
             True if x.shape[0] < NFFT * T else False for x in vec_sig_chunk_label_full
         ]
         vec_sig_chunk_label_full = [
-            x for x, y in zip(vec_sig_chunk_label_full, bool_too_short) if not y # type: ignore
+            x for x, y in zip(vec_sig_chunk_label_full, bool_too_short) if not y  # type: ignore
         ]
         vec_time_chunk_label_full = [
-            x for x, y in zip(vec_time_chunk_label_full, bool_too_short) if not y # type: ignore
+            x for x, y in zip(vec_time_chunk_label_full, bool_too_short) if not y  # type: ignore
         ]
         vec_stim_chunk_label_full = [
-            x for x, y in zip(vec_stim_chunk_label_full, bool_too_short) if not y # type: ignore
+            x for x, y in zip(vec_stim_chunk_label_full, bool_too_short) if not y  # type: ignore
         ]
 
         # now loop through the stim level
@@ -88,10 +97,10 @@ def calc_high_res_spectra(
                 for x in vec_stim_chunk_label_full
             ]
             sigs_curr = [
-                x for x, y in zip(vec_sig_chunk_label_full, bool_stim_match) if y # type: ignore
+                x for x, y in zip(vec_sig_chunk_label_full, bool_stim_match) if y  # type: ignore
             ]
             times_curr = [
-                x for x, y in zip(vec_time_chunk_label_full, bool_stim_match) if y # type: ignore
+                x for x, y in zip(vec_time_chunk_label_full, bool_stim_match) if y  # type: ignore
             ]
 
             # now try to extract the frequency features
@@ -108,7 +117,7 @@ def calc_high_res_spectra(
                 assert lab_cell_stim is not None, "Should be initialized"
                 lab_cell_stim = (
                     None
-                    if not all(x == y for x, y in zip(lab_cell_stim, lab_cell_curr)) # type: ignore
+                    if not all(x == y for x, y in zip(lab_cell_stim, lab_cell_curr))  # type: ignore
                     else lab_cell_curr
                 )
 
@@ -139,7 +148,7 @@ def calc_high_res_spectra(
             assert lab_cell_stim is not None, "Should be initialized"
             labels_cell_full = (
                 None
-                if not all(x == y for x, y in zip(labels_cell_full, lab_cell_stim)) # type: ignore
+                if not all(x == y for x, y in zip(labels_cell_full, lab_cell_stim))  # type: ignore
                 else lab_cell_stim
             )
         vec_times_full.append(vec_times_stim)
