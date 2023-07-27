@@ -1,10 +1,15 @@
-function output = SP_preprocPB(PowerData, output)
+function output = SP_preprocPB(PowerData, output, cfg)
 %% Load and process power data
 
 % obtain the time stamps for the power data
 n_sample_pow_abs = table2array(PowerData(:, 'newDerivedTime'));
 t_pow = 1e-3 * (n_sample_pow_abs - n_sample_pow_abs(1));
 t_pow_abs = table2array(PowerData(:, 'localTime'));
+
+
+% obtain the lags
+lag = getINSLags(cfg.str_sub);
+t_pow_abs = t_pow_abs - lag;
 
 % obtain the actual power data
 pow_data_all = table2array(PowerData(:, contains(PowerData.Properties.VariableNames, 'Band')));

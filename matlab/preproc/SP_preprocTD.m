@@ -15,6 +15,9 @@ function timeDomainDataStructOut = SP_preprocTD(timeDomainData, ...
 timeDomainDataStructOut.rawData = preprocLoadTdData(timeDomainData, ...
     metaDataIn, preprocCfg);
 
+% obtain the lags
+lag = getINSLags(cfg.str_sub);
+t_abs = t_abs - lag;
 
 %% Perform epoch rejection
 
