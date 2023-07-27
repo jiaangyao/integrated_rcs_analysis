@@ -36,6 +36,8 @@ if exist(userDir, 'dir')==7
         'gitprojects', 'spm12'));
     setenv('D_LEADDBS', fullfile(getenv('D_USER'), 'local', ...
         'gitprojects', 'lead_dbs'));
+    setenv('D_LEGUI', fullfile(getenv('D_USER'), 'local', ...
+        'gitprojects', 'LeGUI-1.2', 'LeGUI'));
 
 
     % folder naming setting                              
