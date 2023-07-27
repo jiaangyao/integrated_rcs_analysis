@@ -1,0 +1,10 @@
+defaults:
+  - model_id_step3
+  - _self_
+
+# overwrite the input directories
+p_project: "/home/jyao/local/data/starrlab/sleep_data/"
+p_data: "${data_paths.p_project}/Data/${patient.str_subject}/"
+
+# overwrite the output directories
+p_output: "/home/jyao/Downloads/biomarker_id/sleep/${patient.str_subject}"
