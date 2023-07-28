@@ -49,6 +49,10 @@ n_sample_adap_abs = table2array(adaptiveData(:, 'newDerivedTime'));
 t_adap = 1e-3 * (n_sample_adap_abs - n_sample_adap_abs(1));
 t_adap_abs = table2array(adaptiveData(:, 'localTime'));
 
+% obtain the lags
+lag = getINSLags(cfg.str_sub);
+t_adap_abs = t_adap_abs - lag;
+
 % obtain the actual adaptive data
 vec_currrent_in = table2array(adaptiveData(:, 'CurrentProgramAmplitudesInMilliamps'));
 vec_str_state = table2array(adaptiveData(:, 'CurrentAdaptiveState'));

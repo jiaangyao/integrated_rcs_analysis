@@ -1,0 +1,17 @@
+main:
+  source: file
+  user: ${oc.env:USER}
+
+defaults:
+  - _self_
+  - meta: sleep_LDA_auc_default
+  - patient: RCS02L
+  - data_paths: model_id_sleep
+  - logging: default_wandb
+  - preproc: sleep_default
+  - feature_selection: sfs_settings_default
+  - parallel: home_ray_cpu
+  - tune: base_no_tune_default
+  - dynamics: no_dynamics_default
+
+exp_type: "SleepID"

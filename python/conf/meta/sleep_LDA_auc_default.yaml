@@ -1,0 +1,9 @@
+defaults:
+  - base_sfs_default
+
+label_type: "sleep"
+str_model: "LDA"
+str_metric: "avg_auc"
+model_type: "sklearn"
+
+bool_debug: False

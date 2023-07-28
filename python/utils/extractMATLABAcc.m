@@ -27,7 +27,7 @@ load(fullfile(p_input, f_input));
 
 % obtain the full accuracy
 p_output = '/home/jyao/Downloads/';
-f_output = sprintf('%s_R_med_level_stats.mat', str_subject);
+f_output = sprintf('%s_%s_med_level_stats.mat', str_subject, str_side);
 
 
 auc_sin = output.Step3.medlev.aucSing.(str_side);

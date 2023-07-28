@@ -26,7 +26,9 @@ def correct_data_dim(str_model, features_sub: npt.NDArray):
     # cases where the model only takes in dynamics
     elif str_model in _VEC_MODEL_DYNAMICS_ONLY:
         if len(features_sub.shape) == 2:
-            features_sub_out = np.expand_dims(features_sub, axis=-1)    # note axis=-1 here since data should be in shape (batch_size, n_channel, n_time)
+            features_sub_out = np.expand_dims(
+                features_sub, axis=-1
+            )  # note axis=-1 here since data should be in shape (batch_size, n_channel, n_time)
         else:
             features_sub_out = features_sub.copy()
     else:
@@ -109,6 +111,7 @@ def group_pb_cross_asym(
     max_width: int,
     width: int,
     top_k: int,
+    labels_cell: list | None = None,
 ):
     # obtain the number of classes
     n_class = len(np.unique(y_class)) * len(np.unique(y_stim))

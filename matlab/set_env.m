@@ -23,6 +23,9 @@ if isempty(which('dnc_set_env'))
     setenv('D_PROC_DATA', fullfile(getenv('D_PROJECT'), 'proc_pass'));
     setenv('D_FIGURE', fullfile(getenv('D_PROJECT'), 'figures'));
     setenv('D_ANALYZE_RCS', '');
+    setenv('D_SPM', '');
+    setenv('D_LEADDBS', '');
+    setenv('D_LEGUI', '');
 else
     dnc_set_env(userDir);
 end
