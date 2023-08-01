@@ -194,6 +194,25 @@ if ~any(strcmp(cfg.str_data_day, {'20221205'}))
     lowStimLevel = LD0_adaptiveMetaData.stimLevel(1);
     
     % collapse some of the current
+    if strcmp(cfg.str_sub, 'RCS17')
+        if ~LD0_adaptiveMetaData.boolReverse || ...
+                ~LD1_adaptiveMetaData.boolReverse
+            warning('Enforcing Gamma Biomaker reverse')
+            LD0_adaptiveMetaData.boolReverse = true;
+            LD1_adaptiveMetaData.boolReverse = true;
+        end
+
+        % correct for stim level the same
+        if highStimLevel == lowStimLevel
+            if strcmp(cfg.vec_str_side{1}, 'Left')
+                highStimLevel = 3.1;
+                lowStimLevel = 2.3;
+            else
+                highStimLevel = 2.4;
+                lowStimLevel = 1.8;
+            end
+        end
+    end
     % now if only driven by LD0
     current_in_valid_sorted_remove34 = NaN(size(state_valid_sorted_remove34));
     if ~LD0_adaptiveMetaData.boolReverse
@@ -264,33 +283,41 @@ end
 %% also extract information from the motor diary
 
 % extract valid entries from motor diary
-idxMotorDiaryValid = motorDiary.time >= t_adap_valid_sorted(1) & ...
-    motorDiary.time <= (t_adap_valid_sorted(end) + minutes(30));
-motorDiaryRedacted = motorDiary(idxMotorDiaryValid, :);
+if ~any(strcmp(cfg.str_no_md_data_day, cfg.str_data_day))
+    idxMotorDiaryValid = motorDiary.time >= t_adap_valid_sorted(1) & ...
+        motorDiary.time <= (t_adap_valid_sorted(end) + minutes(30));
+    motorDiaryRedacted = motorDiary(idxMotorDiaryValid, :);
+    
+    % TODO: change this into a function
+    % correct for RCS02 motor diary during plotting - note lazy way of dealing
+    % with things
+    if contains(cfg.str_aDBS_paradigm, 'Step5', 'IgnoreCase', true) && ...
+                strcmp(cfg.str_sub, 'RCS02')
+        motorDiaryRedacted.time = motorDiaryRedacted.time + minutes(15);
+    
+    elseif contains(cfg.str_aDBS_paradigm, 'Step6', 'IgnoreCase', true) && ...
+                strcmp(cfg.str_sub, 'RCS02')
+        motorDiaryRedacted.time = motorDiaryRedacted.time + minutes(30);
+    elseif contains(cfg.str_aDBS_paradigm, 'Step6', 'IgnoreCase', true) && ...
+                strcmp(cfg.str_sub, 'RCS14')
+        motorDiaryRedacted.time = motorDiaryRedacted.time + minutes(30);
+    end
+    
+    % extract valid entries from interpolated motor diary
+    idxMotorDiaryInterpValid = motorDiaryInterp.time >= t_adap_valid_sorted(1) & ...
+        motorDiaryInterp.time <= t_adap_valid_sorted(end);
+    motorDiaryInterpRedacted = motorDiaryInterp(idxMotorDiaryInterpValid, :);
+    
+    % figure out all medication time
+    idxMedTime = motorDiaryInterp.MedsTaken == 1;
+    medTime = motorDiaryInterp.time(idxMedTime);
 
-% TODO: change this into a function
-% correct for RCS02 motor diary during plotting - note lazy way of dealing
-% with things
-if contains(cfg.str_aDBS_paradigm, 'Step5', 'IgnoreCase', true) && ...
-            strcmp(cfg.str_sub, 'RCS02')
-    motorDiaryRedacted.time = motorDiaryRedacted.time + minutes(15);
-
-elseif contains(cfg.str_aDBS_paradigm, 'Step6', 'IgnoreCase', true) && ...
-            strcmp(cfg.str_sub, 'RCS02')
-    motorDiaryRedacted.time = motorDiaryRedacted.time + minutes(30);
-elseif contains(cfg.str_aDBS_paradigm, 'Step6', 'IgnoreCase', true) && ...
-            strcmp(cfg.str_sub, 'RCS14')
-    motorDiaryRedacted.time = motorDiaryRedacted.time + minutes(30);
+else
+    motorDiaryRedacted = NaN;
+    motorDiaryInterpRedacted = NaN;
+    medTime = NaN;
 end
 
-% extract valid entries from interpolated motor diary
-idxMotorDiaryInterpValid = motorDiaryInterp.time >= t_adap_valid_sorted(1) & ...
-    motorDiaryInterp.time <= t_adap_valid_sorted(end);
-motorDiaryInterpRedacted = motorDiaryInterp(idxMotorDiaryInterpValid, :);
-
-% figure out all medication time
-idxMedTime = motorDiaryInterp.MedsTaken == 1;
-medTime = motorDiaryInterp.time(idxMedTime);
 
 % optionally process the Apple Watch data
 if ~any(strcmp(cfg.str_no_aw_data_day, cfg.str_data_day))
@@ -325,7 +352,7 @@ end
 % optionally process the PKG Watch data
 if ~any(strcmp(cfg.str_no_pkg_data_day, cfg.str_data_day))
     % first obtain all valid entries from the PKG table
-    boolPKGValid = (~pkgWatchTable.Off_Wrist) & ~isnan(pkgWatchTable.BK) & ...
+    boolPKGValid = (~[pkgWatchTable.Off_Wrist{:}])' & ~isnan(pkgWatchTable.BK) & ...
         ~isnan(pkgWatchTable.DK); 
     pkgWatchTableRedacted = pkgWatchTable(boolPKGValid, ...
         {'Date_Time', 'BK', 'DK', 'Off_Wrist'});
@@ -1822,7 +1849,8 @@ if strcmp(cfg.str_sub, 'RCS02')
     %% custom flags for RCS14
 elseif strcmp(cfg.str_sub, 'RCS14')
     if any(strcmp(cfg.str_data_day, {'20221024', '20221026', '20221028', ...
-            '20221031', '20221101', '20230117', '20230118', '20230119'}))
+            '20221031', '20221101', '20230117', '20230118', '20230119', ...
+            '20230321'}))
         % define the various variables for plotting
         % LD0 parameters
         timeResCxtWin = 2;
@@ -1849,8 +1877,8 @@ elseif strcmp(cfg.str_sub, 'RCS14')
         motorDiary = motorDiaryRedacted;
         
         colorLD0 = [0, 0.4470, 0.7410]; smoothColorLD0 = [1, 0, 0];
-        ylimPowLD0 = [0, 10000]; ylimLD_LD0 = [0, 7000]; ylimState_LD0 = [-0.5, 1.5];
-        ylimCurrent_LD0 = [2.9, 3.9]; ylimMDRange_LD0 = [-0.5, 5.5];
+        ylimPowLD0 = [0, 10000]; ylimLD_LD0 = [0, 60]; ylimState_LD0 = [-0.5, 1.5];
+        ylimCurrent_LD0 = [3.4, 4.2]; ylimMDRange_LD0 = [-0.5, 5.5];
 
         % LD1 parameters
         boolEnabled_LD1 = LD1_adaptiveMetaData.boolEnabled;
@@ -1865,11 +1893,192 @@ elseif strcmp(cfg.str_sub, 'RCS14')
         currentDataLD1 = current_in_valid_sorted_remove14;
 
         colorLD1 = [0.3010 0.7450 0.9330]; smoothColorLD1 = [1, 0, 0];
-        ylimPowLD1 = [0, 7000]; ylimLD_LD1 = [0, 3500]; ylimState_LD1 = [-0.5, 3.5];
-        ylimCurrent_LD1 = [2.9, 3.9]; ylimMDRange_LD1 = [-0.5, 5.5];
+        ylimPowLD1 = [0, 7000]; ylimLD_LD1 = [0, 5e4]; ylimState_LD1 = [-0.5, 3.5];
+        ylimCurrent_LD1 = [3.4, 4.2]; ylimMDRange_LD1 = [-0.5, 5.5];
+    
+
+    elseif any(strcmp(cfg.str_data_day, {'20230426', '20230428'}))
+        % define the various variables for plotting
+        % LD0 parameters
+        timeResCxtWin = 2;
+        boolEnabled_LD0 = LD0_adaptiveMetaData.boolEnabled;
+        timePowLD0 = t_pow_abs_motor_sorted;
+        powDataLD0 = pow_data_motor_sorted(:, 1);
+
+        timeLD_LD0 = t_adap_abs_ld0_valid_sorted;
+        LDData_LD0 = ld0_data_valid_sorted(:, 1);
+
+        timeStateLD0 = t_adap_valid_sorted;
+        stateDataLD0 = state_valid_sorted_remove34;
+        currentDataLD0 = current_in_valid_sorted_remove34;
+
+        if ~any(strcmp(cfg.str_data_day, cfg.str_no_aw_data_day))
+            timeAWDysk = t_accel_full; AWDyskData = accel_full;
+        else
+            timeAWDysk = NaN; AWDyskData = NaN;
+        end
+        timePKG = pkgWatchTableRedacted.Date_Time;
+        PKGBradyData = pkgWatchTableRedacted.BK;
+        PKGDyskData = pkgWatchTableRedacted.DK;
+        motorDiaryInterp = motorDiaryInterpRedacted;
+        motorDiary = motorDiaryRedacted;
+        
+        colorLD0 = [0, 0.4470, 0.7410]; smoothColorLD0 = [1, 0, 0];
+        ylimPowLD0 = [0, 10000]; ylimLD_LD0 = [0, 60]; ylimState_LD0 = [-0.5, 1.5];
+        ylimCurrent_LD0 = [3.4, 4.2]; ylimMDRange_LD0 = [-0.5, 5.5];
+
+        % LD1 parameters
+        boolEnabled_LD1 = LD1_adaptiveMetaData.boolEnabled;
+        timePowLD1 = t_pow_abs_motor_sorted;
+        powDataLD1 = pow_data_motor_sorted(:, 2);
+
+        timeLD_LD1 = t_adap_abs_ld1_valid_sorted;
+        LDData_LD1 = ld1_data_valid_sorted(:, 1);
+
+        timeStateLD1 = t_adap_valid_sorted;
+        stateDataLD1 = state_valid_sorted_remove14;
+        currentDataLD1 = current_in_valid_sorted_remove14;
+
+        colorLD1 = [0.3010 0.7450 0.9330]; smoothColorLD1 = [1, 0, 0];
+        ylimPowLD1 = [0, 7000]; ylimLD_LD1 = [0, 5e4]; ylimState_LD1 = [-0.5, 3.5];
+        ylimCurrent_LD1 = [3.4, 4.2]; ylimMDRange_LD1 = [-0.5, 5.5];
 
     else
         error("need to specify a date")
+    end
+
+        %% custom flags for RCS17
+elseif strcmp(cfg.str_sub, 'RCS17')
+    if any(strcmp(cfg.str_data_day, {'20230522AM', '20230522PM'}))
+        % getting the raw data as well
+        timeRaw = t_raw_data_full;
+        rawData = raw_data_full;
+
+        % define the various variables for plotting
+        % LD0 parameters
+        timeResCxtWin = 2;
+        boolEnabled_LD0 = LD0_adaptiveMetaData.boolEnabled;
+        timePowLD0 = t_pow_abs_motor_sorted;
+        powDataLD0 = pow_data_motor_sorted(:, 1);
+
+        timeLD_LD0 = t_adap_abs_ld0_valid_sorted;
+        LDData_LD0 = ld0_data_valid_sorted(:, 1);
+
+        timeStateLD0 = t_adap_valid_sorted;
+        stateDataLD0 = state_valid_sorted_remove34;
+        currentDataLD0 = current_in_valid_sorted_remove34;
+
+        if ~any(strcmp(cfg.str_data_day, cfg.str_no_aw_data_day))
+            timeAWDysk = t_accel_full; AWDyskData = accel_full;
+        else10
+            timeAWDysk = NaN; AWDyskData = NaN;
+        end
+        timePKG = NaN;
+        PKGBradyData = NaN;
+        PKGDyskData = NaN;
+        motorDiaryInterp = motorDiaryInterpRedacted;
+        motorDiary = motorDiaryRedacted;
+        
+        colorLD0 = [0, 0.4470, 0.7410]; smoothColorLD0 = [1, 0, 0];
+        ylimPowLD0 = [0, 10000]; ylimLD_LD0 = [0, 60]; ylimState_LD0 = [-0.5, 1.5];
+        ylimCurrent_LD0 = [3.4, 4.2]; ylimMDRange_LD0 = [-0.5, 5.5];
+
+        % LD1 parameters
+        boolEnabled_LD1 = LD1_adaptiveMetaData.boolEnabled;
+        timePowLD1 = t_pow_abs_motor_sorted;
+        powDataLD1 = pow_data_motor_sorted(:, 2);
+
+        timeLD_LD1 = t_adap_abs_ld1_valid_sorted;
+        LDData_LD1 = ld1_data_valid_sorted(:, 1);
+
+        timeStateLD1 = t_adap_valid_sorted;
+        stateDataLD1 = state_valid_sorted_remove14;
+        currentDataLD1 = current_in_valid_sorted_remove14;
+
+        colorLD1 = [0.3010 0.7450 0.9330]; smoothColorLD1 = [1, 0, 0];
+        ylimPowLD1 = [0, 7000]; ylimLD_LD1 = [0, 5e4]; ylimState_LD1 = [-0.5, 3.5];
+        ylimCurrent_LD1 = [3.4, 4.2]; ylimMDRange_LD1 = [-0.5, 5.5];
+
+        print('debug')
+
+    elseif any(strcmp(cfg.str_data_day, {'20230524', '20230531', '20230605', ...
+            '20230726', '20230729'}))
+        % define the various variables for plotting
+        % LD0 parameters
+        timeResCxtWin = 2;
+        boolEnabled_LD0 = LD0_adaptiveMetaData.boolEnabled;
+        timePowLD0 = t_pow_abs_motor_sorted;
+        powDataLD0 = pow_data_motor_sorted(:, 1);
+
+        timeLD_LD0 = t_adap_abs_ld0_valid_sorted;
+        LDData_LD0 = ld0_data_valid_sorted(:, 1);
+
+        timeStateLD0 = t_adap_valid_sorted;
+        stateDataLD0 = state_valid_sorted_remove34;
+        currentDataLD0 = current_in_valid_sorted_remove34;
+
+        if ~any(strcmp(cfg.str_data_day, cfg.str_no_aw_data_day))
+            timeAWDysk = t_accel_full; AWDyskData = accel_full;
+        else
+            timeAWDysk = NaN; AWDyskData = NaN;
+        end
+            
+        if ~any(strcmp(cfg.str_data_day, cfg.str_no_pkg_data_day))
+            timePKG = pkgWatchTable.Date_Time;
+            PKGBradyData = pkgWatchTable.BK;
+            PKGDyskData = pkgWatchTable.DK;
+        else
+            timePKG = NaN;
+            PKGBradyData = NaN;
+            PKGDyskData = NaN;
+        end
+
+
+%         % debug script
+%         figure; subplot(311); plot(timeLD_LD0, LDData_LD0); title("LD0")
+%         subplot(312); plot(timeStateLD0, stateDataLD0); title('States'); ylim([-0.5, 1.5]);
+%         subplot(313); plot(timeStateLD0, currentDataLD0); title('Current'); ylim([1.1, 3.9])
+% 
+
+        motorDiaryInterp = motorDiaryInterpRedacted;
+        motorDiary = motorDiaryRedacted;
+
+        % sanity check
+        if numel(cfg.vec_str_side) == 2
+            error('Only provide one side')
+        end
+
+        if any(strcmp(cfg.vec_str_side, {'Left'}))
+            colorLD0 = [0, 0.4470, 0.7410]; smoothColorLD0 = [1, 0, 0];
+            ylimPowLD0 = [0, 10000]; ylimLD_LD0 = [0, 15000]; ylimState_LD0 = [-0.5, 1.5];
+            ylimCurrent_LD0 = [1.4, 3.2]; ylimMDRange_LD0 = [-0.5, 4.5];
+        elseif any(strcmp(cfg.vec_str_side, {'Right'}))
+            colorLD0 = [0, 0.4470, 0.7410]; smoothColorLD0 = [1, 0, 0];
+            ylimPowLD0 = [0, 10000]; ylimLD_LD0 = [0, 1200]; ylimState_LD0 = [-0.5, 1.5];
+            ylimCurrent_LD0 = [1.5, 2.7]; ylimMDRange_LD0 = [-0.5, 4.5];
+        end
+
+        % LD1 parameters
+        boolEnabled_LD1 = LD1_adaptiveMetaData.boolEnabled;
+        timePowLD1 = t_pow_abs_motor_sorted;
+        powDataLD1 = pow_data_motor_sorted(:, 2);
+
+        timeLD_LD1 = t_adap_abs_ld1_valid_sorted;
+        LDData_LD1 = ld1_data_valid_sorted(:, 1);
+
+        timeStateLD1 = t_adap_valid_sorted;
+        stateDataLD1 = state_valid_sorted_remove14;
+        currentDataLD1 = current_in_valid_sorted_remove14;
+        
+        if any(strcmp(cfg.vec_str_side, {'Left'}))
+            colorLD1 = [0.3010 0.7450 0.9330]; smoothColorLD1 = [1, 0, 0];
+            ylimPowLD1 = [0, 7000]; ylimLD_LD1 = [0, 15000]; ylimState_LD1 = [-0.5, 3.5];
+            ylimCurrent_LD1 = [2, 3.2]; ylimMDRange_LD1 = [-0.5, 4.5];
+        elseif any(strcmp(cfg.vec_str_side, {'Right'}))
+            colorLD1 = [0.3010 0.7450 0.9330]; smoothColorLD1 = [1, 0, 0];
+            ylimPowLD1 = [0, 7000]; ylimLD_LD1 = [0, 4000]; ylimState_LD1 = [-0.5, 3.5];
+            ylimCurrent_LD1 = [1.5, 2.7]; ylimMDRange_LD1 = [-0.5, 4.5];
+        end
     end
 end
 %% compute some output statistics
@@ -1902,7 +2111,7 @@ if ~cfg.thresCombo
             'smoothColor', smoothColorLD0, 'ylimPow', ylimPowLD0 ,...
             'ylimLD', ylimLD_LD0, 'ylimState', ylimState_LD0, ...
             'ylimCurrent', ylimCurrent_LD0, 'ylimMDRange', ylimMDRange_LD0, ...
-            'boolReturnOutput', true, 'outputStruct', summaryOutput);
+            'boolReturnOutput', false, 'outputStruct', summaryOutput);
     
         if boolSaveAsFig
             savefig(figTD_LD0, fullfile(pFigure, fFigure_Fluc_LD0));
