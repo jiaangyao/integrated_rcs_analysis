@@ -31,7 +31,18 @@ cfg.str_round = 'Round1';
 % cfg.str_data_day = '20230704';
 % cfg.str_data_day = '20230706';
 % cfg.str_data_day = '20230707';
-cfg.str_data_day = '20230711';
+% cfg.str_data_day = '20230711';
+% cfg.str_data_day = '20230712';
+% cfg.str_data_day = '20230713';
+% cfg.str_data_day = '20230714';
+% cfg.str_data_day = '20230718';
+% cfg.str_data_day = '20230721';
+% cfg.str_data_day = '20230722';
+% cfg.str_data_day = '20230723';
+% cfg.str_data_day = '20230726';
+% cfg.str_data_day = '20230727';
+cfg.str_data_day = '20230729';
+% cfg.str_data_day = '20230730';
 
 % cfg.vec_str_side = {'Left', 'Right'};
 cfg.vec_str_side = {'Left'};
@@ -41,7 +52,8 @@ cfg.figure_overwrite = false;
 cfg.thresCombo = false;
 cfg.boolSaveAsFig = false;
 
-cfg.str_no_pkg_data_day = {'20230707', '20230711'};
+cfg.str_no_pkg_data_day = {'20230707', '20230711', '20230713', ...
+    '20230714', '20230723', '20230726', '20230727'};
 
 if strcmp(cfg.str_data_day, '3day_sprint') || contains(cfg.str_data_day, '2020')
     cfg.bool_old_recording = true;
@@ -165,15 +177,13 @@ for idx_side = 1:length(cfg.vec_str_side)
     vec_str_session_curr = dir(fullfile(p_data_in_full_curr, ['*', 'ession*']));
 
     % now loop through all available sessions
-    fprintf("Processing time series data\n")
-    for idx_session = 1:numel(vec_str_session_curr)
-        str_session = vec_str_session_curr(idx_session).name;
-
-        raw_struct_curr = preprocessRCSLogs(p_data_in_full_curr, str_session, ...
-            str_device_curr, cfg);
-        vec_output{idx_session} = raw_struct_curr;
-
-    end
+    % just have to load the last log
+    fprintf("Processing log information data\n")
+    idx_session = numel(vec_str_session_curr);
+    str_session = vec_str_session_curr(idx_session).name;
+    raw_struct_curr = preprocessRCSLogs(p_data_in_full_curr, str_session, ...
+        str_device_curr, cfg);
+    vec_output{1} = raw_struct_curr;
     
     % load the PKG data
     if ~any(strcmp(cfg.str_no_pkg_data_day, cfg.str_data_day))

@@ -30,20 +30,24 @@ cfg.idx_aDBS_paradigm = str2num(cfg.idx_aDBS_paradigm(end));
 cfg.str_round = 'Round1';
 % cfg.str_data_day = '20230524';
 % cfg.str_data_day = '20230526';
-cfg.str_data_day = '20230531';
+% cfg.str_data_day = '20230531';
 % cfg.str_data_day = '20230605';
+% cfg.str_data_day = '20230726';
+cfg.str_data_day = '20230729';
+
 
 % cfg.vec_str_side = {'Left', 'Right'};
-% cfg.vec_str_side = {'Left'};
-cfg.vec_str_side = {'Right'};
+cfg.vec_str_side = {'Left'};
+% cfg.vec_str_side = {'Right'};
 cfg.overwrite = false;
 cfg.figure_overwrite = false;
 cfg.thresCombo = false;
 cfg.boolSaveAsFig = false;
 
-cfg.str_no_md_data_day = {};
-cfg.str_no_pkg_data_day = {'20230605'};
-cfg.str_no_aw_data_day = {'20230524', '20230531', '20230605'};
+cfg.str_no_md_data_day = {'20230726', '20230729'};
+cfg.str_no_pkg_data_day = {'20230605', ;'20230726'};
+cfg.str_no_aw_data_day = {'20230524', '20230531', '20230605', '20230726', ...
+    '20230729'};
 
 if strcmp(cfg.str_data_day, '3day_sprint') || contains(cfg.str_data_day, '2020')
     cfg.bool_old_recording = true;
@@ -215,6 +219,9 @@ for idx_side = 1:length(cfg.vec_str_side)
         motorDiary = getMotorDiary(pMD, dt, ...
             raw_struct_curr.time_abs.Format, raw_struct_curr.time_abs.TimeZone);
         motorDiaryInterp = interpMotorDiary(motorDiary, cfg);
+    else
+        motorDiary = NaN;
+        motorDiaryInterp = NaN;
     end
     
     if ~any(strcmp(cfg.str_no_aw_data_day, cfg.str_data_day))
