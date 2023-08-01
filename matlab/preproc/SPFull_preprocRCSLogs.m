@@ -1,4 +1,4 @@
-function output = preprocessRCSLogs(p_data, str_session, str_device_curr, cfg)
+function output = SPFull_preprocRCSLogs(p_data, str_session, str_device_curr, cfg)
 %% obtain the path and call ProcessRCS
 
 p_path_in  = fullfile(p_data, str_session, str_device_curr);
@@ -100,6 +100,7 @@ startDT = sprintf("%d/%d/%d 00:00:01 AM", output.metaData.sessionMonth, ...
 endDT = sprintf("%d/%d/%d 11:59:59 PM", output.metaData.sessionMonth, ...
     output.metaData.sessionDay, output.metaData.sessionYear);
 
+
 %% extract new state and time
 
 % loop through all entries and try to find current
@@ -129,7 +130,11 @@ for i = 1:length(logTable.LogEntry_Header)
     temp = contains('AdaptiveTherapyModificationEntry.NewState',logTable.LogEntry_Header(i));
     if temp == 1
         % get time of current entry
-        currTime = logTable.Var3(i - 5);
+        if boolVar3Cell
+            currTime = logTable.Var3{i - 5};
+        else
+            currTime = logTable.Var3(i - 5);
+        end
 
         % correct for lag in INS if defined for current subject
         if lag ~= 0
@@ -141,7 +146,6 @@ for i = 1:length(logTable.LogEntry_Header)
             % append the indices
             newStateLogInd = [newStateLogInd, i];
             count = count + 1;
-
     
             % append the new state
             if boolVar2Cell
@@ -160,12 +164,7 @@ for i = 1:length(logTable.LogEntry_Header)
             vecOldState = [vecOldState; oldState];
     
             % append the time
-            if boolVar3Cell
-                newTime = logTable.Var3{i - 5};
-            else
-                newTime = logTable.Var3(i - 5);
-            end
-            vecNewTime = [vecNewTime; newTime];
+            vecNewTime = [vecNewTime; currTime];
 
             % append the amplitude
             if boolVar2Cell
@@ -190,11 +189,21 @@ ampVector = zeros(length(timeVector),1);
 for i = 2:length(vecNewState)
     % form the state vector
     ind = timeVector >= vecNewTime(i) & timeVector < vecNewTime(i - 1);
-    stateVector(ind) = vecNewState(i);
-    assert(vecOldState(i - 1) == vecNewState(i), 'Old state new state mismatch')
-
-    % form the amplitude vector
-    ampVector(ind) = vecNewAmp(i - 1);
+    
+    % if not multiple separate recordings in a day
+    if vecOldState(i - 1) ~= 15
+        stateVector(ind) = vecNewState(i);
+        assert(vecOldState(i - 1) == vecNewState(i), 'Old state new state mismatch')
+    
+        % form the amplitude vector
+        ampVector(ind) = vecNewAmp(i - 1);
+    
+     % otherwise fill with nans
+    else
+        timeVector(ind) = NaT;
+        stateVector(ind) = NaN;
+        ampVector(ind) = NaN;
+    end
 end
 timeVector.TimeZone = output.metaData.timeZone;
 

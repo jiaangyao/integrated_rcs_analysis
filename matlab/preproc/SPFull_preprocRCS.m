@@ -46,7 +46,7 @@ output.rawData = SP_preprocTD(timeDomainData, output.metaData, ...
 
 %% Preprocess power data
 
-output = SP_preprocPB(PowerData, output);
+output = SP_preprocPB(PowerData, output, cfg);
 
 
 %% finally obtain the LD information
