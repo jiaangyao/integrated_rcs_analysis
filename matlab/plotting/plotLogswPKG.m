@@ -113,6 +113,7 @@ ax.FontSize = tickFontSize;
 
 % add label
 ylabel("State Value", 'FontSize', labelFontSize);
+xlimState = [time(1), time(end)];
 ylim(ylimState);
 
 % add title
@@ -131,7 +132,7 @@ end
 title(sprintf("%s %s States: %s, %s, %s, %s, %s, %s", strSide, strLD, ...
     strcat(strCh,' | ', strPB), ...
     strThresh, sprintf('UR %.1fs', adaptiveMetaData.updateRate), ...
-    sprintf('O/T DUR %d/%d', adaptiveMetaData.onsetDuration, adaptiveMetaData.terminationDuration), ...
+    sprintf('O/T DUR %ds/%ds', adaptiveMetaData.onsetDuration, adaptiveMetaData.terminationDuration), ...
     sprintf('Shift %d', adaptiveMetaData.idxShift), strActive), ...
     'FontSize', titleFontSize)
 
@@ -231,6 +232,10 @@ if ~any(strcmp(cfg.str_no_pkg_data_day, cfg.str_data_day))
     ylabel("Dysk score (a.u.)", 'FontSize', labelFontSize)
     ylim(ylimPKGDysk)
 
+    % change the x limit also
+    xlim(xlimState);
+
+    % add title
     title("PKG data", 'FontSize', titleFontSize)
     lgdCurr = legend('boxoff');
     lgdCurr.FontSize = legendFontSize;
@@ -243,6 +248,6 @@ linkaxes([vecAxes{:}], 'x');
 datetick('x','HH:MM');
 
 % save the output figure
-fFigure = sprintf('%s_%s_%s_Fluc_%s_%s', cfg.str_sub, ...
+fFigure = sprintf('%s_%s_%s_StateFluc_%s_%s', cfg.str_sub, ...
     cfg.str_aDBS_paradigm(1:5), strLD, cfg.str_data_day, ...
     cfg.vec_str_side{1}(1));

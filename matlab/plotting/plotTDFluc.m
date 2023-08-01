@@ -9,8 +9,6 @@ function [figTD_LD, fFigure, outputStruct] = ...
 % LDData - single channel data
 
 %% Input parsing
-% adding custom input flag so can implement new path searching without
-% modifying existing scripts - JY 07/18/2022
 
 % Handle the optional inputs
 p = inputParser;
@@ -24,6 +22,9 @@ addParameter(p, 'origAlpha', 0.3, ...
     @(x) validateattributes(x, {'double'}, {'nonempty'}));
 addParameter(p, 'smoothAlpha', 1, ...
     @(x) validateattributes(x, {'double'}, {'nonempty'}));
+
+addParameter(p, 'LD1time', nan);
+addParameter(p, 'LD1data', nan);
 
 % color arguments
 addParameter(p, 'color', [0, 0.4470, 0.7410], ...
@@ -46,7 +47,7 @@ addParameter(p, 'ylimAWProb', [-0.2, 1.2], ...
     @(x) validateattributes(x, {'double'}, {'nonempty'}));
 addParameter(p, 'ylimPKGBrady', [-5, 155], ...
     @(x) validateattributes(x, {'double'}, {'nonempty'}));
-addParameter(p, 'ylimPKGDysk', [-1.1, 3.1], ...
+addParameter(p, 'ylimPKGDysk', [-5, 150], ...
     @(x) validateattributes(x, {'double'}, {'nonempty'}));
 addParameter(p, 'ylimMDRange', [-0.5, 3.5], ...
     @(x) validateattributes(x, {'double'}, {'nonempty'}));
@@ -73,6 +74,9 @@ boolPlotSmooth = p.Results.boolPlotSmooth;
 lenSmoothSec = p.Results.lenSmoothSec;
 origAlpha = p.Results.origAlpha;
 smoothAlpha = p.Results.smoothAlpha;
+
+LD1time = p.Results.LD1time;
+LD1data = p.Results.LD1data;
 
 color = p.Results.color;
 smoothColor = p.Results.smoothColor;
@@ -128,15 +132,43 @@ if strcmp(cfg.str_sub, 'RCS02')
 
 elseif strcmp(cfg.str_sub, 'RCS14')
     ylimAWProb = [-1, 6];
-    strMDBradyLabel = 'MD Trem Intensity';
-    strMDDyskLabel = 'MD Dysk Intensity';
+    strMDBradyLabel = 'MD Brady Intensity';
+    strMDDyskLabel = 'MD Trem Intensity';
     strAWDispLabel = 'AW Acceleration';
+    strMDJawTremorLabel = 'MD Jaw Tremor Intsy';
 
-    strMDBrady = 'RHandTremor';
-    strMDBradyTbsome = 'RHandTremorTbsome';
+    strMDBrady = 'RHandSlowness';
+    strMDBradyTbsome = 'RHandSlownessTbsome';
     
-    strMDDysk = 'Dyskinesia';
-    strMDDyskTbsome = 'DyskinesiaTbsome';
+    strMDDysk = 'RHandTremor';
+    strMDDyskTbsome = 'RHandTremorTbsome';
+
+    strMDJawTremor = 'JawTremor';
+
+    ylimPKGDysk = [-5, 40];
+
+elseif strcmp(cfg.str_sub, 'RCS17')
+    strMDBradyLabel = 'MD Brady Intensity';
+    strMDDyskLabel = 'MD Dysk Intensity';
+    strAWDispLabel = 'AW Dysk Prob';
+
+    if strcmp(strSide, 'Left')
+        strMDBrady = 'RBodyBrady';
+        strMDBradyTbsome = 'RBodyBradyTbsome';
+        
+        strMDDysk = 'RBodyDysk';
+        strMDDyskTbsome = 'RBodyDyskTbsome';
+        
+    elseif strcmp(strSide, 'Right')
+        strMDBrady = 'LBodyBrady';
+        strMDBradyTbsome = 'LBodyBradyTbsome';
+
+        strMDDysk = 'LBodyDysk';
+        strMDDyskTbsome = 'LBodyDyskTbsome';
+    else
+        error('Unknown side');
+    end
+
 else
     error('Unknown subject')
 end
@@ -157,16 +189,19 @@ tickFontSize = 13;
 % determine if AW and PKG data are valid
 boolAWValid = ~any(strcmp(cfg.str_no_aw_data_day, cfg.str_data_day));
 boolPKGValid = ~any(strcmp(cfg.str_no_pkg_data_day, cfg.str_data_day));
+boolMDValid = ~any(strcmp(cfg.str_no_md_data_day, cfg.str_data_day));
 
-if boolAWValid && boolPKGValid
-    subplotNum = 6; % both exists
+subplotNum = 3 + double(boolAWValid) + ...
+    double(boolPKGValid) + double(boolMDValid);
+
+if subplotNum == 6  % all three exists
     figTD_LD = figure('position', [10, 10, 2200, 1500]);
-elseif boolAWValid || boolPKGValid
-    subplotNum = 5; % one of them exists
+elseif subplotNum == 5  % just two exists
     figTD_LD = figure('position', [10, 10, 2200, 1500]);
+elseif subplotNum == 4
+    figTD_LD = figure('position', [10, 10, 2200, 1400]);
 else
-    subplotNum = 4;
-    figTD_LD = figure('position', [10, 10, 2200, 1500]);
+    figTD_LD = figure('position', [10, 10, 2200, 1200]);
 end
 
 idxCurrSubplot = 1;
@@ -206,27 +241,61 @@ idxCurrSubplot = 1;
 
 vecAxes{idxCurrSubplot} = subplot(subplotNum, 1, idxCurrSubplot); hold on;
 
-if ~boolPlotSmooth
-    % no smoothing is performed
-    plot(timeLD, LDData, 'Color', color, 'HandleVisibility','off');
+if isnan(LD1data)
+    if ~boolPlotSmooth
+        % no smoothing is performed
+        plot(timeLD, LDData, 'Color', color, 'HandleVisibility','off');
+    else
+        % plot the original data
+        plot(timeLD, LDData, 'Color', [color, origAlpha], ...
+            'HandleVisibility','off');
+        
+        % plot the smoothed data
+        if numel(LDData) > 1
+            % now compute the moving average
+            fsLDCurr = seconds(mode(diff(timeLD)));
+            LDDataSmooth = movmean(LDData, round(1/fsLDCurr * lenSmoothSec));
+            plot(timeLD, LDDataSmooth, 'Color', [smoothColor, smoothAlpha], ...
+                'LineWidth', 0.5, 'HandleVisibility','off')
+        end
+    end
+    
+    xlimLD = [timeLD(1), timeLD(end)];
+    ylim(ylimLD);
 else
     % plot the original data
-    plot(timeLD, LDData, 'Color', [color, origAlpha], ...
-        'HandleVisibility','off');
+    yyaxis left;
+%     plot(timeLD, LDData, 'Color', [color, origAlpha], ...
+%         'HandleVisibility','off');
     
     % plot the smoothed data
     if numel(LDData) > 1
         % now compute the moving average
         fsLDCurr = seconds(mode(diff(timeLD)));
         LDDataSmooth = movmean(LDData, round(1/fsLDCurr * lenSmoothSec));
-        plot(timeLD, LDDataSmooth, 'Color', [smoothColor, smoothAlpha], ...
+        plot(timeLD, LDDataSmooth, 'Color', [color, smoothAlpha], ...
             'LineWidth', 0.5, 'HandleVisibility','off')
     end
+    ylim(ylimLD);
+
+    % also plot the LD1 data
+    yyaxis right;
+%     plot(LD1time, LD1data, 'Color', [0.3010, 0.7450, 0.9330, origAlpha], ...
+%         'HandleVisibility','off');
+
+    LD1DataSmooth = movmean(LD1data, round(1/fsLDCurr * lenSmoothSec));
+    plot(LD1time, LD1DataSmooth, 'Color', [0.8500, 0.3250, 0.0980, smoothAlpha], ...
+        'LineWidth', 0.5, 'HandleVisibility','off')
+    ylim([0, 40]);
+
+    xlimLD = [timeLD(1), timeLD(end)];
 end
 
 % plot times for when med was taken
-for i = 1:numel(medTime)
-    xline(medTime(i), 'k--', 'LineWidth', 2, 'HandleVisibility','off')
+if boolMDValid
+    for i = 1:numel(medTime)
+        xline(medTime(i), 'k--', 'LineWidth', 2, 'HandleVisibility','off')
+    end
 end
 
 % add current LD threshold
@@ -249,7 +318,7 @@ ax.FontSize = tickFontSize;
 
 % add label
 ylabel("LD Value (A.U.)", 'FontSize', labelFontSize);
-ylim(ylimLD);
+% ylim(ylimLD);
 
 % add title
 if ~adaptiveMetaData.boolDualThresh
@@ -267,7 +336,7 @@ end
 title(sprintf("%s %s Streamed: %s, %s, %s, %s, %s, %s", strSide, strLD, ...
     strcat(strCh,' | ', strPB), ...
     strThresh, sprintf('UR %.1fs', adaptiveMetaData.updateRate), ...
-    sprintf('O/T DUR %d/%d', adaptiveMetaData.onsetDuration, adaptiveMetaData.terminationDuration), ...
+    sprintf('O/T DUR %ds/%ds', adaptiveMetaData.onsetDuration, adaptiveMetaData.terminationDuration), ...
     sprintf('Shift %d', adaptiveMetaData.idxShift), strActive), ...
     'FontSize', titleFontSize)
 
@@ -294,8 +363,10 @@ else
 end
 
 % plot times for when med was taken
-for i = 1:numel(medTime)
-    xline(medTime(i), 'k--', 'LineWidth', 2, 'HandleVisibility','off')
+if boolMDValid
+    for i = 1:numel(medTime)
+        xline(medTime(i), 'k--', 'LineWidth', 2, 'HandleVisibility','off')
+    end
 end
 
 % change tick size
@@ -335,8 +406,10 @@ else
 end
 
 % plot times for when med was taken
-for i = 1:numel(medTime)
-    xline(medTime(i), 'k--', 'LineWidth', 2, 'HandleVisibility','off')
+if boolMDValid
+    for i = 1:numel(medTime)
+        xline(medTime(i), 'k--', 'LineWidth', 2, 'HandleVisibility','off')
+    end
 end
 
 % change tick size
@@ -414,6 +487,7 @@ if ~any(strcmp(cfg.str_no_aw_data_day, cfg.str_data_day))
     
     % add label
     ylabel("Probability", 'FontSize', labelFontSize)
+    xlim(xlimLD);
     ylim(ylimAWProb)
     
     % add title
@@ -444,14 +518,25 @@ if ~any(strcmp(cfg.str_no_pkg_data_day, cfg.str_data_day))
     
     % plot the dysk scores
     yyaxis right;
-    plot(timePKG, log10(PKGDyskData), 'LineWidth', 2, ...
+    plot(timePKG, PKGDyskData, 'LineWidth', 2, ...
         'DisplayName', 'PKG Dysk Score');
-    yline(log10(10), 'Color', [0.8500, 0.3250, 0.0980], 'LineStyle', '--', ...
+    yline(10, 'Color', [0.8500, 0.3250, 0.0980], 'LineStyle', '--', ...
         'LineWidth', 1.5, 'HandleVisibility', 'off');
     ax = gca;
     ax.FontSize = tickFontSize;
-    ylabel("Log Dysk score (a.u.)", 'FontSize', labelFontSize)
+    ylabel("Dysk score (a.u.)", 'FontSize', labelFontSize)
     ylim(ylimPKGDysk)
+    
+    xlim(xlimLD);
+%     % plot the tremor scores
+%     yyaxis right;
+%     plot(timePKG, PKGDyskData, 'LineWidth', 2, ...
+%         'DisplayName', 'PKG Trem Score');
+% 
+%     ax = gca;
+%     ax.FontSize = tickFontSize;
+%     ylabel("Trem score (a.u.)", 'FontSize', labelFontSize)
+%     ylim(ylimPKGDysk)
 
     title("PKG data", 'FontSize', titleFontSize)
     lgdCurr = legend('boxoff');
@@ -461,71 +546,79 @@ end
 
 %% now plot the motor diary dysk
 
-vecAxes{idxCurrSubplot} = subplot(subplotNum, 1, idxCurrSubplot); hold on;
 
-% plot the brady and dysk intensities
-plot(motorDiaryInterp.time, motorDiaryInterp.(strMDDysk), ...
-    "DisplayName", strMDDyskLabel, 'LineWidth', 2);
-plot(motorDiaryInterp.time, motorDiaryInterp.(strMDBrady), ...
-    "DisplayName", strMDBradyLabel, 'LineWidth', 2);
-
-% plot times for when med was taken
-for i = 1:numel(medTime)
-    xline(medTime(i), 'k--', 'LineWidth', 2, 'HandleVisibility','off')
-end
-
-% change tick size
-ax = gca;   
-ax.FontSize = tickFontSize;
-
-% add label
-ylabel('MD Intensity', 'FontSize', labelFontSize)
-ylim(ylimMDRange)
-
-% plot the dyskinesia labels
-for i = 1:numel(vecDyskOnset)
-    if i == 1
-        xline(vecDyskOnset(i), 'r', 'LineWidth', 2, ...
-            'DisplayName','Self-reported Dysk Start')
-    else
-        xline(vecDyskOnset(i), 'r', 'LineWidth', 2, ...
-            'HandleVisibility','off')
+if ~any(strcmp(cfg.str_no_md_data_day, cfg.str_data_day))
+    vecAxes{idxCurrSubplot} = subplot(subplotNum, 1, idxCurrSubplot); hold on;
+    
+    % plot the brady and dysk intensities
+    plot(motorDiaryInterp.time, motorDiaryInterp.(strMDBrady), ...
+        "DisplayName", strMDBradyLabel, 'LineWidth', 2);
+    plot(motorDiaryInterp.time, motorDiaryInterp.(strMDDysk), ...
+        "DisplayName", strMDDyskLabel, 'LineWidth', 2);
+    
+    if strcmp(cfg.str_sub, 'RCS14')
+        plot(motorDiaryInterp.time, motorDiaryInterp.(strMDJawTremor), ...
+            "DisplayName", strMDJawTremorLabel, 'LineWidth', 2);
     end
-end
-
-for i = 1:numel(vecDyskOffset)
-    if i == 1
-        xline(vecDyskOffset(i), 'r--', 'LineWidth', 2, ...
-            'DisplayName','Self-reported Dysk End')
-    else
-        xline(vecDyskOffset(i), 'r--', 'LineWidth', 2, ...
-            'HandleVisibility','off')
+    
+    % plot times for when med was taken
+    for i = 1:numel(medTime)
+        xline(medTime(i), 'k--', 'LineWidth', 2, 'HandleVisibility','off')
     end
+    
+    % change tick size
+    ax = gca;   
+    ax.FontSize = tickFontSize;
+    
+    % add label
+    ylabel('MD Intensity', 'FontSize', labelFontSize)
+    xlim(xlimLD);
+    ylim(ylimMDRange)
+    
+    % plot the dyskinesia labels
+    for i = 1:numel(vecDyskOnset)
+        if i == 1
+            xline(vecDyskOnset(i), 'r', 'LineWidth', 2, ...
+                'DisplayName','Self-reported Dysk Start')
+        else
+            xline(vecDyskOnset(i), 'r', 'LineWidth', 2, ...
+                'HandleVisibility','off')
+        end
+    end
+    
+    for i = 1:numel(vecDyskOffset)
+        if i == 1
+            xline(vecDyskOffset(i), 'r--', 'LineWidth', 2, ...
+                'DisplayName','Self-reported Dysk End')
+        else
+            xline(vecDyskOffset(i), 'r--', 'LineWidth', 2, ...
+                'HandleVisibility','off')
+        end
+    end
+    
+    % change the range of the plot
+    ylimRangeCurr = ylimMDRange;
+    
+    % now fill in the motor diary ON/OFF times
+    % now fill in all the on time
+    idxON = (motorDiary.ON == 1);
+    onRedacted = motorDiary(idxON, :);
+    fillMDRedacted(onRedacted, ylimRangeCurr, 'g', 'ON Period', ...
+        TIME_RES_MD_IN_MINUTES)
+    
+    % now fill in all the off time
+    idxOFF = (motorDiary.OFF == 1);
+    offRedacted = motorDiary(idxOFF, :);
+    fillMDRedacted(offRedacted, ylimRangeCurr, 'r', 'OFF Period', ...
+        TIME_RES_MD_IN_MINUTES)
+    
+    % add title
+    title('Motor Diary Data', 'FontSize', titleFontSize)
+    
+    % add legend
+    lgdCurr = legend('boxoff');
+    lgdCurr.FontSize = legendFontSize;
 end
-
-% change the range of the plot
-ylimRangeCurr = ylimMDRange;
-
-% now fill in the motor diary ON/OFF times
-% now fill in all the on time
-idxON = (motorDiary.ON == 1);
-onRedacted = motorDiary(idxON, :);
-fillMDRedacted(onRedacted, ylimRangeCurr, 'g', 'ON Period', ...
-    TIME_RES_MD_IN_MINUTES)
-
-% now fill in all the off time
-idxOFF = (motorDiary.OFF == 1);
-offRedacted = motorDiary(idxOFF, :);
-fillMDRedacted(offRedacted, ylimRangeCurr, 'r', 'OFF Period', ...
-    TIME_RES_MD_IN_MINUTES)
-
-% add title
-title('Motor Diary Data', 'FontSize', titleFontSize)
-
-% add legend
-lgdCurr = legend('boxoff');
-lgdCurr.FontSize = legendFontSize;
-
 
 %% saving output figure
 
