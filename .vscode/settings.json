@@ -7,5 +7,9 @@
         "activityBar.background": "#250658",
         "titleBar.activeBackground": "#291764",
         "titleBar.activeForeground": "#FEFBFC"
+    },
+    "vscode-journal-view.expanded": true,
+    "terminal.integrated.env.linux": {
+        "PYTHONPATH": "${workspaceFolder}"
     }
 }

@@ -1,6 +1,6 @@
 import polars as pl
 import pandas as pd
-import List
+from typing import List
 
 
 def epoch_df_by_timesegment(
@@ -20,8 +20,8 @@ def epoch_df_by_timesegment(
 
     Parameters:
     - df (polars.DataFrame): The DataFrame to be epoched.
-    - interval (str): The time interval between the start of each time segment. Default is '1s'.
-    - period (str): The length of each time segment. Default is '2s'.
+    - interval (str): The time interval between the start of each time segment in seconds. Default is '1s'.
+    - period (str): The length of each time segment in seconds. Default is '2s'.
     - sample_rate (int): The sampling rate of the data. Used to calculate the number of samples in each time segment. Default is 500.
     - align_with_PB_outputs (bool): If True, the time segments will be aligned with the Power Band outputs. Default is False.
     - td_columns (List[str]): A list of raw time domain columns to include in the resulting DataFrame. Default is ['TD_BG', 'TD_key2', 'TD_key3'].
@@ -66,18 +66,21 @@ def epoch_df_by_timesegment(
         ).select(pl.all().shrink_dtype()).rechunk()
         
     else:
+        epoch_length = int(period[:-1]) * sample_rate
         df_epoched = df.sort(sort_by_col).groupby_dynamic(sort_by_col, every=interval, period=period, by=groupby_cols).agg(
             [pl.col(td_col) for td_col in td_columns]
             + [pl.col(td_columns[0]).count().alias('TD_count')]
-            + [pl.col(col) for col in vector_cols]
+            + [pl.col(col).suffix('_vec') for col in vector_cols]
             + [pl.col(col).drop_nulls().first() for col in scalar_cols]
             ).select(pl.all().shrink_dtype())
 
         df_epoched = df_epoched.with_columns(
             pl.col(td_columns[0]).list.eval(pl.element().is_null().any()).alias('TD_null')
             # Remove rows where the TD data is null, or where the TD data is not the correct length
-            ).filter((pl.col('TD_count') == int(period[:-1]) * sample_rate ) &
+            ).filter((pl.col('TD_count') == epoch_length ) &
                     (pl.col('TD_null').list.contains(False))
-            )
+            ).with_columns([
+                pl.col(col).cast(pl.Array(width=epoch_length, inner=pl.Float64)) for col in td_columns
+            ]).select(pl.all().exclude(['TD_count', 'TD_null']))
 
     return df_epoched
