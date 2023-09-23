@@ -19,6 +19,7 @@ def get_device_as_pl_df(device, db_con, lazy=False, time_zone='America/Los_Angel
             pl.col('^Session.*$').cast(pl.Categorical)
         ).sort('localTime').select(pl.all().shrink_dtype())
 
+
 def get_device_as_pd_df(device, db_con):
     """
     Accesses duckdb database and returns columns of interest, labeled reasonably with session identifiers cast as categoricals.

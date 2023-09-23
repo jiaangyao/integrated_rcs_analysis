@@ -1,0 +1,66 @@
+# Main config. Holds parameters on PB identification pipeline.
+project: pipeline_debug
+device: 02L
+run_title: debug1
+run_name: tmp
+BASE_PATH: /media/shortterm_ssd/Clay/debugging
+SUBBASE_PATH: ${BASE_PATH}/${project}/${run_title}
+run_dir: ${SUBBASE_PATH}/${now:%Y-%m-%d}_${now:%H-%M-%S}
+log_file: ${run_dir}/${run_name}.log
+
+wandb:
+  project: pipeline_debug
+  entity: cnsmyth
+  tags: [debug]
+
+
+time_domain_parameters:
+  TD_Columns:
+  - TD_BG
+  - TD_key2
+  - TD_key3
+
+preprocessing_steps:
+  # Just an example...
+  epoch_df_by_timesegment:
+    td_columns:
+      - TD_key2
+      - TD_key3
+
+feature_engineering_steps:
+  # Just an example...
+  custom_feature_extractor:
+    arg_1: 1
+
+feature_selection:
+  # Just an example...
+  Boruta:
+    arg_1: 1
+
+# Leave empty if no remapping is desired
+label_remapping:
+  1: 0
+  2: 1
+  3: 1
+  4: 0
+  5: 0
+  6: 0
+
+model: LightXGBoostModel
+
+defaults:
+  - _self_
+  - data_source: database
+
+hydra:
+  run:
+    dir: ${run_dir}
+  sweep:
+    dir: ${SUBBASE_PATH}/multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${hydra.job.num}
+  runtime:
+    output_dir: ${run_dir}
+  job:
+    # TODO: Figure out what to call specifics runs, and how this affects logging
+    name: ${run_name}
+  output_subdir: configs
