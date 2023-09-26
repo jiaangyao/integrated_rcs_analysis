@@ -13,29 +13,34 @@ wandb:
   entity: cnsmyth
   tags: [debug]
 
+model: LightXGBoostModel
 
-time_domain_parameters:
-  TD_Columns:
-  - TD_BG
-  - TD_key2
-  - TD_key3
+hyperparam_args:
+  run_search: True
+  hyperparam_search_method: wandb
 
+defaults:
+  - _self_
+  - data_source: database
+  # TODO: Somehow parameterize sweep_config with model
+  - sweep_config: LightXGBoostModel
+
+# Preprocessing steps are applied to polars.Dataframe before feature engineering steps.
 preprocessing_steps:
   # Just an example...
   epoch_df_by_timesegment:
     td_columns:
       - TD_key2
-      - TD_key3
+    scalar_cols: 
+      - SleepStage
 
-feature_engineering_steps:
-  # Just an example...
-  custom_feature_extractor:
-    arg_1: 1
+# Columns to extract from the polars.Dataframe to numpy.ndarray. 
+# The resulting array will be pipelined through the feature engineering steps.
+feature_columns:
+  - TD_key2
 
-feature_selection:
-  # Just an example...
-  Boruta:
-    arg_1: 1
+label_column: SleepStage
+group_column: 
 
 # Leave empty if no remapping is desired
 label_remapping:
@@ -46,11 +51,50 @@ label_remapping:
   5: 0
   6: 0
 
-model: LightXGBoostModel
+# If the feature columns are TD sensor channels, then the following allows for handling the channels individually
+channel_options:
+  # If stack channels is True, then the feature columns will be stacked into an n x m x f array, where n is the number of rows, m is the number of channel columns, and f is the number of elements per channel column row.
+  # Stacking channels is useful for feature engineering steps that operate on individual channels, e.g. FFT
+  # If stack channels is False, then the feature columns will be concatenated n x (m*f), i.e. the features in each row will be concatenated, across columns, into a single feature vector.
+  stack_channels: False
+  # pipe_by_channel applies the feature engineering steps to each channel individually, rather than to the entire feature vector.
+  pipe_by_channel: False
+  # If concat_channel_features is True, then channels will be concatenated into a single feature vector after feature engineering steps are applied.
+  concat_channel_features: False
 
-defaults:
-  - _self_
-  - data_source: database
+feature_engineering_steps:
+  # Can include just the function call, or the full path to the function, e.g.: scipy.stats.zscore or zscore | numpy.sum or sum (note that np.sum will not work because of custom import name)
+  # broadcast_feature_extraction_on_matrix:
+  #   sampling_frequency: 500
+  #   window_size: 1000
+  #   noverlap: 500
+  numpy.mean:
+    axis: -1
+  numpy.expand_dims:
+    axis: 1
+  zscore:
+    axis: 0
+
+feature_selection:
+  # Just an example...
+  Boruta:
+    arg_1: 1
+
+model_kwargs: 
+
+model_validation:
+  scoring:
+    - accuracy
+    - roc_auc
+    - f1
+    - precision
+    - recall
+  method:
+    StratifiedKFold:
+      n_splits: 5
+      shuffle: True
+      random_state: 42
+  # LeaveOneGroupOut
 
 hydra:
   run:

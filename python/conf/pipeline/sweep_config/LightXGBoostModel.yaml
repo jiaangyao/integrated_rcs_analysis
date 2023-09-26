@@ -1,0 +1,17 @@
+method: grid
+metric:
+    name: roc_auc_mean
+    goal: maximize
+parameters:
+    max_depth:
+        values:
+            - 4
+            - 6
+    num_leaves:
+        values:
+            - 15
+            - 23
+    n_estimators:
+        values:
+            - 100
+            - 200

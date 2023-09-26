@@ -4,6 +4,9 @@ import importlib
 import duckdb
 import polars as pl
 from sklearn.base import BaseEstimator, TransformerMixin
+import inspect
+import types
+import pkgutil
 
 def load_data(data_params):
     """
@@ -11,26 +14,55 @@ def load_data(data_params):
     """
     if data_params['source'] == 'database':
         con = duckdb.connect(data_params['database_path'], read_only=True)
-        return con.sql(data_params['query']).pl()
+        df = con.sql(data_params['query']).pl()
+        con.close()
+        return df
     else:
         return pl.read_parquet(data_params['data_path'])
-        
-        
-def convert_string_to_callable(objs: list[object], func: str) -> callable:
+
+
+def get_callable_function(func_name):
     """
-    TODO: Move to a utils file
+    Get a callable function handle from a string like 'module.function'.
+    
+    Parameters:
+    func_name (str): The name of the function to get.
+    
+    Returns:
+    callable: A callable function handle for the input function name, or None if the function cannot be found.
+    """
+    try:
+        module_name, func_name = func_name.rsplit(".", 1)
+        module = importlib.import_module(module_name)
+        func = getattr(module, func_name)
+        if callable(func):
+            return func
+    except (ValueError, AttributeError, ModuleNotFoundError):
+        pass
+    return None
+
+        
+def convert_string_to_callable(libs: list[object], func: str) -> callable:
+    """
     Converts a string to a callable function.
     
     Args:
+        libs (list[object]): A list of objects (i.e. imported libraries) to search for the callable function.
         func (callable): A callable function.
     
     Returns:
         callable: A callable function.
     """
     if isinstance(func, str):
-        for obj in objs:
-            if hasattr(obj, func):
-                return getattr(obj, func)
+        # First check if the func string is the entire module path
+        attempt_1 = get_callable_function(func)
+        if attempt_1 is not None:
+            return attempt_1
+        else:
+        # Next, check if the func string is just the function name, and search the libs for the function
+            for obj in libs:
+                if hasattr(obj, func):
+                    return getattr(obj, func)
     else:
         return func
 
@@ -80,17 +112,47 @@ def create_instance_from_module(module_name, class_name, *args, **kwargs):
     for _, cls in module.__dict__.items():
         if isinstance(cls, type) and cls.__name__ == class_name:
             return cls(*args, **kwargs)
-    for submodule_name in module.__all__:
-        submodule = importlib.import_module(f"{module_name}.{submodule_name}")
-        try:
-            instance = create_instance_from_module(submodule.__name__, class_name, *args, **kwargs)
-            return instance
-        except ValueError:
-            continue
+    for name in dir(module):
+        submodule = getattr(module, name)
+        if isinstance(submodule, types.ModuleType):
+            try:
+                instance = create_instance_from_module(submodule.__name__, class_name, *args, **kwargs)
+                return instance
+            except ValueError:
+                continue
     raise ValueError(f"Class {class_name} not found in module {module_name}")
 
 
-def FunctionTransformer(func):
+def find_and_load_class(module_name, class_name, args, kwargs={}):
+    # Import the module.
+    try:
+        module = importlib.import_module(module_name)
+    except ModuleNotFoundError:
+        # If module is not found, just return None
+        return None
+
+    # Check if the class is in the current module.
+    cls = getattr(module, class_name, None)
+    # Return an instance of the class.
+    if cls:
+        if kwargs and args:
+            return cls(*args, **kwargs)
+        elif args:
+            return cls(*args)
+        else:
+            return cls()
+
+    # If the module has submodules, search them recursively.
+    if hasattr(module, '__path__'):
+        for _, modname, ispkg in pkgutil.iter_modules(module.__path__):
+            # Recursively call the function for each submodule.
+            instance = find_and_load_class(f"{module_name}.{modname}", class_name, args, kwargs)
+            if instance:
+                return instance  # Return the instance if found.
+
+
+
+def create_transformer(func, **kwargs):
     """
     Create a scikit-learn compatible transformer from an arbitrary function.
     
@@ -101,16 +163,17 @@ def FunctionTransformer(func):
     transformer (TransformerMixin): A scikit-learn compatible transformer object.
     """
     class Transformer(BaseEstimator, TransformerMixin):
-        def __init__(self, func):
+        def __init__(self, func, **kwargs):
             self.func = func
+            self.kwargs = kwargs
         
         def fit(self, X, y=None):
             return self
         
         def transform(self, X):
-            return self.func(X)
+            return self.func(X, **self.kwargs)
     
-    transformer = Transformer(func)
+    transformer = Transformer(func, **kwargs)
     return transformer
 
 
@@ -125,13 +188,28 @@ def create_transform_pipeline(steps):
     pipe (Pipeline): A scikit-learn Pipeline object that pipes together the dictionary entries.
     """
     pipe_steps = []
-    for name, (func, args) in steps.items():
+    pipe_step_paths = []
+    for name, (func, kwargs) in steps.items():
+        
+        # Retrieve the module path of the function for logging
+        module_name = inspect.getmodule(func).__name__.rsplit(".", 1)[0]
+        if module_name in name:
+            pipe_step_paths.append((name, kwargs))
+        else:
+            pipe_step_paths.append((module_name + f".{name}", kwargs))
+        
         # Check to see if the function is a TransformerMixin object, 
         # so that it may be incorporated into the Sklearn.Pipeline
         if not isinstance(func, TransformerMixin):
-            func = FunctionTransformer(func)
+            transformer_func = create_transformer(func, **kwargs)
             
-        pipe_steps.append((name, func(**args)))
+        pipe_steps.append((name, transformer_func))
         
     pipe = Pipeline(pipe_steps)
-    return pipe
+    return pipe, pipe_step_paths
+
+def set_up_cross_validation(config_dict, libs):
+    cross_val_type = list(config_dict.keys())[0]
+    kwargs = list(config_dict.values())[0]
+    func = convert_string_to_callable(libs, cross_val_type)
+    return func(**kwargs)

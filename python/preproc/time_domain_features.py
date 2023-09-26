@@ -9,14 +9,16 @@ def single_variate_feature_extraction(vec: np.ndarray, sampling_frequency: int, 
                                     band_ranges={'Delta': [0.5, 4], 'Theta': [4,8], 'Alpha': [8, 12], 'Beta': [12, 30], 'Gamma': [30, 100]},
                                     additional_features: dict = {}):
     """Extracts custom features from a vector of time series data.
-
+    
+    TODO: Extend to accept multiple timeseries in matrix format. Currently only works on a vector of data.
+    
     Args:
         vec (np.array): Vector of time series data
         sampling_frequency (int): Sampling frequency of the time series data
         window_size (int): Window size to use for PSD calculation
         noverlap (int): Number of samples to overlap between windows
         band_ranges (dict): Dictionary of powerband ranges (in Hz) to use for powerband feature calculations
-        additional_features (dict, optional): Additional features to extract. Defaults to {}. Should be dict of {feature_name: feature_function}
+        additional_features (dict, optional): Additional features to extract. Defaults to {}. Should be dict of {feature_name (str): feature_function (callable))}
 
     Returns:
         np.array: Vector of extracted features
@@ -78,3 +80,12 @@ def get_single_variate_feature_names(additional_features: dict = {}):
             [f'{pb_combo[0]}/{pb_combo[1]}' for pb_combo in itertools.combinations(band_ranges.keys(), 2)] + \
             ['spectral_slope', 'spectral_entropy', 'spectral_centroid'] + \
             list(additional_features.keys())
+
+
+def broadcast_feature_extraction_on_matrix(X: np.ndarray, sampling_frequency: int, window_size: int, noverlap: int, 
+                                            band_ranges={'Delta': [0.5, 4], 'Theta': [4,8], 'Alpha': [8, 12], 'Beta': [12, 30], 'Gamma': [30, 100]},
+                                            additional_features: dict = {}):
+    """Extracts custom features from a matrix of time series data. Each row should be an array of time series observations"""
+    feat_extract = np.vectorize(single_variate_feature_extraction, signature='(n),(),(),(),(),()->(m)')
+    features = feat_extract(X, sampling_frequency, window_size, noverlap, band_ranges=band_ranges, additional_features=additional_features)
+    return features

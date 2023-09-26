@@ -44,7 +44,7 @@ def epoch_df_by_timesegment(
     align_with_PB_outputs: bool = False,
     td_columns: List[str] = ['TD_BG', 'TD_key2', 'TD_key3'],
     sort_by_col='localTime',
-    groupby_cols: List[str] = ['SessionIdentity'],
+    group_by_cols: List[str] = ['SessionIdentity'],
     scalar_cols: List[str] = [],
     vector_cols: List[str] = []
 ) -> pl.DataFrame:
@@ -59,9 +59,10 @@ def epoch_df_by_timesegment(
     - align_with_PB_outputs (bool): If True, the time segments will be aligned with the Power Band outputs. Default is False.
     - td_columns (List[str]): A list of raw time domain columns to include in the resulting DataFrame. Default is ['TD_BG', 'TD_key2', 'TD_key3'].
     - sort_by_cols (str): Column by which windowing is performed. Default is 'localTime'. Needs to be a datetime column.
-    - groupby_cols (List[str]): A list of columns to group by. Default is ['SessionIdentity'].
-    - scalar_cols (List[str]): A list of columns to include in the resulting DataFrame, where a single scalar value is extracted after epoching. Default is [].
+    - group_by_cols (List[str]): A list of columns to group by. Default is ['SessionIdentity'].
+    - scalar_cols (List[str]): A list of columns to include in the resulting DataFrame, where a single scalar value, the last value in the aggregation, is extracted after epoching. Default is [].
     - vector_cols (List[str]): A list of columns to include in the resulting DataFrame, where the aggregation creates a vector for the column values within each epoched window. Default is [].
+    # TODO: Consider including kwarg that is a list of functions to apply to column subset, e.g. [pl.col(col).mean().alias(f'{col}_mean') for col in td_columns]
 
     Returns:
     - polars.DataFrame: A new DataFrame with the specified columns and epoched time segments.
@@ -86,7 +87,7 @@ def epoch_df_by_timesegment(
 
         # NOTE: Windows are likely not in chronological order
         df_epoched = pl.concat([
-                df_pb_count.groupby(groupby_cols+[f'PB_count_{i}']).agg(
+                df_pb_count.group_by(group_by_cols+[f'PB_count_{i}']).agg(
                 [pl.col(td_col) for td_col in td_columns]
                 + [pl.col(td_columns[0]).count().alias('TD_count')]
                 + [pl.col(col) for col in vector_cols]
@@ -100,11 +101,11 @@ def epoch_df_by_timesegment(
         
     else:
         epoch_length = int(period[:-1]) * sample_rate
-        df_epoched = df.sort(sort_by_col).groupby_dynamic(sort_by_col, every=interval, period=period, by=groupby_cols).agg(
+        df_epoched = df.sort(sort_by_col).group_by_dynamic(sort_by_col, every=interval, period=period, by=group_by_cols).agg(
             [pl.col(td_col) for td_col in td_columns]
             + [pl.col(td_col).count().suffix('_TD_count') for td_col in td_columns]
             + [pl.col(col).suffix('_vec') for col in vector_cols]
-            + [pl.col(col).drop_nulls().first() for col in scalar_cols]
+            + [pl.col(col).drop_nulls().last() for col in scalar_cols]
             ).select(pl.all().shrink_dtype())
 
         df_epoched = df_epoched.with_columns(
@@ -117,7 +118,7 @@ def epoch_df_by_timesegment(
                     (pl.all_horizontal('^.*_contains_null$'))
             ).with_columns([
                 pl.col(col).cast(pl.Array(width=epoch_length, inner=pl.Float64)) for col in td_columns
-            ]).select(pl.all().exclude('^.*TD_count')
+            ]).select(pl.all().exclude('^.*TD_count$')
             ).select(pl.all().exclude('^.*_contains_null$'))
 
     return df_epoched

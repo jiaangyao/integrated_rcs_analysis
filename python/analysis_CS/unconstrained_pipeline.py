@@ -5,6 +5,7 @@ import wandb
 from loguru import logger
 import numpy as np
 import polars as pl
+from collections import OrderedDict
 
 # Stand-in variable for custom time domain processing functions
 import preproc.time_domain_processing as tdp
@@ -20,11 +21,15 @@ import scipy.signal as scisig
 import scipy.stats as scistats
 from utils.pipeline_utils import *
 
+# Libraries for (cross) validation
+import sklearn.model_selection as skms
+
 # Libraries for hyperparameter tuning
 import optuna
 
 # Global Variables
-POTENTIAL_FEATURE_LIBRARIES = [tdp, tdf, skpp, skd, skfs, imos, imus, scisig, scistats]
+POTENTIAL_FEATURE_LIBRARIES = [np, tdp, tdf, skpp, skd, skfs, imos, imus, scisig, scistats]
+VALIDATION_LIBRARIES = [skms]
 
 
 def setup(cfg: DictConfig):
@@ -34,10 +39,6 @@ def setup(cfg: DictConfig):
     config = OmegaConf.to_container(
         cfg, resolve=True, throw_on_missing=True
     )
-    
-    # 2. Log config file to wandb, set up hydra logging, and save to disk
-    wandb.config = config
-    run = wandb.init(entity=cfg.wandb.entity, project=cfg.wandb.project, dir=config['run_dir'])
 
     logger.add(
         config['log_file'],
@@ -45,35 +46,35 @@ def setup(cfg: DictConfig):
         level="INFO",
     )
     
-    logger.info(f"Beginning pipeline...")
-    logger.info('WandB run url: {}'.format(run.url))
-    logger.info('WandB project: {}'.format(run.project))
-    logger.info('WandB entity: {}'.format(run.entity))
-    logger.info('WandB run name: {}'.format(run.name))
-    logger.info('WandB run id: {}'.format(run.id))
+    # 2. Log config file to wandb, set up hydra logging, and save to disk
+    if not config['hyperparam_args']['run_search'] and config['hyperparam_args']['run_search'] != 'Optuna':
+        wandb.config = config
+        run = wandb.init(entity=cfg.wandb.entity, project=cfg.wandb.project, dir=config['run_dir'])
+        
+        # TODO: How to log all this during hyperparameter search?
+        logger.info(f"Beginning pipeline...")
+        logger.info('Local Directory Path: {}'.format(config['run_dir']))
+        logger.info('WandB run url: {}'.format(run.url))
+        logger.info('WandB project: {}'.format(run.project))
+        logger.info('WandB entity: {}'.format(run.entity))
+        logger.info('WandB run name: {}'.format(run.name))
+        logger.info('WandB run id: {}'.format(run.id))
     
     return config, logger
 
 
 @hydra.main(version_base=None, config_path="../conf/pipeline", config_name="clay_debug")
 def main(cfg: DictConfig):
+    # Set up WandB and logging
     config, logger = setup(cfg)
     
-    # Log the overall steps chosen (dataset, preprocessing, feature extraction, feature selection, dealing with class imbalance,
-    # train / test split, model, hyperparameter sweeping)
-    
     # 3. Load data (save data versioning somewhere)
-        # 3a. Use UI to select data?
-        # Convert to polars df
-    
     logger.info(f"Loading data with data params {config['data_source']}")
     data_df = load_data(config['data_source'])
     
     
-    # 4. Preprocess data (log this somewhere too, hydra+loguru logging and/or wandb logging) (conver to numpy??)
-    # if use_polars:
-    
-    # The benefit of polars is that if you decide to aggregate over windows, then it will automatically keep labels with the data
+    # 4. Preprocess data
+    # The benefit of polars for preprocessing is labels will be preserved with arbitrary windowing operations on time series data
     preproc = config['preprocessing_steps']
     preproc_pipe = zip([convert_string_to_callable(POTENTIAL_FEATURE_LIBRARIES, func) for func in preproc.keys()], 
                     [(values) for values in preproc.values()])
@@ -81,68 +82,103 @@ def main(cfg: DictConfig):
         logger.info(f"Running preprocessing step {pipe_step[0]} with args {pipe_step[1]}")
         data_df = data_df.pipe(pipe_step[0], **pipe_step[1])
         
-    # else:
-    #     preproc = config['preprocessing_steps']
-    #     preproc_pipe = zip((convert_string_to_callable(tdp, func) for func in preproc.keys()), ((values) for values in preproc.values()))
-    #     for preproc_func, preproc_args in preproc_pipe:
-    #         X = np.preproc_func(X, **preproc_args)
-    
+    channel_options = config['channel_options']
     # Convert to numpy
-    X = data_df.select(pl.all().exclude(config['label_column'])).to_numpy()
+    if channel_options['stack_channels']:
+        logger.info(f"Stacking Channels")
+        X = np.stack([data_df.get_column(col).to_numpy() for col in config['feature_columns']], axis=1)
+    else:
+        X = np.concatenate([data_df.get_column(col).to_numpy() for col in config['feature_columns']], axis=1)
+
+    # Manage labels
     if config['label_remapping']:
         logger.info(f"Remapping labels with {config['label_remapping']}")
         data_df = data_df.with_columns(pl.col(config['label_column']).map_dict(config['label_remapping']))
-    y = data_df['label_column'].to_numpy().squeeze()
+    y = data_df.get_column(config['label_column']).to_numpy().squeeze()
     
-    # 5. Extract features (E.g. convert to spectral domain)
-    # Class imbalance stuff (e.g. smote) would go here (probably)...
+    # Extract group labels for LeaveOneGroupOut cross validation (if desired)
+    if config['group_column']:
+        logger.info(f"Using group labels for cross validation")
+        groups = data_df.get_column(config['group_column']).to_numpy().squeeze()
+        logger.info(f"Unique groups: {np.unique(groups)}")
+    else:
+        groups = None
+        
+    # 5. Develop feature engineering pipeline
+    # TODO: Class imbalance stuff (e.g. SMOTE) would go here (probably, but how to pass y into pipe)...
     feature_steps = config['feature_engineering_steps']
-    feature_steps = dict(tuple(zip[feature_steps.keys(), 
-                            tuple(zip([convert_string_to_callable(POTENTIAL_FEATURE_LIBRARIES, func) for func in feature_steps.keys()], 
+    function_calls = tuple(zip([convert_string_to_callable(POTENTIAL_FEATURE_LIBRARIES, func) for func in feature_steps.keys()], 
                             [(values) for values in feature_steps.values()]))
-                        ]))
+    feature_steps = OrderedDict(zip(feature_steps.keys(), function_calls))
     
-    feature_pipe = create_transform_pipeline(feature_steps)
-    pipe_steps = '\n'.join([f"{name}: {transformer}" for name, transformer in feature_pipe.steps])
-    logger.info(f"Transforming data into features with pipeline {pipe_steps}")
+    feature_pipe, pipe_step_names = create_transform_pipeline(feature_steps)
+    pipe_string = '\n'.join([f"{step}" for step in pipe_step_names])
+    
     # Apply feature extraction pipeline on data
-    X = feature_pipe.fit_transform(X)
+    logger.info(f"Transforming data into features with pipeline: \n {pipe_string}")
+    if channel_options['pipe_by_channel'] & channel_options['concat_channel_features']:
+        X = np.concatenate([feature_pipe.fit_transform(X[:,i] for i in range(X.shape[1]))], axis=1)
+    elif channel_options['pipe_by_channel']:
+        X = np.stack([feature_pipe.fit_transform(X[:,i] for i in range(X.shape[1]))], axis=1)
+    else:
+        X = feature_pipe.fit_transform(X)
     
-    # Select Features from Boruta, SFS, etc...
+    logger.info(f"Feature matrix shape after feature engineering: {X.shape}")
+    logger.info(f"Label vector shape: {y.shape}")
+    
+    # 5a: Select Features using Boruta, SFS, etc...
+    
     
     # Save and visualize feature distributions
     
     # Train / test split (K-fold cross validation, Stratified K-fold cross validation, Group K-fold cross validation)
-    # TODO: Incorporate this into model class so that it can be used for hyperparameter tuning (e.g. logged into WandB)
+    # Set up cross validation
+    cv = set_up_cross_validation(config['model_validation']['method'], VALIDATION_LIBRARIES)
+    
 
-    # Select model
-    # might need to use create_instance_from_module instead, neither functions are tested as they are LLM generated
-    model_class = create_instance_from_directory(config['model'], X, y) 
+    # 6. Select model
+    # might need to use create_instance_from_module instead of create_instance_from_directory
+    # TODO: What if you want to sweep across models? (e.g. XGBoost, LightGBM, CatBoost, etc...) Need to use same 'project'?
+    model_kwargs = config['model_kwargs'] if config['model_kwargs'] else {}
+    model_args = (X, y, cv, config['model_validation']['scoring'], model_kwargs)
+    model_class = find_and_load_class('model', config['model'], model_args, config['model_kwargs'])
     
     
-    # 6. Train model (log to wandb)
+    # 7. Train and evaluate model (log to wandb)
         # How to pick model? Should this be in config file? (probably)
         # 6a. Use WandB sweep to tune hyperparameters OR Use Optuna
         # WandB: `sweep_config` can be created as yaml or dict and passed to `wandb.sweep()`)
         # (Optuna integration with wandb loggin: use callback https://optuna.readthedocs.io/en/stable/reference/generated/optuna.integration.WeightsAndBiasesCallback.html
                 # https://medium.com/optuna/optuna-meets-weights-and-biases-58fc6bab893)
-    # 7. Evaluate model (log to wandb, save custom visualizations)
-    if config['hyperparam_search'] == 'wandb':
-        sweep_config = config['wandb']['sweep_config']
-        # TODO: How to pass in hyperparameters to wandb sweep via config
+    hyperparam_args = config['hyperparam_args']
+    if hyperparam_args['run_search'] and hyperparam_args['hyperparam_search_method'] == 'wandb':
+        sweep_config = config['sweep_config']
         sweep_id = wandb.sweep(sweep_config, project=config['wandb']['project'], entity=config['wandb']['entity'])
-        # TODO: Where to put train function?
-        wandb.agent(sweep_id, function=model_class.wandb_objective)
+        logger.info('Local Directory Path: {}'.format(config['run_dir']))
+        logger.info('WandB project: {}'.format(cfg.wandb.project))
+        logger.info('WandB entity: {}'.format(cfg.wandb.entity))
+        logger.info(f'WandB sweep id: {sweep_id}')
+        logger.info(f'WandB sweep url: https://wandb.ai/{cfg.wandb.entity}/{cfg.wandb.project}/sweeps/{sweep_id}')
+        logger.info(f'WandB sweep config: {sweep_config}')
+        wandb.agent(sweep_id, function=model_class.wandb_train)
         
-    elif config['hyperparam_search'] == 'Optuna':
+    elif hyperparam_args['run_search'] and hyperparam_args['hyperparam_search_method'] == 'Optuna':
         study = optuna.create_study(direction='maximize')
         # This gets complex, how to pass in model, data, cross-validation folding, etc...?
         objective = (model_class.optuna_objective(), config)
         study.optimize(objective, n_trials=100)
     
     else:
-        # Train with default parameters
-        None
+        model_class.train()
+        # TODO: Emmulate following from https://docs.wandb.ai/guides/integrations/lightgbm, especially call-back functionality
+        # from wandb.lightgbm import wandb_callback, log_summary
+        # import lightgbm as lgb
+
+        # # Log metrics to W&B
+        # gbm = lgb.train(..., callbacks=[wandb_callback()])
+
+        # # Log feature importance plot and upload model checkpoint to W&B
+        # log_summary(gbm, save_model_checkpoint=True)
         
     # 8. Save model (log to wandb)
     
