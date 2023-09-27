@@ -89,3 +89,13 @@ def broadcast_feature_extraction_on_matrix(X: np.ndarray, sampling_frequency: in
     feat_extract = np.vectorize(single_variate_feature_extraction, signature='(n),(),(),(),(),()->(m)')
     features = feat_extract(X, sampling_frequency, window_size, noverlap, band_ranges=band_ranges, additional_features=additional_features)
     return features
+
+
+def get_psd(X, freq_range=[0.5, 100], sampling_frequency=500, window_size=1024, noverlap=512, log=True):
+    """Calculate the power spectral density of a matrix of time series data. Each row should be an array of time series observations"""
+    f, pxx = signal.welch(X, fs=sampling_frequency, nperseg=window_size, noverlap=noverlap, axis=-1)
+    inds = np.where( (f >= freq_range[0]) & (f <= freq_range[1]) )[0]
+    pxx = pxx[:, inds]
+    if log:
+        pxx = np.log(pxx)
+    return pxx

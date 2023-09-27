@@ -63,7 +63,7 @@ def setup(cfg: DictConfig):
     return config, logger
 
 
-@hydra.main(version_base=None, config_path="../conf/pipeline", config_name="clay_debug")
+@hydra.main(version_base=None, config_path="../conf/pipeline", config_name="pipeline")
 def main(cfg: DictConfig):
     # Set up WandB and logging
     config, logger = setup(cfg)
@@ -132,16 +132,18 @@ def main(cfg: DictConfig):
     # Save and visualize feature distributions
     
     # Train / test split (K-fold cross validation, Stratified K-fold cross validation, Group K-fold cross validation)
-    # Set up cross validation
+    # TODO: Set up train / test split and vanilla hold-out validation
+    # Set up cross validation object
     cv = set_up_cross_validation(config['model_validation']['method'], VALIDATION_LIBRARIES)
+    if isinstance(cv, skms.LeaveOneGroupOut):
+        cv = cv.split(X, y, groups)
     
 
     # 6. Select model
-    # might need to use create_instance_from_module instead of create_instance_from_directory
-    # TODO: What if you want to sweep across models? (e.g. XGBoost, LightGBM, CatBoost, etc...) Need to use same 'project'?
+    # Note: Can use ArbitraryModel class to wrap any model and compare in pipeline with other models
     model_kwargs = config['model_kwargs'] if config['model_kwargs'] else {}
     model_args = (X, y, cv, config['model_validation']['scoring'], model_kwargs)
-    model_class = find_and_load_class('model', config['model'], model_args, config['model_kwargs'])
+    model_class = find_and_load_class('model', config['model'], model_args)
     
     
     # 7. Train and evaluate model (log to wandb)
@@ -160,7 +162,11 @@ def main(cfg: DictConfig):
         logger.info(f'WandB sweep id: {sweep_id}')
         logger.info(f'WandB sweep url: https://wandb.ai/{cfg.wandb.entity}/{cfg.wandb.project}/sweeps/{sweep_id}')
         logger.info(f'WandB sweep config: {sweep_config}')
-        wandb.agent(sweep_id, function=model_class.wandb_train)
+        model_class.set_output_dir(config['run_dir'])
+        if sweep_config['method'] == 'grid':
+            wandb.agent(sweep_id, function=model_class.wandb_train)
+        else:
+            wandb.agent(sweep_id, function=model_class.wandb_train, count=hyperparam_args['num_runs'])
         
     elif hyperparam_args['run_search'] and hyperparam_args['hyperparam_search_method'] == 'Optuna':
         study = optuna.create_study(direction='maximize')

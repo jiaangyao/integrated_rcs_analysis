@@ -1,17 +1,17 @@
 # Main config. Holds parameters on PB identification pipeline.
-project: pipeline_debug
+project: lightgbm
 device: 02L
-run_title: debug1
-run_name: tmp
-BASE_PATH: /media/shortterm_ssd/Clay/debugging
+run_title: subcortical_6_class_attempt_4_full_psd
+run_name: bayes_search_6_class_attempt_4_full_psd
+BASE_PATH: /media/shortterm_ssd/Clay/
 SUBBASE_PATH: ${BASE_PATH}/${project}/${run_title}
 run_dir: ${SUBBASE_PATH}/${now:%Y-%m-%d}_${now:%H-%M-%S}
 log_file: ${run_dir}/${run_name}.log
 
 wandb:
-  project: pipeline_debug
+  project: ${project}
   entity: cnsmyth
-  tags: [debug]
+  tags: [sleep]
 
 model: LightXGBoostModel
 
@@ -19,39 +19,44 @@ model: LightXGBoostModel
 hyperparam_args:
   run_search: True
   hyperparam_search_method: wandb
-  num_runs: 10
+  num_runs: 12
 
 defaults:
   - _self_
   - data_source: database
-  # TODO: Somehow parameterize sweep_config with model
+  # TODO: Somehow parameterize sweep_config with model (i.e. ${model})
   - sweep_config: LightXGBoostModel
 
 # Preprocessing steps are applied to polars.Dataframe before feature engineering steps.
 preprocessing_steps:
   # Just an example...
   epoch_df_by_timesegment:
+    interval: '30s'
+    period: '30s'
     td_columns:
-      - TD_key2
-    scalar_cols: 
+      - TD_BG
+    group_by_cols:
       - SleepStage
+      - SessionIdentity
+    # scalar_cols: 
+    #   - SleepStage
 
 # Columns to extract from the polars.Dataframe to numpy.ndarray. 
 # The resulting array will be pipelined through the feature engineering steps.
 feature_columns:
-  - TD_key2
+  - TD_BG
 
 label_column: SleepStage
 group_column: 
 
 # Leave empty if no remapping is desired
 label_remapping:
-  1: 0
-  2: 1
-  3: 1
-  4: 0
-  5: 0
-  6: 0
+  # 1: 0
+  # 2: 1
+  # 3: 1
+  # 4: 0
+  # 5: 0
+  # 6: 0
 
 # If the feature columns are TD sensor channels, then the following allows for handling the channels individually
 channel_options:
@@ -70,10 +75,12 @@ feature_engineering_steps:
   #   sampling_frequency: 500
   #   window_size: 1000
   #   noverlap: 500
-  numpy.mean:
-    axis: -1
-  numpy.expand_dims:
-    axis: 1
+  get_psd:
+    freq_range: [-1, 251]
+    sampling_frequency: 500
+    window_size: 1000
+    noverlap: 500
+    log: True
   zscore:
     axis: 0
 
@@ -85,12 +92,11 @@ feature_selection:
 model_kwargs: 
 
 model_validation:
-  scoring:
+  scoring: # Options here: https://scikit-learn.org/stable/modules/model_evaluation.html
     - accuracy
-    - roc_auc
-    - f1
-    - precision
-    - recall
+    - roc_auc_ovr
+    - balanced_accuracy
+    - average_precision
   method:
     StratifiedKFold:
       n_splits: 5
