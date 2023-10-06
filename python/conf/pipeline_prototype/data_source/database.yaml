@@ -1,0 +1,9 @@
+source: database
+database_path: /media/shortterm_ssd/Clay/databases/duckdb/rcs-db.duckdb
+query: select * from overnight.r${device};
+
+# Can do a multi-line query like this:
+# query: |
+#   select * from 
+#   r${device}.overnight_simulated_FFTs_train
+# (Use > instead of | if you want line breaks to be interpreted as spaces by python script)

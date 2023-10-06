@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import numpy.typing as npt
 
-from .base import _STR_TO_ACTIVATION
+#from model.torch_model.base import _STR_TO_ACTIVATION
 
 device = None
 

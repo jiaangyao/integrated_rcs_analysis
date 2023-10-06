@@ -1,31 +1,35 @@
 # Main config. Holds parameters on PB identification pipeline.
-project: lightgbm
+project: SleepStage_MLP
 device: 02L
-run_title: subcortical_6_class_attempt_4_full_psd
-run_name: bayes_search_6_class_attempt_4_full_psd
+experiment: single_validation_set_on_key2
+run_name: td_key2
 BASE_PATH: /media/shortterm_ssd/Clay/
-SUBBASE_PATH: ${BASE_PATH}/${project}/${run_title}
-run_dir: ${SUBBASE_PATH}/${now:%Y-%m-%d}_${now:%H-%M-%S}
+SUBBASE_PATH: ${BASE_PATH}/${project}/${experiment}
+run_dir: ${SUBBASE_PATH}/${run_name}_${now:%Y-%m-%d}_${now:%H-%M-%S}
 log_file: ${run_dir}/${run_name}.log
 
 wandb:
   project: ${project}
   entity: cnsmyth
-  tags: [sleep]
+  group: ${experiment}
+  tags: 
+    - sleep 
+    - ${device}
+    - ${run_name}
 
-model: LightXGBoostModel
+model: TorchMLPModel
 
 # Should create folder so there can be hyperparam args for optuna, default to wandb
 hyperparam_args:
   run_search: True
   hyperparam_search_method: wandb
-  num_runs: 12
+  num_runs: 10
 
 defaults:
   - _self_
   - data_source: database
   # TODO: Somehow parameterize sweep_config with model (i.e. ${model})
-  - sweep_config: LightXGBoostModel
+  - sweep_config: TorchMLPModel
 
 # Preprocessing steps are applied to polars.Dataframe before feature engineering steps.
 preprocessing_steps:
@@ -34,7 +38,7 @@ preprocessing_steps:
     interval: '30s'
     period: '30s'
     td_columns:
-      - TD_BG
+      - TD_key2
     group_by_cols:
       - SleepStage
       - SessionIdentity
@@ -44,7 +48,7 @@ preprocessing_steps:
 # Columns to extract from the polars.Dataframe to numpy.ndarray. 
 # The resulting array will be pipelined through the feature engineering steps.
 feature_columns:
-  - TD_BG
+  - TD_key2
 
 label_column: SleepStage
 group_column: 
@@ -58,16 +62,23 @@ label_remapping:
   # 5: 0
   # 6: 0
 
+OneHotEncode: True
+
 # If the feature columns are TD sensor channels, then the following allows for handling the channels individually
 channel_options:
-  # If stack channels is True, then the feature columns will be stacked into an n x m x f array, where n is the number of rows, m is the number of channel columns, and f is the number of elements per channel column row.
+  # If stack channels is True, then the feature columns will be stacked into an n x m x f array, where n is the number of rows, m is the number of channel (i.e. feature) columns, and f is the number of elements per channel column row.
   # Stacking channels is useful for feature engineering steps that operate on individual channels, e.g. FFT
   # If stack channels is False, then the feature columns will be concatenated n x (m*f), i.e. the features in each row will be concatenated, across columns, into a single feature vector.
   stack_channels: False
   # pipe_by_channel applies the feature engineering steps to each channel individually, rather than to the entire feature vector.
   pipe_by_channel: False
+  # Only one of the following options should be True, and will only execute if pipe_by_channel is True
   # If concat_channel_features is True, then channels will be concatenated into a single feature vector after feature engineering steps are applied.
   concat_channel_features: False
+  # If average_channel_features is True, then channels will be averaged into a single feature vector after feature engineering steps are applied.
+  average_channel_features: False
+  # If stack_channel_features is True, then channels will be stacked into multivariate feature matrix.
+  stack_channel_features: False
 
 feature_engineering_steps:
   # Can include just the function call, or the full path to the function, e.g.: scipy.stats.zscore or zscore | numpy.sum or sum (note that np.sum will not work because of custom import name)
@@ -76,7 +87,7 @@ feature_engineering_steps:
   #   window_size: 1000
   #   noverlap: 500
   get_psd:
-    freq_range: [-1, 251]
+    freq_range: [0.5, 60]
     sampling_frequency: 500
     window_size: 1000
     noverlap: 500
@@ -92,17 +103,23 @@ feature_selection:
 model_kwargs: 
 
 model_validation:
+  use_skorch: False
   scoring: # Options here: https://scikit-learn.org/stable/modules/model_evaluation.html
     - accuracy
     - roc_auc_ovr
     - balanced_accuracy
-    - average_precision
   method:
     StratifiedKFold:
       n_splits: 5
       shuffle: True
       random_state: 42
-  # LeaveOneGroupOut
+  # LeaveOneGroupOut:
+  #   groups: SessionIdentity
+  # TrainTestSplit:
+  #  test_size: 0.2
+  # TrainValidationTestSplit
+  #   test_size: 0.2
+  #   validation_size: 0.2
 
 hydra:
   run:

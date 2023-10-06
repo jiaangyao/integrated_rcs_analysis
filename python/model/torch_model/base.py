@@ -6,7 +6,7 @@ from types import MappingProxyType
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-import torchmetrics
+#import torchmetrics
 
 import numpy as np
 import numpy.typing as npt
@@ -16,8 +16,9 @@ import model.torch_model.torch_utils as ptu
 from dataset.torch_dataset import NeuralDataset, NeuralDatasetTest
 from ..base import BaseModel
 from .callbacks import EarlyStopping
-from .mlp_model import MLPModelWrapper
-from .rnn_model import RNNModelWrapper
+# TODO: Following caused circular dependency issues.. need to fix
+#from .mlp_model import MLPModelWrapper
+#from .rnn_model import RNNModelWrapper
 
 # TODO: transfer constants to constants directory
 # define global variables

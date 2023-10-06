@@ -8,26 +8,14 @@ import inspect
 import types
 import pkgutil
 
-def load_data(data_params):
-    """
-    Load data from a file or database.
-    """
-    if data_params['source'] == 'database':
-        con = duckdb.connect(data_params['database_path'], read_only=True)
-        df = con.sql(data_params['query']).pl()
-        con.close()
-        return df
-    else:
-        return pl.read_parquet(data_params['data_path'])
-
 
 def get_callable_function(func_name):
     """
     Get a callable function handle from a string like 'module.function'.
-    
+
     Parameters:
     func_name (str): The name of the function to get.
-    
+
     Returns:
     callable: A callable function handle for the input function name, or None if the function cannot be found.
     """
@@ -41,15 +29,15 @@ def get_callable_function(func_name):
         pass
     return None
 
-        
+
 def convert_string_to_callable(libs: list[object], func: str) -> callable:
     """
     Converts a string to a callable function.
-    
+
     Args:
         libs (list[object]): A list of objects (i.e. imported libraries) to search for the callable function.
         func (callable): A callable function.
-    
+
     Returns:
         callable: A callable function.
     """
@@ -59,7 +47,7 @@ def convert_string_to_callable(libs: list[object], func: str) -> callable:
         if attempt_1 is not None:
             return attempt_1
         else:
-        # Next, check if the func string is just the function name, and search the libs for the function
+            # Next, check if the func string is just the function name, and search the libs for the function
             for obj in libs:
                 if hasattr(obj, func):
                     return getattr(obj, func)
@@ -70,19 +58,19 @@ def convert_string_to_callable(libs: list[object], func: str) -> callable:
 def create_instance_from_directory(directory, class_name, *args, **kwargs):
     """
     Search a directory and its subdirectories for a class by name and create an instance of that class.
-    
+
     Parameters:
     directory (str): The path to the directory to search.
     class_name (str): The name of the class to create an instance of.
     *args: Positional arguments to pass to the class constructor.
     **kwargs: Keyword arguments to pass to the class constructor.
-    
+
     Returns:
     object: An instance of the class.
     """
     for root, dirs, files in os.walk(directory):
         for file in files:
-            if file.endswith('.py'):
+            if file.endswith(".py"):
                 module_name = os.path.splitext(file)[0]
                 module_path = os.path.join(root, file)
                 try:
@@ -98,13 +86,13 @@ def create_instance_from_directory(directory, class_name, *args, **kwargs):
 def create_instance_from_module(module_name, class_name, *args, **kwargs):
     """
     Search a module and its submodules for a class by name and create an instance of that class.
-    
+
     Parameters:
     module_name (str): The name of the module to search.
     class_name (str): The name of the class to create an instance of.
     *args: Positional arguments to pass to the class constructor.
     **kwargs: Keyword arguments to pass to the class constructor.
-    
+
     Returns:
     object: An instance of the class.
     """
@@ -116,18 +104,22 @@ def create_instance_from_module(module_name, class_name, *args, **kwargs):
         submodule = getattr(module, name)
         if isinstance(submodule, types.ModuleType):
             try:
-                instance = create_instance_from_module(submodule.__name__, class_name, *args, **kwargs)
+                instance = create_instance_from_module(
+                    submodule.__name__, class_name, *args, **kwargs
+                )
                 return instance
             except ValueError:
                 continue
     raise ValueError(f"Class {class_name} not found in module {module_name}")
 
 
-def find_and_load_class(module_name, class_name, args, kwargs={}):
+def find_and_load_class(module_name, class_name, args=[], kwargs={}):
     # Import the module.
     try:
         module = importlib.import_module(module_name)
-    except ModuleNotFoundError:
+    # TODO: Handle ImportErrors differently instead of excepting them,
+    # as the desired class may be in a module that yields import error
+    except (ModuleNotFoundError, ImportError):
         # If module is not found, just return None
         return None
 
@@ -137,42 +129,46 @@ def find_and_load_class(module_name, class_name, args, kwargs={}):
     if cls:
         if kwargs and args:
             return cls(*args, **kwargs)
+        elif kwargs:
+            return cls(**kwargs)
         elif args:
             return cls(*args)
         else:
             return cls()
 
     # If the module has submodules, search them recursively.
-    if hasattr(module, '__path__'):
+    if hasattr(module, "__path__"):
         for _, modname, ispkg in pkgutil.iter_modules(module.__path__):
             # Recursively call the function for each submodule.
-            instance = find_and_load_class(f"{module_name}.{modname}", class_name, args, kwargs)
+            instance = find_and_load_class(
+                f"{module_name}.{modname}", class_name, args, kwargs
+            )
             if instance:
                 return instance  # Return the instance if found.
-
 
 
 def create_transformer(func, **kwargs):
     """
     Create a scikit-learn compatible transformer from an arbitrary function.
-    
+
     Parameters:
     func (callable): The function to transform the input data.
-    
+
     Returns:
     transformer (TransformerMixin): A scikit-learn compatible transformer object.
     """
+
     class Transformer(BaseEstimator, TransformerMixin):
         def __init__(self, func, **kwargs):
             self.func = func
             self.kwargs = kwargs
-        
+
         def fit(self, X, y=None):
             return self
-        
+
         def transform(self, X):
             return self.func(X, **self.kwargs)
-    
+
     transformer = Transformer(func, **kwargs)
     return transformer
 
@@ -180,36 +176,30 @@ def create_transformer(func, **kwargs):
 def create_transform_pipeline(steps):
     """
     Create a scikit-learn Pipeline object from a dictionary of function names, handles, and arguments.
-    
+
     Parameters:
     steps (dict): A dictionary of function names, handles, and arguments.
-    
+
     Returns:
     pipe (Pipeline): A scikit-learn Pipeline object that pipes together the dictionary entries.
     """
     pipe_steps = []
     pipe_step_paths = []
     for name, (func, kwargs) in steps.items():
-        
+
         # Retrieve the module path of the function for logging
         module_name = inspect.getmodule(func).__name__.rsplit(".", 1)[0]
         if module_name in name:
             pipe_step_paths.append((name, kwargs))
         else:
             pipe_step_paths.append((module_name + f".{name}", kwargs))
-        
-        # Check to see if the function is a TransformerMixin object, 
+
+        # Check to see if the function is a TransformerMixin object,
         # so that it may be incorporated into the Sklearn.Pipeline
         if not isinstance(func, TransformerMixin):
             transformer_func = create_transformer(func, **kwargs)
-            
+
         pipe_steps.append((name, transformer_func))
-        
+
     pipe = Pipeline(pipe_steps)
     return pipe, pipe_step_paths
-
-def set_up_cross_validation(config_dict, libs):
-    cross_val_type = list(config_dict.keys())[0]
-    kwargs = list(config_dict.values())[0]
-    func = convert_string_to_callable(libs, cross_val_type)
-    return func(**kwargs)

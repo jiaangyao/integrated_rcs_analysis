@@ -1,0 +1,17 @@
+name: sklearn
+scoring: # Options here: https://scikit-learn.org/stable/modules/model_evaluation.html
+  - accuracy
+  - roc_auc_ovr
+  - balanced_accuracy
+method:
+  StratifiedKFold:
+    n_splits: 5
+    shuffle: True
+    random_state: 42
+  # LeaveOneGroupOut:
+  #   groups: SessionIdentity
+  # TrainTestSplit:
+  #  test_size: 0.2
+  # TrainValidationTestSplit
+  #   test_size: 0.2
+  #   validation_size: 0.2
