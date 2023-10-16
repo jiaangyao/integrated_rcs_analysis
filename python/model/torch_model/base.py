@@ -1,11 +1,12 @@
 # pyright: reportPrivateImportUsage=false
 from __future__ import print_function
 import typing as tp
+from types import MappingProxyType
 
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-import torchmetrics
+# import torchmetrics
 
 import numpy as np
 import numpy.typing as npt

@@ -83,7 +83,7 @@ fabric.properties
 # VisualStudioCode .gitignore contents
 
 .vscode/*
-!.vscode/settings.json
+.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
@@ -128,3 +128,6 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+
+# Clay specific ignore files and dirs
+.lh/
