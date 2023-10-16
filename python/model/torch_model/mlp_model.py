@@ -4,16 +4,32 @@ import ray
 import numpy.typing as npt
 import torch.nn as nn
 
-from .base import TorchModelWrapper
+from .base import TorchModelWrapper 
+from model.base import BaseModel
+
+import numpy as np
+from sklearn.metrics import accuracy_score
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader, TensorDataset
+import wandb
+from sklearn.preprocessing import OneHotEncoder
+
+TRAINING_PARAMS = ['epochs', 'batch_size', 'criterion', 'optimizer', 'lr', 'device']
+
+ARCHITECURE_PARAMS = ['n_input', 'n_class', 'activation', 'n_layer', 'hidden_size', 'dropout']
+
+from skorch import NeuralNetClassifier
 
 
 class TorchMLPModel(nn.Module):
     def __init__(
             self,
-            n_input,
-            n_class,
-            act_func,
-            str_loss,
+            n_input=64,
+            n_class=2,
+            act_func=nn.LeakyReLU(),
+            str_loss="CrossEntropy",
             n_layer=3,
             hidden_size=32,
             dropout=0.5,
@@ -35,6 +51,18 @@ class TorchMLPModel(nn.Module):
             n_output = n_class
         else:
             n_output = 1
+        
+        # define activation function
+        if act_func == 'relu':
+            act_func = nn.ReLU()
+        elif act_func == 'leaky_relu':
+            act_func = nn.LeakyReLU()
+        elif act_func == 'sigmoid':
+            act_func = nn.Sigmoid()
+        elif act_func == 'tanh':
+            act_func = nn.Tanh()
+        elif isinstance(act_func, str):
+            raise ValueError(f'Activation function {act_func} not supported')
 
         # initialize the MLP layers
         if n_layer > 0:
@@ -83,7 +111,7 @@ class TorchMLPModel(nn.Module):
 
 
 # @ray.remote(num_gpus=0.125)
-class MLPModelWrapper(TorchModelWrapper):
+class MLPModelWrapper(TorchModelWrapper, BaseModel):
     def __init__(
         self,
         n_input,
@@ -189,6 +217,13 @@ class MLPModelWrapper(TorchModelWrapper):
             raise ValueError("Need to convert to 2D data first")
 
         return super().predict(data)
+    
+    def override_model(self, model_args, model_kwargs) -> None:
+        self.model = TorchMLPModel(*model_args, **model_kwargs)
+        self.model.to(self.device)
+        
+    def wandb_train(self, config=None):
+        raise NotImplementedError
 
 
 @ray.remote(num_cpus=1, num_gpus=0.2)
@@ -196,3 +231,219 @@ class MLPModelWrapperRay(MLPModelWrapper):
     def __init__(self, *args, **kwargs):
         # TODO: actor is deprecated, need to remove
         super().__init__(*args, **kwargs)
+
+
+# Wrapper class to make PyTorch model compatible with sklearn cross_validate via Skorch
+class SkorchWrapper(BaseModel):
+    def __init__(self, model, architecture_kwargs, training_kwargs):
+        self.inner_model = model
+        # TODO: Consider instantiating the model within NeuralNetClassifier (https://skorch.readthedocs.io/en/latest/user/neuralnet.html#most-important-arguments-and-methods)
+        # TODO: Parse training_kwargs to make sure keys match NeuralNetClassifier params
+        # self.epochs = epochs
+        # self.batch_size = batch_size
+        # self.criterion = self.create_criterion(criterion)
+        # self.optimizer = self.create_optimizer(optimizer, lr)
+        # self.callbacks = callbacks
+        architecture_kwargs = {f"module__{k}": v for k, v in architecture_kwargs.items()}
+        # Skorch prefers unininstantiated model, optimizer, and criterion
+        architecture_kwargs['module'] = self.inner_model.type()
+        training_kwargs['optimizer'] = self.return_optimizer(training_kwargs['optimizer'])
+        training_kwargs['criterion'] = self.return_criterion(training_kwargs['criterion'])
+        
+        model = NeuralNetClassifier(**architecture_kwargs, **training_kwargs)
+        super().__init__(model)
+    
+    
+    def return_optimizer(self, optimizer):
+        if isinstance(optimizer, optim.Optimizer):
+            return optimizer
+        elif optimizer == 'adam':
+            return optim.Adam
+        elif optimizer == 'sgd':
+            return optim.SGD
+        else:
+            raise ValueError(f'Optimizer {optimizer} not supported')
+    
+    def return_criterion(self, criterion):
+        if isinstance(criterion, nn.Module):
+            return criterion
+        elif criterion == 'CrossEntropy':
+            return nn.CrossEntropyLoss
+        elif criterion == 'mse':
+            return nn.MSELoss
+        else:
+            raise ValueError(f'Criterion {criterion} not supported')
+        
+    
+    def create_optimizer(self, optimizer, lr):
+        if isinstance(optimizer, optim.Optimizer):
+            return optimizer
+        elif optimizer == 'adam':
+            return optim.Adam(self.model.parameters(), lr=lr)
+        elif optimizer == 'sgd':
+            return optim.SGD(self.model.parameters(), lr=lr)
+        else:
+            raise ValueError(f'Optimizer {optimizer} not supported')
+    
+    
+    def create_criterion(self, criterion):
+        if isinstance(criterion, nn.Module):
+            return criterion
+        elif criterion == 'CrossEntropy':
+            return nn.CrossEntropyLoss()
+        elif criterion == 'mse':
+            return nn.MSELoss()
+        else:
+            raise ValueError(f'Criterion {criterion} not supported')
+
+    
+    def override_model(self, model_args, model_kwargs) -> None:
+        config = model_kwargs
+        if 'architecture' in config.keys():
+            architecture_kwargs = config['architecture']
+        else:
+            architecture_kwargs = {k: v for k, v in config.items() if k in ARCHITECURE_PARAMS}
+        
+        architecture_kwargs = {f"module__{k}": v for k, v in architecture_kwargs.items()}
+        architecture_kwargs['module'] = self.inner_model.type()
+        
+        
+        if 'training' in config.keys():
+            training_kwargs = config['training']
+        else:
+            training_kwargs = {k: v for k, v in config.items() if k in TRAINING_PARAMS}
+            
+        self.model = NeuralNetClassifier(**architecture_kwargs, **training_kwargs)
+        #self.model.to(self.device) <- Should be included in training_kwargs
+        
+    # def update_training_params(self, epochs, batch_size, criterion='CrossEntropy', optimizer='adam', lr=0.1):
+    #     self.epochs = epochs
+    #     self.batch_size = batch_size
+    #     self.criterion = self.create_criterion(criterion)
+    #     self.optimizer = self.create_optimizer(optimizer, lr)
+    #     # TODO: Might be best to not instantiate optimizer, and pass keywords into NeuralNetClassifier with 'optimizer__' prefix
+    #     return {
+    #         "max_epochs": self.epochs,
+    #         "criterion": self.criterion,
+    #         "optimizer": self.optimizer,
+    #         "batch_size": self.batch_size,
+    #         "callbacks": self.callbacks
+    #     }
+# class SKCompatWrapper():
+#     def __init__(self, model, criterion='CrossEntropy', optimizer='adam', lr=0.1, epochs=10, batch_size=32):
+#         self.model = model
+#         self.criterion = self.create_criterion(criterion)
+#         self.optimizer = self.create_optimizer(optimizer, lr)
+#         self.epochs = epochs
+#         self.batch_size = batch_size
+#         self.losses = []
+    
+#     def create_optimizer(self, optimizer, lr):
+#         if isinstance(optimizer, optim.Optimizer):
+#             return optimizer
+#         elif optimizer == 'adam':
+#             return optim.Adam(self.model.parameters(), lr=lr)
+#         elif optimizer == 'sgd':
+#             return optim.SGD(self.model.parameters(), lr=lr)
+#         else:
+#             raise ValueError(f'Optimizer {optimizer} not supported')
+    
+#     def create_criterion(self, criterion):
+#         if isinstance(criterion, nn.Module):
+#             return criterion
+#         elif criterion == 'CrossEntropy':
+#             return nn.CrossEntropyLoss()
+#         elif criterion == 'mse':
+#             return nn.MSELoss()
+#         else:
+#             raise ValueError(f'Criterion {criterion} not supported')
+    
+#     def update_training_params(self, epochs, batch_size, criterion='CrossEntropy', optimizer='adam', lr=0.1):
+#         self.epochs = epochs
+#         self.batch_size = batch_size
+#         self.criterion = self.create_criterion(criterion)
+#         self.optimizer = self.create_optimizer(optimizer, lr)
+
+#     def fit(self, X, y):
+#         y = torch.tensor(OneHotEncoder().fit_transform(y.reshape(-1, 1)).toarray(), dtype=torch.float32)
+#         dataset = TensorDataset(torch.tensor(X, dtype=torch.float32), y)
+#         data_loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
+        
+#         for epoch in range(self.epochs):
+#             for inputs, labels in data_loader:
+#                 #labels = torch.tensor(OneHotEncoder(categories=[0,1,2,3,4]).fit_transform(labels.reshape(-1, 1)).toarray(), dtype=torch.float32)
+#                 #labels = nn.functional.one_hot(labels, num_classes=5)
+#                 self.optimizer.zero_grad()
+#                 outputs = self.model(inputs)
+#                 loss = self.criterion(outputs.view_as(labels), labels)
+#                 loss.backward()
+#                 wandb.log({'loss': loss.item()})
+#                 self.optimizer.step()
+#         return self
+
+#     def predict(self, X):
+#         with torch.no_grad():
+#             inputs = torch.tensor(X, dtype=torch.float32)
+#             outputs = self.model(inputs)
+#         #return outputs.numpy()
+#         # argmax converts it back to muliclass labels for sklearn
+#         return np.argmax(outputs.numpy(), axis=-1)
+    
+#     def predict_proba(self, X):
+#         with torch.no_grad():
+#             inputs = torch.tensor(X, dtype=torch.float32)
+#             outputs = self.model(inputs)
+#             return torch.softmax(outputs.numpy())
+
+#     def score(self, X, y):
+#         y_pred = self.predict(X)
+#         return accuracy_score(y, y_pred)
+
+#     def get_params(self, deep=True):
+#         return {
+#             "model": self.model,
+#             "criterion": self.criterion,
+#             "optimizer": self.optimizer,
+#             "epochs": self.epochs,
+#             "batch_size": self.batch_size
+#         }
+
+# class SKCompatWrapperExternal(BaseModel):
+    
+#     def __init__(self, model, X, y, validation, scoring):
+#         super().__init__(model, X, y, validation, scoring)
+    
+    
+#     def override_model(self, model_args, model_kwargs) -> None:
+#         config = model_kwargs
+#         architecture_config = [config['n_input'], config['n_class'], config['activation'], config['criterion'], config['n_layer'], config['hidden_size'], config['dropout']]
+#         self.model = SKCompatWrapper(TorchMLPModel(*architecture_config))
+#         #self.model.to(self.device)
+#         self.model.update_training_params(config['epochs'], config['batch_size'], config['criterion'], config['optimizer'], config['lr'])
+        
+        
+#     def wandb_train(self, config=None):
+#         X_train, y_train = self.fetch_data()
+#         # Initialize a new wandb run
+#         with wandb.init(config=config, dir=self.output_dir, group=self.wandb_group, tags=self.wandb_tags):
+#             # If called by wandb.agent this config will be set by Sweep Controller
+#             config = wandb.config
+
+#             self.override_model((), config)
+            
+#             # Create condition to check if kfold, groupedkfold, stratifiedkfold, or simple train test split
+
+#             self.model.fit(X_train, np.argmax(y_train, axis=-1))
+#             wandb.log({'accuracy': self.model.score(X_train, np.argmax(y_train, axis=-1))})
+#             # # Evaluate predictions
+#             # results = evaluate_model(self.model, X_train, np.argmax(y_train, axis=-1), self.validation, self.scoring)            
+            
+#             # TODO: Figure out why cross-validation code below yields horrible accuracy results...
+#             # #Drop prefixes for logging
+#             # mean_results = {f'{k.split("_", 1)[-1]}_mean': np.mean(v) for k, v in results.items()}
+#             # std_results = {f'{k.split("_", 1)[-1]}_std': np.std(v) for k, v in results.items()}
+
+#             # # Log model performance metrics to W&B
+#             # wandb.log(std_results)
+#             # wandb.log(mean_results)
+    

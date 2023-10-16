@@ -1,0 +1,48 @@
+# Main config for unconstrained pipeline. Holds parameters on PB identification pipeline.
+pipeline_name: unconstrained
+
+# Organization and Logging info
+project: Reorganized_Pipe_Debug
+device: 02L
+experiment: debug
+run_name: lightgbm
+BASE_PATH: /media/shortterm_ssd/Clay/
+SUBBASE_PATH: ${BASE_PATH}/${project}/${experiment}
+run_dir: ${SUBBASE_PATH}/${run_name}_${now:%Y-%m-%d}_${now:%H-%M-%S}
+log_file: ${run_dir}/${run_name}.log
+
+# WandB info
+wandb:
+  project: ${project}
+  entity: cnsmyth
+  group: ${experiment}
+  tags: 
+    - sleep 
+    - ${device}
+    - ${run_name}
+
+# Define steps in pipeline
+defaults:
+  - _self_
+  - data_source: database
+  - preprocessing: example
+  - feature_engineering: example
+  - feature_selection: 
+  - class_imbalance_correction: 
+  - model: LightXGBoostModel
+  - evaluation: sklearn
+  - hyperparameter_optimization: WandB
+  - sweep: ${hyperparameter_optimization}/${model}
+
+# Hydra overrides 
+hydra:
+  run:
+    dir: ${run_dir}
+  sweep:
+    dir: ${SUBBASE_PATH}/multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    subdir: ${hydra.job.num}
+  runtime:
+    output_dir: ${run_dir}
+  job:
+    name: ${run_name}
+  output_subdir: configs
