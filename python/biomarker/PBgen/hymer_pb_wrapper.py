@@ -20,8 +20,8 @@ from .base import (
     correct_pb_feature_dim,
     group_pb_cross_asym,
 )
-from ._hj_pb_filtering import get_pb_filt_features, pb_filt_wrapper
-from ._hj_pb_growing import get_pb_grow_features, pb_grow_wrapper
+from ._hymer_pb_filtering import get_pb_filt_features, pb_filt_wrapper
+from ._hymer_pb_growing import get_pb_grow_features, pb_grow_wrapper
 from dataset.struct_dataset import combine_struct_by_field
 from utils.wandb_utils import wandb_logging_sfs_inner
 
@@ -29,7 +29,7 @@ from utils.wandb_utils import wandb_logging_sfs_inner
 _MAX_NUMEBER_OF_FINAL_PB = 5
 
 
-def hj_pb_method(
+def hymer_pb_method(
     features,
     y_class,
     y_stim,

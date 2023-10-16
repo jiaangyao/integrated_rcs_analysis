@@ -5,13 +5,37 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "integrated_rcs_analysis"
-version = "0.2.3"
-dependencies = [
-    "requests",
-    'importlib-metadata; python_version >= "3.10"',
-]
+version = "0.3.1"
+dependencies = ["requests", 'importlib-metadata; python_version >= "3.10"']
 
 
 [tool.setuptools.packages.find]
 # All the following settings are optional:
-where = ["python"]  # ["."] by default
+where = ["python"] # ["."] by default
+
+[tool.ruff]
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "matlab",         # added to ignore matlab files for linting
+]

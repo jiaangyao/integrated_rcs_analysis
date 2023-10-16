@@ -7,9 +7,10 @@ import seaborn as sns
 # import seaborn as sns
 import pandas as pd
 import numpy as np
+import statsmodels
 import scipy.io as sio
 import scipy.stats as stats
-
+from statannotations.Annotator import Annotator
 
 def load_model_id_results(output, n_pb=4):
     # load the sinPB results
@@ -219,7 +220,7 @@ def plot_lda_matlab_results(
         sinPB_matlab = mat["pb_sin"]
         auc_matlab_sfs = mat["auc_sfs"]
         sfsPB_matlab = mat["pb_sfs"]
-        
+
         vec_auc_matlab.append(auc_matlab)
         vec_sinPB_matlab.append(sinPB_matlab)
         vec_auc_matlab_sfs.append(auc_matlab_sfs)
@@ -252,14 +253,14 @@ def plot_lda_matlab_results(
         # get the best sinPB based on avg AUC from the rep
         sinPB_python_best = sinPB[np.argmax(auc_python_full[:, 0])]
         sfsPB_python_best = sfsPB[np.argmax(auc_python_full_sfs[:, -1])]
-        
+
         # now print out the power bands
         print(f"Subject: {str_subject}, Side: {str_side}")
         print(f"Python sinPB: {sinPB_python_best}")
         print(f"MATLAB sinPB: {sinPB_matlab}")
         print(f"Python sfsPB: {sfsPB_python_best}")
         print(f"MATLAB sfsPB: {sfsPB_matlab}")
-        
+
         print("")
 
     # reshape and form pandas dataframe
@@ -288,6 +289,259 @@ def plot_lda_matlab_results(
     #             results_dict_sfs["PB"].append(j + 1)
     #             results_dict_sfs["AUC"].append(vec_auc_python_full_sfs[i, k, j])
     #             results_dict_sfs["Method"].append("Python")
+    
+    
+def plot_model_comp(vec_str_sub, vec_str_side, vec_str_model):
+    # set font size for everything
+    SMALL_SIZE = 12
+    MEDIUM_SIZE = 14
+    BIGGER_SIZE = 20
+
+    plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
+    plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
+    plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
+    plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+    plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+    plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
+    plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+    
+    # create the output variable
+    vec_auc_python_sin_full = []
+    vec_auc_python_sfs_full = []
+    for i in range(len(vec_str_model)):
+        auc_model_sin_full = []
+        auc_model_sfs_full = []
+        for j in range(len(vec_str_sub)):
+            # obtain current subject and side
+            str_subject = vec_str_sub[j]
+            str_side = vec_str_side[j]
+            str_model = vec_str_model[i]
+            
+            # hard code all paths
+            p_output = pathlib.Path(
+                "/home/jyao/Downloads/biomarker_id/model_id/{}".format(str_subject)
+            )
+            f_output_python = f"{str_subject}_{str_side}_med_avg_auc_{str_model}.pkl"
+            
+            # load the current results
+            output = pickle.load(open(str(p_output / f_output_python), "rb"))
+            (
+                acc_python_full,
+                auc_python_full,
+                sinPB,
+                acc_python_full_sfs,
+                auc_python_full_sfs,
+                sfsPB,
+            ) = load_model_id_results(output)
+
+            # append to the output
+            auc_model_sin_full.append(auc_python_full[:, 0])
+            auc_model_sfs_full.append(auc_python_full_sfs[:, -1])
+            
+        # append to the output
+        vec_auc_python_sin_full.append(np.stack(auc_model_sin_full, axis=0))
+        vec_auc_python_sfs_full.append(np.stack(auc_model_sfs_full, axis=0))
+    
+    # next form the dictionaries
+    n_rep = 5 
+    
+    dict_results_auc_sin = {"STR_MODEL": [], "AUC": [], "SUB": []}
+    dict_avg_results_auc_sin = {"STR_MODEL": [], "AUC": [], "SUB": []}
+    
+    dict_results_auc_sfs = {"STR_MODEL": [], "AUC": [], "SUB": []}
+    dict_avg_results_auc_sfs = {"STR_MODEL": [], "AUC": [], "SUB": []}
+    
+    for i in range(len(vec_str_model)):
+        for j in range(len(vec_str_sub)):
+            auc_python_full_sin = vec_auc_python_sin_full[i][j]
+            auc_python_full_sfs = vec_auc_python_sfs_full[i][j]
+            
+            # append the python results
+            for k in range(n_rep):
+                # append the sin results
+                dict_results_auc_sin["STR_MODEL"].append(vec_str_model[i])
+                dict_results_auc_sin["AUC"].append(auc_python_full_sin[k])
+                dict_results_auc_sin["SUB"].append(vec_str_sub[j] + vec_str_side[j])
+                
+                # append the sfs result
+                dict_results_auc_sfs["STR_MODEL"].append(vec_str_model[i])
+                dict_results_auc_sfs["AUC"].append(auc_python_full_sfs[k])
+                dict_results_auc_sfs["SUB"].append(vec_str_sub[j] + vec_str_side[j])
+
+            # append the average results for SIN
+            dict_avg_results_auc_sin["STR_MODEL"].append(vec_str_model[i])
+            dict_avg_results_auc_sin["AUC"].append(np.mean(auc_python_full_sin))
+            dict_avg_results_auc_sin["SUB"].append(vec_str_sub[j] + vec_str_side[j])
+            
+            # append the average results for SFS
+            dict_avg_results_auc_sfs["STR_MODEL"].append(vec_str_model[i])
+            dict_avg_results_auc_sfs["AUC"].append(np.mean(auc_python_full_sfs))
+            dict_avg_results_auc_sfs["SUB"].append(vec_str_sub[j] + vec_str_side[j])
+        
+    # plot
+    results_auc_sin = pd.DataFrame(dict_results_auc_sin)
+    avg_results_auc_sin = pd.DataFrame(dict_avg_results_auc_sin)
+    sns.boxplot(data=results_auc_sin, x="STR_MODEL", y="AUC", orient="v", color="gray")
+    sns.pointplot(data=avg_results_auc_sin, x="STR_MODEL", y="AUC", hue="SUB", orient="v")
+    ax = plt.gca()
+    
+    p_lda_rnn = stats.wilcoxon(
+        avg_results_auc_sin[avg_results_auc_sin["STR_MODEL"] == "LDA"]["AUC"].to_numpy(),
+        avg_results_auc_sin[avg_results_auc_sin["STR_MODEL"] == "RNN"]["AUC"].to_numpy(),
+    ).pvalue
+    
+    p_lda_mlp = stats.wilcoxon(
+        avg_results_auc_sin[avg_results_auc_sin["STR_MODEL"] == "LDA"]["AUC"].to_numpy(),
+        avg_results_auc_sin[avg_results_auc_sin["STR_MODEL"] == "MLP"]["AUC"].to_numpy(),
+    ).pvalue
+    
+    pairs = [("LDA", "RNN"), ("LDA", "MLP")]
+    annotator = Annotator(ax, pairs, data=results_auc_sin, x="STR_MODEL", y="AUC")
+    annotator.configure(test=None, test_short_name='Wilcoxon', loc='inside').set_pvalues([p_lda_rnn, p_lda_mlp]).annotate()
+    
+    # set the labels to right ones
+    ax.set(xlabel="Model Used for Classification")
+    plt.legend(frameon=False, loc="lower right")
+    # plt.title("Comparison of AUC for Single Power Band")
+
+    # remove the top and right spines
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    
+    # plot for SFS
+    results_auc_sfs = pd.DataFrame(dict_results_auc_sfs)
+    avg_results_auc_sfs = pd.DataFrame(dict_avg_results_auc_sfs)
+    sns.boxplot(data=results_auc_sfs, x="STR_MODEL", y="AUC", orient="v", color="gray")
+    sns.pointplot(data=avg_results_auc_sfs, x="STR_MODEL", y="AUC", hue="SUB", orient="v")
+    ax = plt.gca()
+    
+    p_lda_rnn_sfs = stats.wilcoxon(
+        avg_results_auc_sfs[avg_results_auc_sfs["STR_MODEL"] == "LDA"]["AUC"].to_numpy(),
+        avg_results_auc_sfs[avg_results_auc_sfs["STR_MODEL"] == "RNN"]["AUC"].to_numpy(),
+    ).pvalue
+    
+    p_lda_mlp_sfs = stats.wilcoxon(
+        avg_results_auc_sfs[avg_results_auc_sfs["STR_MODEL"] == "LDA"]["AUC"].to_numpy(),
+        avg_results_auc_sfs[avg_results_auc_sfs["STR_MODEL"] == "MLP"]["AUC"].to_numpy(),
+    ).pvalue
+    
+    pairs = [("LDA", "RNN"), ("LDA", "MLP")]
+    annotator = Annotator(ax, pairs, data=results_auc_sfs, x="STR_MODEL", y="AUC")
+    annotator.configure(test=None, test_short_name='Wilcoxon', loc='outside').set_pvalues([p_lda_rnn_sfs, p_lda_mlp_sfs]).annotate()
+    
+    # set the labels to right ones
+    ax.set(xlabel="Model Used for Classification")
+    plt.legend(frameon=False, loc="lower right")
+    # plt.title("Comparison of AUC for Single Power Band")
+
+    # remove the top and right spines
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    
+    plt.tight_layout()
+    t1 = 1
+
+def plot_lda_comp_bands(vec_str_sub, vec_str_side):
+    
+    # set font size for everything
+    SMALL_SIZE = 12
+    MEDIUM_SIZE = 14
+    BIGGER_SIZE = 20
+
+    plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
+    plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
+    plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
+    plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+    plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+    plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
+    plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+    
+    # create the output variables
+    vec_auc_python_sfs_full = []
+
+    for i in range(len(vec_str_sub)):
+        # obtain current subject and side
+        str_subject = vec_str_sub[i]
+        str_side = vec_str_side[i]
+
+        # hard code all paths
+        p_output = pathlib.Path(
+            "/home/jyao/Downloads/biomarker_id/model_id/{}".format(str_subject)
+        )
+        f_output_python = f"{str_subject}_{str_side}_med_avg_auc_LDA.pkl"
+
+        # load the current results
+        output = pickle.load(open(str(p_output / f_output_python), "rb"))
+        (
+            acc_python_full,
+            auc_python_full,
+            sinPB,
+            acc_python_full_sfs,
+            auc_python_full_sfs,
+            sfsPB,
+        ) = load_model_id_results(output)
+
+        # append to the output
+        vec_auc_python_sfs_full.append(auc_python_full_sfs)
+
+    # form the dataframe
+    n_pb = 4
+    n_rep = 5
+
+    # append the python results
+    dict_results_auc = {"NUM_PB": [], "AUC": [], "SUB": []}
+    dict_avg_results_auc = {"NUM_PB": [], "AUC": [], "SUB": []}
+    for i in range(n_pb):
+        for j in range(len(vec_str_sub)):
+            auc_python_full_sfs = vec_auc_python_sfs_full[j]
+
+            # append the python results
+            for k in range(n_rep):
+                dict_results_auc["NUM_PB"].append(i + 1)
+                dict_results_auc["AUC"].append(auc_python_full_sfs[k, i])
+                dict_results_auc["SUB"].append(vec_str_sub[j] + vec_str_side[j])
+
+            # append the average results
+            dict_avg_results_auc["NUM_PB"].append(i + 1)
+            dict_avg_results_auc["AUC"].append(np.mean(auc_python_full_sfs[:, i]))
+            dict_avg_results_auc["SUB"].append(vec_str_sub[j] + vec_str_side[j])
+
+    # plot
+    results_auc = pd.DataFrame(dict_results_auc)
+    avg_results_auc = pd.DataFrame(dict_avg_results_auc)
+    sns.boxplot(data=results_auc, x="NUM_PB", y="AUC", orient="v", color="gray")
+    sns.pointplot(data=dict_avg_results_auc, x="NUM_PB", y="AUC", hue="SUB", orient="v")
+    ax = plt.gca()
+
+    # obtain the stats
+    # p_one_two = stats.wilcoxon(
+    #     avg_results_auc[avg_results_auc["NUM_PB"] == 1]["AUC"].to_numpy(),
+    #     avg_results_auc[avg_results_auc["NUM_PB"] == 2]["AUC"].to_numpy(),
+    # ).pvalue
+    
+    # p_one_three = stats.wilcoxon(
+    #     avg_results_auc[avg_results_auc["NUM_PB"] == 1]["AUC"].to_numpy(),
+    #     avg_results_auc[avg_results_auc["NUM_PB"] == 3]["AUC"].to_numpy(),
+    # ).pvalue
+    
+    p_one_four = stats.wilcoxon(
+        avg_results_auc[avg_results_auc["NUM_PB"] == 1]["AUC"].to_numpy(),
+        avg_results_auc[avg_results_auc["NUM_PB"] == 4]["AUC"].to_numpy(),
+    ).pvalue
+
+    pairs = [(1, 4)]
+    annotator = Annotator(ax, pairs, data=results_auc, x="NUM_PB", y="AUC")
+    annotator.configure(test=None, test_short_name='Wilcoxon', loc='outside').set_pvalues([p_one_four]).annotate()
+    
+    # set the labels to right ones
+    ax.set(xlabel="Number of Power Bands Included")
+    plt.legend(frameon=False, loc="lower right")
+
+    # remove the top and right spines
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    t1 = 1
 
 
 def plot_lda_results(str_model_id="model_id", str_subject="RCS02", str_side="R"):
@@ -353,7 +607,7 @@ def plot_lda_results(str_model_id="model_id", str_subject="RCS02", str_side="R")
     vec_sfsPB = [sfsPB]
     # vec_str_model = ["LDA", "QDA", "SVM", "RF", "MLP", "RNN"]
     # vec_colormap = ["r", "k", "g", "m", "b", "c"]
-    
+
     vec_str_model = ["LDA", "QDA", "SVM", "MLP", "RNN"]
     vec_colormap = ["r", "k", "g", "b", "c"]
 
@@ -401,7 +655,7 @@ def plot_lda_results(str_model_id="model_id", str_subject="RCS02", str_side="R")
         p_figure_output=p_figure_output,
         f_figure_output=f_figure_output_sinPB,
     )
-    
+
     # next plot the AUC for sfsPB
     f_figure_output_sfsPB = (
         f"{str_subject}_{str_side}_med_level_{str_metric.lower()}_comp_sfsPB.png"
@@ -416,16 +670,27 @@ def plot_lda_results(str_model_id="model_id", str_subject="RCS02", str_side="R")
         p_figure_output=p_figure_output,
         f_figure_output=f_figure_output_sfsPB,
     )
-    
+
     t1 = 1
 
 
 if __name__ == "__main__":
     # plot_lda_matlab_results(["RCS02", "RCS11", "RCS12", "RCS18"], ["R", "L", "L", "L"])
     # plot_lda_matlab_results(["RCS17"], ["L"])
-    plot_lda_matlab_results(["RCS17"], ["R"])
+    # plot_lda_matlab_results(["RCS17"], ["R"])
     # plot_lda_results(str_subject="RCS02", str_side="R")
     # plot_lda_results(str_subject="RCS08", str_side="R")
     # plot_lda_results(str_subject="RCS11", str_side="L")
     # plot_lda_results(str_subject="RCS12", str_side="L")
     # plot_lda_results(str_subject="RCS18", str_side="L")
+
+    vec_str_sub = ["RCS02", "RCS08", "RCS11", "RCS12", "RCS18"]
+    vec_str_side = ["R", "R", "L", "L", "L"]
+    vec_str_model = ["LDA", "QDA", "SVM", "RF", "MLP", "RNN"]
+    
+    vec_str_sub_v1 = ["RCS02", "RCS08", "RCS11", "RCS12", "RCS17", "RCS18"]
+    vec_str_side_v1 = ["R", "R", "L", "L", "L", "L"]
+    
+    # plot_lda_comp_bands(vec_str_sub_v1, vec_str_side_v1)
+    plot_model_comp(vec_str_sub, vec_str_side, vec_str_model)
+    

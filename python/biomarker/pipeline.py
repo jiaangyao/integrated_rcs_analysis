@@ -8,7 +8,7 @@ import scipy.stats as stats
 from omegaconf import DictConfig
 
 from .base import get_idx_ch, _MAX_NUMBER_OF_FINAL_PB
-from biomarker.PBgen.hj_pb_method import hj_pb_method
+from biomarker.PBgen.hymer_pb_wrapper import hymer_pb_method
 from biomarker.PBgrow.sfs import sfs_forward_pass
 
 
@@ -86,7 +86,7 @@ def run_pb_pipeline(
             wandb_pb_filt,
             wandb_pb_grow,
             orig_metric,
-        ) = hj_pb_method(
+        ) = hymer_pb_method(
             features,
             y_class,
             y_stim,

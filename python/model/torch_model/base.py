@@ -1,7 +1,6 @@
 # pyright: reportPrivateImportUsage=false
 from __future__ import print_function
 import typing as tp
-from types import MappingProxyType
 
 import torch
 import torch.nn as nn
@@ -16,20 +15,6 @@ import model.torch_model.torch_utils as ptu
 from dataset.torch_dataset import NeuralDataset, NeuralDatasetTest
 from ..base import BaseModel
 from .callbacks import EarlyStopping
-from .mlp_model import MLPModelWrapper
-from .rnn_model import RNNModelWrapper
-
-# TODO: transfer constants to constants directory
-# define global variables
-_STR_TO_ACTIVATION = {
-    "relu": nn.ReLU(),
-    "tanh": nn.Tanh(),
-    "leaky_relu": nn.LeakyReLU(),
-    "sigmoid": nn.Sigmoid(),
-    "selu": nn.SELU(),
-    "softplus": nn.Softplus(),
-    "identity": nn.Identity(),
-}
 
 
 class TorchModelWrapper(BaseModel):
@@ -357,29 +342,3 @@ class TorchModelWrapper(BaseModel):
             raise NotImplementedError
 
         return optimizer
-
-
-def init_model_torch(
-    str_model: str,
-    model_args: list | tuple = tuple(),
-    model_kwargs: dict | MappingProxyType = MappingProxyType(dict()),
-):
-    # TODO: avoid importing all models via *
-
-    if str_model == "MLP":
-        # initialize the model
-        model = MLPModelWrapper(
-            *model_args,
-            **model_kwargs,
-        )
-
-    elif str_model == "RNN":
-        # initialize the model
-        model = RNNModelWrapper(
-            *model_args,
-            **model_kwargs,
-        )
-    else:
-        raise NotImplementedError
-
-    return model

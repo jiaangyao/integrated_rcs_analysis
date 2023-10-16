@@ -1,8 +1,8 @@
 from hydra import compose
 from omegaconf import DictConfig, OmegaConf
 
-from model.sklearn_model.base import init_model_sklearn
-from model.torch_model.base import init_model_torch
+from model.sklearn_model.init_model_sklearn import init_model_sklearn
+from model.torch_model.init_model_torch import init_model_torch
 
 
 def init_model(

@@ -4,6 +4,7 @@ pandas
 ray
 tqdm
 hydra
-torch
+torch>=2.0.0
 sklearn
 wandb
+ruff
