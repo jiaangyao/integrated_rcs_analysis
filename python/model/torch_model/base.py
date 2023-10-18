@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-# import torchmetrics
+import torchmetrics
 
 import numpy as np
 import numpy.typing as npt
@@ -169,8 +169,6 @@ class BaseTorchTrainer():
         self.es_delta = es_delta
         self.es_metric = es_metric
         self.bool_verbose = bool_verbose
-        
-        #
         
         # initialize ray and GPU utilization flag
         self.bool_use_ray = bool_use_ray
