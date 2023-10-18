@@ -2,10 +2,10 @@
 pipeline_name: unconstrained
 
 # Organization and Logging info
-project: Reorganized_Pipe_Debug
+project: Reorganized_Pipe_Debug_MLP
 device: 02L
 experiment: debug
-run_name: lightgbm
+run_name: TorchMLPModel
 BASE_PATH: /media/shortterm_ssd/Clay/
 SUBBASE_PATH: ${BASE_PATH}/${project}/${experiment}
 run_dir: ${SUBBASE_PATH}/${run_name}_${now:%Y-%m-%d}_${now:%H-%M-%S}
@@ -29,8 +29,8 @@ defaults:
   - feature_engineering: example
   - feature_selection: 
   - class_imbalance_correction: 
-  - model: LightXGBoostModel
-  - evaluation: sklearn
+  - model: TorchMLPModel
+  - evaluation: torch
   - hyperparameter_optimization: WandB
   - sweep: ${hyperparameter_optimization}/${model}
 
@@ -39,7 +39,8 @@ hydra:
   run:
     dir: ${run_dir}
   sweep:
-    dir: ${SUBBASE_PATH}/multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    #dir: ${SUBBASE_PATH}/multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    dir: ${run_dir}/sweep
     subdir: ${hydra.job.num}
   runtime:
     output_dir: ${run_dir}

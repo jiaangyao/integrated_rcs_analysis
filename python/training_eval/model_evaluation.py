@@ -26,7 +26,7 @@ VALIDATION_LIBRARIES = [skms]
 # Define function to calculate desired scores
 def custom_scorer(y_true, y_pred, scoring):
     scores = {}
-    if "accuracy" in scoring:
+    if "accuracy" in scoring or "acc" in scoring or "ACC" in scoring:
         scores["accuracy"] = accuracy_score(y_true, y_pred)
     if "precision" in scoring:
         scores["precision"] = precision_score(y_true, y_pred, average="weighted")
@@ -34,7 +34,7 @@ def custom_scorer(y_true, y_pred, scoring):
         scores["recall"] = recall_score(y_true, y_pred, average="weighted")
     if "f1" in scoring:
         scores["f1"] = f1_score(y_true, y_pred, average="weighted")
-    if "roc_auc" in scoring:
+    if "roc_auc" in scoring or "auc" in scoring or "AUC" in scoring:
         scores["roc_auc"] = roc_auc_score(
             y_true, y_pred, average="weighted", multi_class="ovr"
         )
@@ -147,9 +147,18 @@ class ModelEvaluation:
         return results
 
     def evaluate_model_torch(self, model, X_train, y_train):
-        # TODO: Implement fitting then evaluation of model on X_train, y_train
-        pass
-
+        scores = {}
+        model.trainer.fit(X_train, y_train)
+        
+        if "accuracy" in self.scoring:
+            scores["accuracy"] = model.model.get_accuracy(X_train, y_train)
+            
+        if "roc_auc" in self.scoring or "auc" in self.scoring or "AUC" in self.scoring:
+            scores["roc_auc"] = model.model.get_auc(X_train, y_train)
+        
+        # TODO: Handle other metrics
+        return scores
+        
     def get_scores(self, model, X, y):
         if self.is_torch:
             if hasattr(model.module, "predict"):

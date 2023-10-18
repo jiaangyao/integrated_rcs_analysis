@@ -2,9 +2,11 @@
 from __future__ import print_function
 import typing as tp
 from types import MappingProxyType
+from typing import Any
 
 import torch
 import torch.nn as nn
+import torch.optim as optim
 from torch.utils.data import DataLoader
 # import torchmetrics
 
@@ -16,11 +18,101 @@ import model.torch_model.torch_utils as ptu
 from dataset.torch_dataset import NeuralDataset, NeuralDatasetTest
 from ..base import BaseModel
 from .callbacks import EarlyStopping
+from .mlp_model import MLPModelWrapper
+from .rnn_model import RNNModelWrapper
+
+# TODO: transfer constants to constants directory
+# define global variables
+_STR_TO_ACTIVATION = {
+    "relu": nn.ReLU(),
+    "tanh": nn.Tanh(),
+    "leaky_relu": nn.LeakyReLU(),
+    "sigmoid": nn.Sigmoid(),
+    "selu": nn.SELU(),
+    "softplus": nn.Softplus(),
+    "identity": nn.Identity(),
+}
 
 
-class TorchModelWrapper(BaseModel):
+class BaseTorchClassifier:
+    
+    def predict(self, data: npt.NDArray) -> npt.NDArray:
+        # initialize the dataset and dataloader for testing set
+        test_dataset = NeuralDatasetTest(data)
+        test_dataloader = DataLoader(
+            test_dataset, batch_size=data.shape[0], shuffle=False
+        )
+
+        # initialize the loss and set model to eval mode
+        self.model.eval()
+        vec_y_pred = []
+        with torch.no_grad():
+            for _, x_test in enumerate(test_dataloader):
+                assert (
+                    not self.model.training
+                ), "make sure your network is in eval mode with `.eval()`"
+
+                # forward pass
+                y_test_pred = self.model(x_test)
+
+                # append the probability
+                vec_y_pred.append(y_test_pred)
+
+        # stack the prediction
+        y_pred = torch.cat(vec_y_pred, dim=0)
+
+        return ptu.to_numpy(y_pred)
+
+    # TODO: Move get_accuracy and get_auc to Evaluation class??
+    def get_accuracy(
+        self,
+        data: npt.NDArray,
+        label: npt.NDArray,
+    ):
+        # obtain the prediction
+        y_pred = np.argmax(self.predict(data), axis=1)
+        y_pred = self._check_input(y_pred)
+
+        # if label is one-hot encoded, convert it to integer
+        y_real = self._check_input(label)
+
+        return np.sum(y_pred == y_real) / y_real.shape[0]
+
+    def predict_proba(self, data):
+        class_prob = softmax(self.predict(data), axis=1)
+
+        # if class_prob.shape[1] == 2:
+        #     class_prob = class_prob[:, 1]
+
+        return class_prob
+
+    def get_auc(
+        self,
+        scores: npt.NDArray,
+        label: npt.NDArray,
+    ) -> npt.NDArray:
+        auc = torchmetrics.AUROC(task="multiclass", num_classes=self.n_class)(
+            torch.Tensor(scores), torch.Tensor(label).to(torch.long)
+        )
+
+        return ptu.to_numpy(auc)
+    
+
+    def get_activation(self, str_act):
+        act_hash_map = ptu.get_act_func()
+        if str_act in act_hash_map.keys():
+            act = act_hash_map[str_act]
+        else:
+            raise NotImplementedError
+
+        return act
+
+
+# TODO: Extract model parameters from this training class
+class BaseTorchTrainer():
     def __init__(
         self,
+        model,
         n_class,
         str_loss,
         str_act,
@@ -30,6 +122,14 @@ class TorchModelWrapper(BaseModel):
         lr,
         transform,
         target_transform,
+        batch_size=32,
+        n_epoch=100,
+        bool_shuffle=True,
+        bool_early_stopping=True,
+        es_patience=5,
+        es_delta=1e-5,
+        es_metric="val_loss",
+        bool_verbose=True,
         bool_use_ray=False,
         bool_use_gpu=False,
         n_gpu_per_process: int | float = 0,
@@ -37,6 +137,7 @@ class TorchModelWrapper(BaseModel):
         super().__init__()
 
         # initialize the model fields
+        self.model = model
         self.n_class = n_class
 
         # initialize the loss function
@@ -56,7 +157,21 @@ class TorchModelWrapper(BaseModel):
         # initialize the transforms
         self.transform = transform
         self.target_transform = target_transform
-
+        
+        # Initialize trainer data parameters
+        self.batch_size = batch_size
+        self.n_epoch = n_epoch
+        self.bool_shuffle = bool_shuffle
+        
+        # Initialize early stopping parameters
+        self.bool_early_stopping = bool_early_stopping
+        self.es_patience = es_patience
+        self.es_delta = es_delta
+        self.es_metric = es_metric
+        self.bool_verbose = bool_verbose
+        
+        #
+        
         # initialize ray and GPU utilization flag
         self.bool_use_ray = bool_use_ray
         self.bool_use_gpu = bool_use_gpu
@@ -83,15 +198,9 @@ class TorchModelWrapper(BaseModel):
         train_label,
         valid_data: npt.NDArray | None,
         valid_label: npt.NDArray | None,
-        batch_size=32,
-        n_epoch=100,
-        bool_early_stopping=True,
-        es_patience=5,
-        es_delta=1e-5,
-        es_metric="val_loss",
-        bool_shuffle=True,
-        bool_verbose=True,
     ) -> tp.Tuple[npt.NDArray, npt.NDArray]:
+        
+        # TODO: Flag to clear model params before training?? This would avoid stacking multiple training sessions on top of each other
         # double check device selection
         if self.bool_use_gpu:
             assert torch.cuda.is_available(), "Make sure you have a GPU available"
@@ -109,7 +218,7 @@ class TorchModelWrapper(BaseModel):
             target_transform=self.target_transform,
         )
         train_dataloader = DataLoader(
-            train_dataset, batch_size=batch_size, shuffle=bool_shuffle
+            train_dataset, batch_size=self.batch_size, shuffle=self.bool_shuffle
         )
 
         # define task for accuracy metric
@@ -125,9 +234,9 @@ class TorchModelWrapper(BaseModel):
             valid_dataset, batch_size=len(valid_dataset), shuffle=False
         )
         early_stopper = EarlyStopping(
-            patience=es_patience,
-            delta=es_delta,
-            verbose=bool_verbose,
+            patience=self.es_patience,
+            delta=self.es_delta,
+            verbose=self.bool_verbose,
             bool_save_checkpoint=False,
         )
 
@@ -139,7 +248,7 @@ class TorchModelWrapper(BaseModel):
         assert self.model is not None, "Make sure you have initialized the model"
         vec_avg_loss = []
         vec_avg_valid_loss = []
-        for epoch in range(n_epoch):
+        for epoch in range(self.n_epoch):
             # initialize the loss and the model
             vec_loss = []
             vec_acc = []
@@ -213,23 +322,23 @@ class TorchModelWrapper(BaseModel):
                     str_valid_acc = ", Valid Acc: {:.4f}".format(valid_acc)
 
             # print the loss
-            if bool_verbose:
+            if self.bool_verbose:
                 print(
                     "Epoch: {}, Loss: {:.4f}{}".format(epoch + 1, loss, str_valid_loss)
                 )
                 print("Epoch: {}, Acc: {:.4f}{}".format(epoch + 1, acc, str_valid_acc))
 
             # call early stopping
-            if bool_run_validation and bool_early_stopping:
-                if es_metric == "val_loss":
+            if bool_run_validation and self.bool_early_stopping:
+                if self.es_metric == "val_loss":
                     early_stopper(valid_loss, self.model)
-                elif es_metric == "val_acc":
+                elif self.es_metric == "val_acc":
                     early_stopper(valid_acc, self.model, mode="max")
                 else:
                     raise ValueError("es_metric must be either 'val_loss' or 'val_acc'")
 
                 if early_stopper.early_stop:
-                    if bool_verbose:
+                    if self.bool_verbose:
                         print("Early stopping")
                     break
 
@@ -240,85 +349,43 @@ class TorchModelWrapper(BaseModel):
 
         return vec_avg_loss, vec_avg_valid_loss
 
-    def predict(self, data: npt.NDArray) -> npt.NDArray:
-        # initialize the dataset and dataloader for testing set
-        test_dataset = NeuralDatasetTest(data)
-        test_dataloader = DataLoader(
-            test_dataset, batch_size=data.shape[0], shuffle=False
-        )
-
-        # initialize the loss and set model to eval mode
-        self.model.eval()
-        vec_y_pred = []
-        with torch.no_grad():
-            for _, x_test in enumerate(test_dataloader):
-                assert (
-                    not self.model.training
-                ), "make sure your network is in eval mode with `.eval()`"
-
-                # forward pass
-                y_test_pred = self.model(x_test)
-
-                # append the probability
-                vec_y_pred.append(y_test_pred)
-
-        # stack the prediction
-        y_pred = torch.cat(vec_y_pred, dim=0)
-
-        return ptu.to_numpy(y_pred)
-
-    def get_accuracy(
-        self,
-        data: npt.NDArray,
-        label: npt.NDArray,
-    ):
-        # obtain the prediction
-        y_pred = np.argmax(self.predict(data), axis=1)
-        y_pred = self._check_input(y_pred)
-
-        # if label is one-hot encoded, convert it to integer
-        y_real = self._check_input(label)
-
-        return np.sum(y_pred == y_real) / y_real.shape[0]
-
-    def predict_proba(self, data):
-        class_prob = softmax(self.predict(data), axis=1)
-
-        # if class_prob.shape[1] == 2:
-        #     class_prob = class_prob[:, 1]
-
-        return class_prob
-
-    def get_auc(
-        self,
-        scores: npt.NDArray,
-        label: npt.NDArray,
-    ) -> npt.NDArray:
-        auc = torchmetrics.AUROC(task="multiclass", num_classes=self.n_class)(
-            torch.Tensor(scores), torch.Tensor(label).to(torch.long)
-        )
-
-        return ptu.to_numpy(auc)
 
     def get_loss(self):
         if self.str_loss == "CrossEntropy":
             loss = torch.nn.CrossEntropyLoss()
         elif self.str_loss == "BCE":
             loss = torch.nn.BCELoss()
+        elif self.str_loss == "MSE":
+            loss = torch.nn.MSELoss()
         else:
-            raise NotImplementedError
+            raise ValueError(f'Criterion {self.str_loss} not supported')
 
         return loss
 
-    def get_activation(self, str_act):
-        act_hash_map = ptu.get_act_func()
-        if str_act in act_hash_map.keys():
-            act = act_hash_map[str_act]
+
+    def get_optimizer(self):
+        # obtain the regularizer
+        reg_params = self.get_regularizer()
+
+        # initialize the optimizer
+        if isinstance(self.str_opt, optim.Optimizer):
+            return optimizer
+        
+        elif self.str_opt.lower() == "adam":
+            optimizer = optim.Adam(
+                self.model.parameters(), lr=self.lr, **reg_params
+            )
+        # initialize the optimizer
+        elif self.str_opt.lower() == "sgd":
+            optimizer = optim.SGD(
+                self.model.parameters(), lr=self.lr, **reg_params
+            )
         else:
-            raise NotImplementedError
+            raise ValueError(f'Optimizer {self.str_opt} not supported')
 
-        return act
-
+        return optimizer
+    
+    
     def get_regularizer(self):
         if self.str_reg == "L2":
             if self.lam != 0:
@@ -330,16 +397,52 @@ class TorchModelWrapper(BaseModel):
 
         return reg_params
 
-    def get_optimizer(self):
-        # obtain the regularizer
-        reg_params = self.get_regularizer()
 
-        # initialize the optimizer
-        if self.str_opt == "Adam":
-            optimizer = torch.optim.Adam(
-                self.model.parameters(), lr=self.lr, **reg_params
-            )
-        else:
-            raise NotImplementedError
+class BaseTorchModel(BaseModel):
+    
+    MODEL_ARCHITECURE_KEYS = ["input_size", "hidden_size", "output_size", "num_layers", "dropout", "activation", "n_class"]
+    TRAINER_KEYS = ["max_epochs", "batch_size", "lr", "criterion", "optimizer", "learning_rate", "regularizer"]
+    
+    def __init__(self, model, trainer):
+        self.trainer = trainer
+        super().__init__(model)
+    
+    def split_kwargs_into_model_and_trainer(self, kwargs):
+        model_kwargs = {key: value for key, value in kwargs.items() if key in self.MODEL_ARCHITECURE_KEYS}
+        trainer_kwargs = {key: value for key, value in kwargs.items() if key in self.TRAINER_KEYS}
 
-        return optimizer
+        return model_kwargs, trainer_kwargs
+    
+    # Allows user to create new trainer, typically for hyperparameter tuning
+    def override_trainer(self, trainer_kwargs):
+        raise NotImplementedError
+    
+    def override_model(self, model_args, model_kwargs) -> None:
+        super().override_model(model_args, model_kwargs)
+        self.override_trainer()
+    
+
+def init_model_torch(
+    str_model: str,
+    model_args: list | tuple = tuple(),
+    model_kwargs: dict | MappingProxyType = MappingProxyType(dict()),
+):
+    # TODO: avoid importing all models via *
+
+    if str_model == "MLP":
+        # initialize the model
+        model = MLPModelWrapper(
+            *model_args,
+            **model_kwargs,
+        )
+
+    elif str_model == "RNN":
+        # initialize the model
+        model = RNNModelWrapper(
+            *model_args,
+            **model_kwargs,
+        )
+    else:
+        raise NotImplementedError
+
+    return model

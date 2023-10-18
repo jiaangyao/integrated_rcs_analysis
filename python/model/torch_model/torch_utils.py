@@ -5,19 +5,7 @@ import torch
 import torch.nn as nn
 import numpy.typing as npt
 
-
-# TODO: transfer constants to constants directory
-# define global variables
-_STR_TO_ACTIVATION = {
-    "relu": nn.ReLU(),
-    "tanh": nn.Tanh(),
-    "leaky_relu": nn.LeakyReLU(),
-    "sigmoid": nn.Sigmoid(),
-    "selu": nn.SELU(),
-    "softplus": nn.Softplus(),
-    "identity": nn.Identity(),
-}
-
+#from model.torch_model.base import _STR_TO_ACTIVATION
 
 device = None
 

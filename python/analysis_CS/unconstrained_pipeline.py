@@ -14,8 +14,6 @@ sys.path.append("/home/claysmyth/code/integrated_rcs_analysis/python/")
 
 from io_module.base import load_data
 
-# from model.torch_model.mlp_model import SKCompatWrapper, SKCompatWrapperExternal
-
 # Stand-in variable for custom time domain processing functions
 import preproc.time_domain_processing as tdp
 import preproc.time_domain_features as tdf
@@ -35,7 +33,7 @@ from dataset.data_class import MLData
 from training_eval.model_evaluation import create_eval_class_from_config
 
 # Libraries for model selection
-from model.torch_model.mlp_model import SkorchWrapper
+from model.torch_model.skorch_model import SkorchWrapper
 
 # Libraries for hyperparameter tuning
 from training_eval.hyperparameter_optimization import HyperparameterOptimization
@@ -161,7 +159,7 @@ def main(cfg: DictConfig):
         groups = None
 
     # 5. Develop feature engineering pipeline
-    # TODO: Class imbalance stuff (e.g. SMOTE) would go here (probably, but how to pass y into pipe)...
+    # TODO: Class imbalance, or Data Augmentation,  stuff (e.g. SMOTE) would go here (probably, but how to pass y into pipe)...
     feature_eng_config = config["feature_engineering"]
     feature_eng_funcs = feature_eng_config["functions"]
     function_calls = tuple(
@@ -209,7 +207,7 @@ def main(cfg: DictConfig):
 
     # Train / test split (K-fold cross validation, Stratified K-fold cross validation, Group K-fold cross validation)
     # TODO: Set up train / test split and vanilla hold-out validation, insert into data object
-    data = MLData(X_train=X, y_train=y, groups=groups)
+    data = MLData(X=X, y=y, groups=groups)
 
     # 6. Select model
     # Note: Can use ArbitraryModel class to wrap any model and compare in pipeline with other models
@@ -223,6 +221,19 @@ def main(cfg: DictConfig):
     eval = create_eval_class_from_config(evaluation_config)
     if evaluation_config["name"] == "skorch":
         model_class = SkorchWrapper(model_class)
+    
+    # Partition data into relevant sets if necessary
+    if evaluation_config["method"] == "TrainTestSplit":
+        data.train_test_split(
+            evaluation_config["TrainTestSplit"]["test_size"], 
+            evaluation_config["random_seed"]
+        )
+    elif evaluation_config["method"] == "TrainValidationTestSplit":
+        data.train_validation_test_split(
+            evaluation_config["TrainValidationTestSplit"]["validation_size"], 
+            evaluation_config["TrainValidationTestSplit"]["test_size"], 
+            evaluation_config["random_seed"]
+        )
 
     # 7. Train and evaluate model (log to wandb)
     # (Optuna integration with wandb logging: use callback https://optuna.readthedocs.io/en/stable/reference/generated/optuna.integration.WeightsAndBiasesCallback.html

@@ -2,9 +2,9 @@ name: torch
 scoring:
   - accuracy
 method:
-  - None
-  # TrainTestSplit:
-  #  test_size: 0.2
+  TrainTestSplit:
+    test_size: 0.2
   # TrainValidationTestSplit
   #   test_size: 0.2
   #   validation_size: 0.2
+random_seed: 42

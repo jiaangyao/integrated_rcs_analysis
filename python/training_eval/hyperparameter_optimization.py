@@ -37,7 +37,7 @@ class HyperparameterOptimization:
         pass
 
     def wandb_sweep(self, config=None):
-        X_train, y_train = self.data.training_data()
+        X_train, y_train = self.data.get_training_data()
         # Initialize a new wandb run
         with wandb.init(
             config=config,
