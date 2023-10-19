@@ -1,5 +1,6 @@
 from typing import Optional
 
+import numpy as np
 import numpy.typing as npt
 
 from pydantic import BaseModel as DanticBaseModel
@@ -26,6 +27,8 @@ class MLData(DanticBaseModel):
     y_val: npt.NDArray | None = None
     X_test: npt.NDArray | None = None
     y_test: npt.NDArray | None = None
+    # A list or array of fold indices. Each fold is the indices of the training data.
+    folds: npt.NDArray | list | tuple | None = None
     metadata: dict | None = None
     
     if X_train is None:
@@ -37,45 +40,42 @@ class MLData(DanticBaseModel):
     class Config:
         arbitrary_types_allowed = True
     
-    def train_test_split(self, test_size=0.2, random_seed=42, shuffle=True):
-        """
-        Split data into train, and test sets.
-        """
-        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
-            self.X, self.y, test_size=test_size, random_state=random_seed, shuffle=shuffle
-        )
-        
     
-    def train_val_test_split(self, val_size=0.2, test_size=0.2, random_seed=42, shuffle=True):
+    def train_test_split(self, train_inds, test_inds):
         """
-        Split data into train, validation, and test sets using scikit-learn's train_test_split.
+        Splits the data into training and testing sets based on the indices provided.
 
-        Parameters:
-        - data (array-like): The data to be split.
-        - val_ratio (float): The ratio of the validation set. Default is 0.2.
-        - test_ratio (float): The ratio of the test set. Default is 0.2.
-        - random_seed (int, optional): Random seed for reproducibility. Default is 42.
+        Args:
+            train_inds (list): A list of indices to use for the training set.
+            test_inds (list): A list of indices to use for the testing set.
+
+        Returns:
+            None
         """
-        
-        # Make sure val_ratio and test_ratio are valid
-        assert 0 <= val_size < 1, "Validation ratio must be between 0 and 1"
-        assert 0 <= test_size < 1, "Test ratio must be between 0 and 1"
-        assert val_size + test_size < 1, "Validation and test ratios combined must be less than 1"
+        self.X_train = self.X[train_inds]
+        self.y_train = self.y[train_inds]
+        self.X_test = self.X[test_inds]
+        self.y_test = self.y[test_inds]
+    
+    
+    def train_val_test_split(self, train_inds, val_inds, test_inds):
+        """
+        Splits the data into training, validation, and testing sets based on the indices provided.
 
-        train_size = 1 - val_size - test_size
+        Args:
+            train_inds (list): A list of indices to use for the training set.
+            val_inds (list): A list of indices to use for the validation set.
+            test_inds (list): A list of indices to use for the testing set.
 
-        # Split data into train and temp (temp will be split into val and test)
-        self.X_train, X_tmp, self.y_train, y_tmp = train_test_split(
-            self.X, self.Y, test_size=1-train_size, random_state=random_seed, shuffle=shuffle
-        )
-
-        # Calculate validation split ratio from remaining data
-        val_split = val_size / (val_size + test_size)
-        
-        # Split temp_data into validation and test data
-        self.X_val, self.X_test, self.y_val, self.y_test = train_test_split(
-            X_tmp, y_tmp, test_size=1-val_split, random_state=random_seed, shuffle=shuffle
-        )
+        Returns:
+            None
+        """
+        self.X_train = self.X[train_inds]
+        self.y_train = self.y[train_inds]
+        self.X_val = self.X[val_inds]
+        self.y_val = self.y[val_inds]
+        self.X_test = self.X[test_inds]
+        self.y_test = self.y[test_inds]
 
 
     def get_training_data(self):
@@ -86,3 +86,34 @@ class MLData(DanticBaseModel):
 
     def get_validation_data(self):
         return self.X_val, self.y_val
+    
+    
+    
+    def get_fold(self, fold_num, fold_on='X'):
+        """
+        Returns the training and testing data for the fold specified by fold_ind.
+
+        Args:
+            fold_ind (int): The index of the fold to return.
+            fold_on (str): The data to fold on. Either 'X' or 'X_train'. Defaults to 'X'.
+                Folds are either performed on the entire dataset (X) or the training set (X_train).
+
+        Returns:
+            X_train (numpy.ndarray): The training data for the specified fold.
+            y_train (numpy.ndarray): The training labels for the specified fold.
+            X_test (numpy.ndarray): The testing data for the specified fold.
+            y_test (numpy.ndarray): The testing labels for the specified fold.
+        """
+        if self.folds is None:
+            raise ValueError('No folds have been defined. Please pass fold indicies to field "folds" to define folds.')
+        
+        fold_train_inds = self.folds[fold_num]
+        if fold_on == 'X':
+            fold_test_inds = np.setdiff1d(np.arange(len(self.X)), fold_train_inds)
+            return self.X[fold_train_inds], self.y[fold_train_inds], self.X[fold_test_inds], self.y[fold_test_inds]
+        elif fold_on == 'X_train':
+            fold_test_inds = np.setdiff1d(np.arange(len(self.X_train)), fold_train_inds)
+            return self.X[fold_train_inds], self.y[fold_train_inds], self.X[fold_test_inds], self.y[fold_test_inds]
+        else:
+            raise ValueError(f"Argument fold_on must be either 'X' or 'X_train'. {fold_on} is not recognized")
+            

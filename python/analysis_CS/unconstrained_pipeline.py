@@ -221,19 +221,6 @@ def main(cfg: DictConfig):
     eval = create_eval_class_from_config(evaluation_config)
     if evaluation_config["name"] == "skorch":
         model_class = SkorchWrapper(model_class)
-    
-    # Partition data into relevant sets if necessary
-    if evaluation_config["method"] == "TrainTestSplit":
-        data.train_test_split(
-            evaluation_config["TrainTestSplit"]["test_size"], 
-            evaluation_config["random_seed"]
-        )
-    elif evaluation_config["method"] == "TrainValidationTestSplit":
-        data.train_validation_test_split(
-            evaluation_config["TrainValidationTestSplit"]["validation_size"], 
-            evaluation_config["TrainValidationTestSplit"]["test_size"], 
-            evaluation_config["random_seed"]
-        )
 
     # 7. Train and evaluate model (log to wandb)
     # (Optuna integration with wandb logging: use callback https://optuna.readthedocs.io/en/stable/reference/generated/optuna.integration.WeightsAndBiasesCallback.html

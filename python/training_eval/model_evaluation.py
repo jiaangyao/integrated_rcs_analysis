@@ -1,7 +1,10 @@
 from sklearn.model_selection import cross_validate, LeaveOneGroupOut, cross_val_score
 from sklearn.model_selection._split import _BaseKFold
 import sklearn.model_selection as skms
+from sklearn.model_selection import train_test_split
 from utils.pipeline_utils import convert_string_to_callable
+
+import numpy as np
 
 from sklearn.metrics import (
     make_scorer,
@@ -55,6 +58,63 @@ def custom_scorer(y_true, y_pred, scoring):
     return scores
 
 
+def train_test_split_inds(X, test_size=0.2, random_seed=42, shuffle=True):
+        """
+        Split data into train, and test sets.
+        - data (array-like): The data to be split.
+        - test_ratio (float): The ratio of the test set. Default is 0.2.
+        - random_seed (int, optional): Random seed for reproducibility. Default is 42.
+        
+        Returns:
+        - inds_X_train (array-like): The indices of the training set.
+        - inds_X_test (array-like): The indices of the test set.
+        """
+        inds = np.arange(len(X))
+        inds_train, inds_test = train_test_split(
+            inds, test_size=test_size, random_state=random_seed, shuffle=shuffle
+        )
+        return inds_train, inds_test
+        
+    
+def train_val_test_split_inds(X, val_size=0.2, test_size=0.2, random_seed=42, shuffle=True):
+    """
+    Split data into train, validation, and test sets using scikit-learn's train_test_split.
+
+    Parameters:
+    - data (array-like): The data to be split.
+    - val_ratio (float): The ratio of the validation set. Default is 0.2.
+    - test_ratio (float): The ratio of the test set. Default is 0.2.
+    - random_seed (int, optional): Random seed for reproducibility. Default is 42.
+    
+    Returns:
+    - inds_X_train (array-like): The indices of the training set.
+    - inds_X_val (array-like): The indices of the validation set.
+    - inds_X_test (array-like): The indices of the test set.
+    """
+    
+    # Make sure val_ratio and test_ratio are valid
+    assert 0 <= val_size < 1, "Validation ratio must be between 0 and 1"
+    assert 0 <= test_size < 1, "Test ratio must be between 0 and 1"
+    assert val_size + test_size < 1, "Validation and test ratios combined must be less than 1"
+
+    train_size = 1 - val_size - test_size
+
+    # Split data into train and temp (temp will be split into val and test)
+    inds_X_train, inds_tmp = train_test_split(
+        np.arange(len(X)), test_size=1-train_size, random_state=random_seed, shuffle=shuffle
+    )
+
+    # Calculate validation split ratio from remaining data
+    val_split = val_size / (val_size + test_size)
+    
+    # Split temp_data into validation and test data
+    inds_X_val, inds_X_test = train_test_split(
+        inds_tmp, test_size=1-val_split, random_state=random_seed, shuffle=shuffle
+    )
+    
+    return inds_X_train, inds_X_val, inds_X_test
+
+
 def set_up_cross_validation(config_dict, libs):
     cross_val_type = list(config_dict.keys())[0]
     func = convert_string_to_callable(libs, cross_val_type)
@@ -65,9 +125,31 @@ def set_up_cross_validation(config_dict, libs):
         return func(**kwargs)
 
 
-def create_eval_class_from_config(config):
+def create_eval_class_from_config(config, data_class):
     # TODO: Update with new evaluation config format
-    validation = set_up_cross_validation(config["method"], VALIDATION_LIBRARIES)
+    # Partition data into relevant sets if necessary
+    if config["method"] == "TrainTestSplit":
+        train_inds, test_inds = train_test_split_inds(
+            data_class.X,
+            config["TrainTestSplit"]["test_size"], 
+            config["random_seed"]
+        )
+        data_class.train_test_split(train_inds, test_inds)
+        validation = None
+    elif config["method"] == "TrainValidationTestSplit":
+        train_inds, val_inds, test_inds = train_val_test_split_inds(
+            data_class.X,
+            config["TrainValidationTestSplit"]["validation_size"], 
+            config["TrainValidationTestSplit"]["test_size"], 
+            config["random_seed"]
+        )
+        data_class.train_val_test_split(train_inds, val_inds, test_inds)
+        validation = None
+        raise NotImplementedError # TODO: Figure out consistent validation object for both train-test split and cross validation
+    elif 'Fold' in config["method"]:
+        validation = set_up_cross_validation(config["method"], VALIDATION_LIBRARIES)
+        # TODO: Include indices in data_class.folds that match what the validation object is doing in sklearn cross_validate.
+        # TODO: Somehow handle 'fold_on' param... 
     return ModelEvaluation(validation, config["scoring"], config["name"])
 
 
