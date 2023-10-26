@@ -1,9 +1,9 @@
 method: bayes
 metric:
-    # goal: maximize
-    # name: accuracy_mean
-    goal: minimize
-    name: loss
+    goal: maximize
+    name: accuracy_mean
+    # goal: minimize
+    # name: loss
 parameters:
     criterion: 
       value: CrossEntropy
@@ -51,6 +51,7 @@ parameters:
     regularization: 
       value: 'L2'
     dropout: 
-      value: 0.5
+      max: 0.5
+      min: 0.01
     optimizer:
       value: 'adam'

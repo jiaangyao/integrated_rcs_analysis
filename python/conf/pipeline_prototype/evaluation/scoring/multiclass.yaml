@@ -1,0 +1,4 @@
+# Options here: https://scikit-learn.org/stable/modules/model_evaluation.html  
+- accuracy
+- roc_auc_ovr
+- balanced_accuracy

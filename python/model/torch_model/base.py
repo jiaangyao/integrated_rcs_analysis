@@ -18,24 +18,27 @@ import model.torch_model.torch_utils as ptu
 from dataset.torch_dataset import NeuralDataset, NeuralDatasetTest
 from ..base import BaseModel
 from .callbacks import EarlyStopping
-from .mlp_model import MLPModelWrapper
+#from .mlp_model import MLPModelWrapper
 from .rnn_model import RNNModelWrapper
 
 # TODO: transfer constants to constants directory
 # define global variables
-_STR_TO_ACTIVATION = {
-    "relu": nn.ReLU(),
-    "tanh": nn.Tanh(),
-    "leaky_relu": nn.LeakyReLU(),
-    "sigmoid": nn.Sigmoid(),
-    "selu": nn.SELU(),
-    "softplus": nn.Softplus(),
-    "identity": nn.Identity(),
-}
+# _STR_TO_ACTIVATION = {
+#     "relu": nn.ReLU(),
+#     "tanh": nn.Tanh(),
+#     "leaky_relu": nn.LeakyReLU(),
+#     "sigmoid": nn.Sigmoid(),
+#     "selu": nn.SELU(),
+#     "softplus": nn.Softplus(),
+#     "identity": nn.Identity(),
+# }
 
 
 class BaseTorchClassifier:
+    def __init__() -> None:
+        pass
     
+    # TODO: Move predict and get_accuracy elsewhere, as they call model but are not part of model architecture
     def predict(self, data: npt.NDArray) -> npt.NDArray:
         # initialize the dataset and dataloader for testing set
         test_dataset = NeuralDatasetTest(data)
@@ -85,37 +88,27 @@ class BaseTorchClassifier:
         #     class_prob = class_prob[:, 1]
 
         return class_prob
-
-    def get_auc(
-        self,
-        scores: npt.NDArray,
-        label: npt.NDArray,
-    ) -> npt.NDArray:
-        auc = torchmetrics.AUROC(task="multiclass", num_classes=self.n_class)(
-            torch.Tensor(scores), torch.Tensor(label).to(torch.long)
-        )
-
-        return ptu.to_numpy(auc)
     
 
     def get_activation(self, str_act):
-        act_hash_map = ptu.get_act_func()
-        if str_act in act_hash_map.keys():
-            act = act_hash_map[str_act]
-        else:
-            raise NotImplementedError
+        # act_hash_map = ptu.get_act_func()
+        # if str_act in act_hash_map.keys():
+        #     act = act_hash_map[str_act]
+        # else:
+        #     raise NotImplementedError
 
-        return act
+        # return act
+        return ptu.get_act_func(str_act)
 
-
-# TODO: Extract model parameters from this training class
+# TODO: Reduce complexity in train() call
+# TODO: This could be achieved by handling early stopping and GPU utilization in separate classes or locations
+# TODO: Probably shouldn't calculate accuracy in train() call, move to evaluation class
 class BaseTorchTrainer():
     def __init__(
         self,
         model,
         n_class,
         str_loss,
-        str_act,
         str_reg,
         lam,
         str_opt,
@@ -125,16 +118,15 @@ class BaseTorchTrainer():
         batch_size=32,
         n_epoch=100,
         bool_shuffle=True,
-        bool_early_stopping=True,
+        bool_early_stopping=False,
         es_patience=5,
         es_delta=1e-5,
         es_metric="val_loss",
-        bool_verbose=True,
+        bool_verbose=False,
         bool_use_ray=False,
         bool_use_gpu=False,
         n_gpu_per_process: int | float = 0,
     ):
-        super().__init__()
 
         # initialize the model fields
         self.model = model
@@ -142,9 +134,6 @@ class BaseTorchTrainer():
 
         # initialize the loss function
         self.str_loss = str_loss
-
-        # initialize the activation function
-        self.str_act = str_act
 
         # initialize the regularization
         self.str_reg = str_reg
@@ -199,6 +188,7 @@ class BaseTorchTrainer():
     ) -> tp.Tuple[npt.NDArray, npt.NDArray]:
         
         # TODO: Flag to clear model params before training?? This would avoid stacking multiple training sessions on top of each other
+        # TODO: Remove accuracy calculation from training loop, move to evaluation class
         # double check device selection
         if self.bool_use_gpu:
             assert torch.cuda.is_available(), "Make sure you have a GPU available"
@@ -226,7 +216,9 @@ class BaseTorchTrainer():
             str_task = "multiclass"
 
         # initialize the dataset and dataloader for validation set
-        bool_run_validation = valid_data is not None and valid_label is not None
+        # bool_run_validation = valid_data is not None and valid_label is not None
+        # TODO: Fix bool_run_validation, move to evaluation class
+        bool_run_validation = False
         valid_dataset = NeuralDataset(valid_data, valid_label)
         valid_dataloader = DataLoader(
             valid_dataset, batch_size=len(valid_dataset), shuffle=False
@@ -264,7 +256,7 @@ class BaseTorchTrainer():
                 y_pred = self.model(x_train)
 
                 # compute the loss
-                loss = loss_fn(y_pred, y)
+                loss = loss_fn(y_pred, y.float())
 
                 # backward pass
                 loss.backward()
@@ -277,7 +269,7 @@ class BaseTorchTrainer():
                 # compute the accuracy
                 # noinspection PyTypeChecker
                 acc = torchmetrics.functional.accuracy(
-                    torch.argmax(y_pred, dim=1), y, task=str_task
+                    torch.argmax(y_pred, dim=1), torch.argmax(y, dim=1), task=str_task, num_classes=self.n_class
                 )
                 vec_acc.append(acc.item())
 
@@ -308,7 +300,7 @@ class BaseTorchTrainer():
                         # compute the accuracy
                         # noinspection PyTypeChecker
                         valid_acc = torchmetrics.functional.accuracy(
-                            torch.argmax(y_valid_pred, dim=1), y_valid, task=str_task
+                            torch.argmax(y_valid_pred, dim=1), torch.argmax(y_valid, dim=1), task=str_task, num_classes=self.n_class
                         )
                         vec_valid_acc.append(valid_acc.item())
 
@@ -340,10 +332,14 @@ class BaseTorchTrainer():
                         print("Early stopping")
                     break
 
-        # load the last checkpoint with the best model
-        self.model = early_stopper.load_model(self.model)
+                # load the last checkpoint with the best model
+                self.model = early_stopper.load_model(self.model)
+                
         vec_avg_loss = np.stack(vec_avg_loss, axis=0)
-        vec_avg_valid_loss = np.stack(vec_avg_valid_loss, axis=0)
+        if bool_run_validation:
+            vec_avg_valid_loss = np.stack(vec_avg_valid_loss, axis=0)
+        else:
+            vec_avg_valid_loss = np.array([])
 
         return vec_avg_loss, vec_avg_valid_loss
 
@@ -398,17 +394,31 @@ class BaseTorchTrainer():
 
 class BaseTorchModel(BaseModel):
     
-    MODEL_ARCHITECURE_KEYS = ["input_size", "hidden_size", "output_size", "num_layers", "dropout", "activation", "n_class"]
-    TRAINER_KEYS = ["max_epochs", "batch_size", "lr", "criterion", "optimizer", "learning_rate", "regularizer"]
+    MODEL_ARCHITECURE_KEYS = ["n_input", "n_class", "act_func", "n_layer", "hidden_size", "act_func", "dropout"]
+    TRAINER_KEYS = [
+        "n_class", "str_loss", "str_reg", "lam", "str_opt", "lr", "transform", "target_transform",
+        "batch_size", "n_epoch", "bool_shuffle", "bool_early_stopping", "es_patience", "es_delta",
+        "es_metric", "bool_verbose", "bool_use_ray", "bool_use_gpu", "n_gpu_per_process", "criterion", "optimizer",
+        "learning_rate"
+    ]
     
     def __init__(self, model, trainer):
-        self.trainer = trainer
         super().__init__(model)
+        self.trainer = trainer
+        self.model_kwargs = None
+        self.trainer_kwargs = None
     
     def split_kwargs_into_model_and_trainer(self, kwargs):
         model_kwargs = {key: value for key, value in kwargs.items() if key in self.MODEL_ARCHITECURE_KEYS}
         trainer_kwargs = {key: value for key, value in kwargs.items() if key in self.TRAINER_KEYS}
-
+        
+        if "criterion" in trainer_kwargs and "str_loss" not in trainer_kwargs:
+            trainer_kwargs["str_loss"] = trainer_kwargs.pop("criterion")
+        if "optimizer" in trainer_kwargs and "str_opt" not in trainer_kwargs:
+            trainer_kwargs["str_opt"] = trainer_kwargs.pop("optimizer")
+        if "learning_rate" in trainer_kwargs and "lr" not in trainer_kwargs:
+            trainer_kwargs["lr"] = trainer_kwargs.pop("learning_rate")
+        
         return model_kwargs, trainer_kwargs
     
     # Allows user to create new trainer, typically for hyperparameter tuning
@@ -418,6 +428,9 @@ class BaseTorchModel(BaseModel):
     def override_model(self, model_args, model_kwargs) -> None:
         super().override_model(model_args, model_kwargs)
         self.override_trainer()
+    
+    def reset_model(self) -> None:
+        self.override_model(self.model_args, self.model_kwargs)
     
 
 def init_model_torch(

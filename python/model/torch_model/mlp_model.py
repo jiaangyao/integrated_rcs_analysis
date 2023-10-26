@@ -3,17 +3,25 @@ import typing as tp
 import ray
 import numpy.typing as npt
 import torch.nn as nn
+from .torch_utils import init_gpu
+import torchmetrics
+import torch
+import model.torch_model.torch_utils as ptu
+import numpy as np
+import numpy.typing as npt
+import model.torch_model.torch_utils as ptu
+from dataset.torch_dataset import NeuralDataset, NeuralDatasetTest
+from torch.utils.data import DataLoader
 
-from .base import BaseTorchTrainer, BaseTorchModel
+from .base import BaseTorchTrainer, BaseTorchModel, BaseTorchClassifier
 
 
-class TorchMLPModel(nn.Module):
+class TorchMLPClassifier(nn.Module, BaseTorchClassifier):
     def __init__(
             self,
             n_input=64,
             n_class=2,
             act_func=nn.LeakyReLU(),
-            str_loss="CrossEntropy",
             n_layer=3,
             hidden_size=32,
             dropout=0.5,
@@ -24,59 +32,47 @@ class TorchMLPModel(nn.Module):
         self.n_input = n_input
         self.n_class = n_class
         self.n_layer = n_layer
-        self.act_func = act_func
-        self.str_loss = str_loss
+        self.act_func = super().get_activation(act_func)
         self.hidden_size = hidden_size
         self.dropout = dropout
         self.layers = nn.ModuleList()
 
         # define n_output based on the loss function
-        if str_loss == "CrossEntropy":
-            n_output = n_class
-        else:
-            n_output = 1
-        
-        # define activation function
-        if act_func == 'relu':
-            act_func = nn.ReLU()
-        elif act_func == 'leaky_relu':
-            act_func = nn.LeakyReLU()
-        elif act_func == 'sigmoid':
-            act_func = nn.Sigmoid()
-        elif act_func == 'tanh':
-            act_func = nn.Tanh()
-        elif isinstance(act_func, str):
-            raise ValueError(f'Activation function {act_func} not supported')
+        # if str_loss == "CrossEntropy":
+        #     n_output = n_class
+        # else:
+        #     n_output = 1
+        self.n_output = self.n_class
 
         # initialize the MLP layers
         if n_layer > 0:
             for i in range(n_layer):
                 # append the linear layer
                 if i == 0:
-                    self.layers.append(nn.Linear(n_input, hidden_size))
+                    self.layers.append(nn.Linear(self.n_input, self.hidden_size))
                 else:
-                    self.layers.append(nn.Linear(hidden_size, hidden_size))
+                    self.layers.append(nn.Linear(self.hidden_size, self.hidden_size))
 
                 # append the activation function
-                self.layers.append(act_func)
+                self.layers.append(self.act_func)
 
                 # append the dropout
                 self.layers.append(nn.Dropout(self.dropout))
 
             # append the output layer
-            self.layers.append(nn.Linear(hidden_size, n_output))
+            self.layers.append(nn.Linear(self.hidden_size, self.n_output))
 
         else:
             # append the output layer only
-            self.layers.append(nn.Linear(n_input, n_output))
+            self.layers.append(nn.Linear(self.n_input, self.n_output))
 
             # append the activation function
-            self.layers.append(act_func)
+            self.layers.append(self.act_func)
 
             # append the dropout
             self.layers.append(nn.Dropout(self.dropout))
         # sanity check
-        assert len(self.layers) == 3 * self.n_layer + 1 if n_layer > 0 else 3
+        assert len(self.layers) == 3 * self.n_layer + 1 if self.n_layer > 0 else 3
 
     def forward(self, x):
         if self.n_layer > 0:
@@ -92,20 +88,102 @@ class TorchMLPModel(nn.Module):
             x = self.layers[1](x)
             out = self.layers[2](x)
         return out
+    
 
-
-# @ray.remote(num_gpus=0.125)
-# TODO: Remove Training from Model class
-class MLPModel(BaseTorchTrainer, BaseTorchModel):
+class TorchMLPTrainer(BaseTorchTrainer):
     def __init__(
         self,
-        n_input,
-        n_class,
+        model,
+        n_class=2,
+        str_loss='CrossEntropy',
+        str_reg='L2',
+        lam=1e-5,
+        str_opt='Adam',
+        lr=1e-4,
+        transform=None,
+        target_transform=None,
+        batch_size=32,
+        n_epoch=100,
+        bool_shuffle=True,
+        bool_early_stopping=False,
+        es_patience=5,
+        es_delta=1e-5,
+        es_metric="val_loss",
+        bool_verbose=False,
+        bool_use_ray=False,
+        bool_use_gpu=False,
+        n_gpu_per_process: int | float = 0
+    ):
+        super().__init__(model,
+            n_class,
+            str_loss,
+            str_reg,
+            lam,
+            str_opt,
+            lr,
+            transform,
+            target_transform,
+            batch_size,
+            n_epoch,
+            bool_shuffle,
+            bool_early_stopping,
+            es_patience,
+            es_delta,
+            es_metric,
+            bool_verbose,
+            bool_use_ray,
+            bool_use_gpu,
+            n_gpu_per_process
+        )
+    
+    
+    # def train(
+    #     self,
+    #     train_data,
+    #     train_label,
+    #     valid_data: npt.NDArray | None = None,
+    #     valid_label: npt.NDArray | None = None,
+    #     batch_size: int = 32,
+    #     n_epoch: int = 100,
+    #     bool_early_stopping: bool = True,
+    #     es_patience: int = 5,
+    #     es_delta: float = 1e-5,
+    #     es_metric: str = "val_loss",
+    #     bool_shuffle: bool = True,
+    #     bool_verbose: bool = True,
+    # ) -> tp.Tuple[npt.NDArray, npt.NDArray]:
+    #     # ensure that data is in the right format
+    #     if train_data.ndim == 3:
+    #         raise ValueError("Need to convert to 2D data first")
+
+    #     vec_avg_loss, vec_avg_valid_loss = self.trainer.train(
+    #         train_data,
+    #         train_label,
+    #         valid_data,
+    #         valid_label,
+    #         batch_size,
+    #         n_epoch,
+    #         bool_early_stopping,
+    #         es_patience,
+    #         es_delta,
+    #         es_metric,
+    #         bool_shuffle,
+    #         bool_verbose,
+    #     )
+
+    #     return vec_avg_loss, vec_avg_valid_loss
+
+# @ray.remote(num_gpus=0.125)
+class TorchMLPModel(BaseTorchModel):
+    def __init__(
+        self,
+        n_input=64,
+        n_class=2,
         n_layer=3,
         hidden_size=32,
         dropout: float = 0.5,
         lam=1e-5,
-        str_act="relu",
+        act_func="relu",
         str_reg="L2",
         str_loss="CrossEntropy",
         str_opt="Adam",
@@ -116,102 +194,100 @@ class MLPModel(BaseTorchTrainer, BaseTorchModel):
         bool_use_gpu=False,
         n_gpu_per_process: int | float = 0,
     ):
-        # initialize the base model
-        super().__init__(
-            n_class,
-            str_loss,
-            str_act,
-            str_reg,
-            lam,
-            str_opt,
-            lr,
-            transform,
-            target_transform,
-            bool_use_ray=bool_use_ray,
-            bool_use_gpu=bool_use_gpu,
-            n_gpu_per_process=n_gpu_per_process,
-        )
-
-        # initialize fields for MLP params
-        self.n_input = n_input
-        self.n_layer = n_layer
-        self.hidden_size = hidden_size
-        self.dropout = dropout
-        self.lam = lam
-        self.str_act = str_act
-        self.str_reg = str_reg
-        self.str_loss = str_loss
-        self.str_opt = str_opt
-        self.lr = lr
-        self.transform = transform
-        self.target_transform = target_transform
-        self.bool_use_gpu = bool_use_gpu
-        self.n_gpu_per_process = n_gpu_per_process
-
+        
+        self.model_kwargs, self.trainer_kwargs = self.split_kwargs_into_model_and_trainer(locals())
+        # TODO: Improve device logic...
+        self.device = init_gpu(use_gpu=bool_use_gpu)
+        
         # initialize the model
-        self.model = TorchMLPModel(
-            n_input,
-            n_class,
-            self.get_activation(str_act),
-            str_loss,
-            n_layer,
-            hidden_size,
-            dropout,
+        self.model = TorchMLPClassifier(
+            **self.model_kwargs
         )
-        self.model = self.model.to(self.device)
-
-# TODO: Move to BaseTorchTrainer
-    def train(
-        self,
-        train_data,
-        train_label,
-        valid_data: npt.NDArray | None = None,
-        valid_label: npt.NDArray | None = None,
-        batch_size: int = 32,
-        n_epoch: int = 100,
-        bool_early_stopping: bool = True,
-        es_patience: int = 5,
-        es_delta: float = 1e-5,
-        es_metric: str = "val_loss",
-        bool_shuffle: bool = True,
-        bool_verbose: bool = True,
-    ) -> tp.Tuple[npt.NDArray, npt.NDArray]:
-        # ensure that data is in the right format
-        if train_data.ndim == 3:
-            raise ValueError("Need to convert to 2D data first")
-
-        vec_avg_loss, vec_avg_valid_loss = self.trainer.train(
-            train_data,
-            train_label,
-            valid_data,
-            valid_label,
-            batch_size,
-            n_epoch,
-            bool_early_stopping,
-            es_patience,
-            es_delta,
-            es_metric,
-            bool_shuffle,
-            bool_verbose,
+        self.model.to(self.device)
+        
+        self.trainer = TorchMLPTrainer(
+            self.model, **self.trainer_kwargs
         )
 
-        return vec_avg_loss, vec_avg_valid_loss
+    # def predict(self, data: npt.NDArray) -> npt.NDArray:
+    #     # ensure that data is in the right format
+    #     if data.ndim == 3:
+    #         raise ValueError("Need to convert to 2D data first")
 
-    def predict(self, data: npt.NDArray) -> npt.NDArray:
-        # ensure that data is in the right format
-        if data.ndim == 3:
-            raise ValueError("Need to convert to 2D data first")
-
-        return super().predict(data)
+    #     return super().predict(data)
     
-    def override_model(self, model_args, model_kwargs) -> None:
-        self.model = TorchMLPModel(*model_args, **model_kwargs)
+    # TODO: Move predict to Classifier class?? Or bump up to BaseTorchModel? Or Keep here? 
+    def predict(self, data: npt.NDArray) -> npt.NDArray:
+        # initialize the dataset and dataloader for testing set
+        test_dataset = NeuralDatasetTest(data)
+        test_dataloader = DataLoader(
+            test_dataset, batch_size=data.shape[0], shuffle=False
+        )
+
+        # initialize the loss and set model to eval mode
+        self.model.eval()
+        vec_y_pred = []
+        with torch.no_grad():
+            for _, x_test in enumerate(test_dataloader):
+                assert (
+                    not self.model.training
+                ), "make sure your network is in eval mode with `.eval()`"
+
+                # forward pass
+                y_test_pred = self.model(x_test)
+
+                # append the probability
+                vec_y_pred.append(y_test_pred)
+
+        # stack the prediction
+        y_pred = torch.cat(vec_y_pred, dim=0)
+
+        return ptu.to_numpy(y_pred)
+
+    # TODO: Move get_accuracy and get_auc to Evaluation class??
+    def get_accuracy(
+        self,
+        data: npt.NDArray,
+        label: npt.NDArray,
+    ):
+        # obtain the prediction
+        y_pred = np.argmax(self.predict(data), axis=1)
+        y_pred = self._check_input(y_pred)
+
+        # if label is one-hot encoded, convert it to integer
+        y_real = self._check_input(label)
+
+        return np.sum(y_pred == y_real) / y_real.shape[0]
+    
+    def get_auc(
+        self,
+        scores: npt.NDArray,
+        label: npt.NDArray,
+    ) -> npt.NDArray:
+        auc = torchmetrics.AUROC(task="multiclass", num_classes=self.model.n_class)(
+            torch.Tensor(scores), torch.Tensor(label).to(torch.long)
+        )
+
+        return ptu.to_numpy(auc)
+    
+    def override_model(self, kwargs: dict) -> None:
+        model_kwargs, trainer_kwargs = self.split_kwargs_into_model_and_trainer(kwargs)
+        self.model_kwargs = model_kwargs
+        self.trainer_kwargs = trainer_kwargs
+        self.model = TorchMLPClassifier(**model_kwargs)
+        self.trainer = TorchMLPTrainer(self.model, **trainer_kwargs)
+        self.model.to(self.device)
+    
+    def reset_model(self) -> None:
+        #self.override_model(self.model_kwargs | self.trainer_kwargs)
+        self.model = TorchMLPClassifier(**self.model_kwargs)
+        self.trainer = TorchMLPTrainer(self.model, **self.trainer_kwargs)
         self.model.to(self.device)
         
 
 
 @ray.remote(num_cpus=1, num_gpus=0.2)
-class MLPModelWrapperRay(MLPModelWrapper):
+class MLPModelWrapperRay(TorchMLPModel):
     def __init__(self, *args, **kwargs):
         # TODO: actor is deprecated, need to remove
         super().__init__(*args, **kwargs)

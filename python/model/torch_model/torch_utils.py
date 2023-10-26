@@ -5,7 +5,19 @@ import torch
 import torch.nn as nn
 import numpy.typing as npt
 
+import torch.nn as nn
+
 #from model.torch_model.base import _STR_TO_ACTIVATION
+_STR_TO_ACTIVATION = {
+    "relu": nn.ReLU(),
+    "tanh": nn.Tanh(),
+    "leaky_relu": nn.LeakyReLU(),
+    "leakyrelu": nn.LeakyReLU(),
+    "sigmoid": nn.Sigmoid(),
+    "selu": nn.SELU(),
+    "softplus": nn.Softplus(),
+    "identity": nn.Identity(),
+}
 
 device = None
 
@@ -89,6 +101,8 @@ def init_gpu(
         device = torch.device("cpu")
         if verbose:
             print("GPU not detected. Defaulting to CPU.")
+    
+    return device
 
 
 def set_device(
@@ -117,9 +131,13 @@ def to_numpy(
     return tensor.to("cpu").detach().numpy()
 
 
-def get_act_func() -> dict:
-    return _STR_TO_ACTIVATION
-
+def get_act_func(str_act) -> dict:
+    if isinstance(str_act, nn.Module):
+        return str_act
+    elif isinstance(str_act, str):
+        return _STR_TO_ACTIVATION[str_act.lower()]
+    else:
+        raise ValueError(f"Activation function {str_act} not recognized.")
 
 def force_cudnn_initialization():
     s = 32

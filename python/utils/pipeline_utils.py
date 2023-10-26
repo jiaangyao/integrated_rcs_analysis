@@ -119,9 +119,12 @@ def find_and_load_class(module_name, class_name, args=[], kwargs={}):
         module = importlib.import_module(module_name)
     # TODO: Handle ImportErrors differently instead of excepting them,
     # as the desired class may be in a module that yields import error
-    except (ModuleNotFoundError, ImportError):
+    except (ModuleNotFoundError, ImportError) as e:
         # If module is not found, just return None
+        if isinstance(e, ModuleNotFoundError): print(f"Module {module_name} not found, skipping")
+        if isinstance(e, ImportError): print(f"Module {module_name} could not be imported, skipping")
         return None
+    
 
     # Check if the class is in the current module.
     cls = getattr(module, class_name, None)

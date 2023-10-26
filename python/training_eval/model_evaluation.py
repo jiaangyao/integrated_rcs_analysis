@@ -128,59 +128,74 @@ def set_up_cross_validation(config_dict, libs):
 def create_eval_class_from_config(config, data_class):
     # TODO: Update with new evaluation config format
     # Partition data into relevant sets if necessary
-    if config["method"] == "TrainTestSplit":
+    if config["data_split"]["name"] == "TrainTestSplit":
         train_inds, test_inds = train_test_split_inds(
             data_class.X,
-            config["TrainTestSplit"]["test_size"], 
+            config['data_split']["test_size"], 
             config["random_seed"]
         )
+        data_class.assign_train_val_test_indices(train_inds, [], test_inds)
         data_class.train_test_split(train_inds, test_inds)
-        validation = None
-    elif config["method"] == "TrainValidationTestSplit":
+    
+    elif config["data_split"]["name"] == "TrainValidationTestSplit":
         train_inds, val_inds, test_inds = train_val_test_split_inds(
             data_class.X,
-            config["TrainValidationTestSplit"]["validation_size"], 
-            config["TrainValidationTestSplit"]["test_size"], 
+            config["data_split"]["validation_size"], 
+            config["data_split"]["test_size"], 
             config["random_seed"]
         )
+        data_class.assign_train_val_test_indices(train_inds, val_inds, test_inds)
         data_class.train_val_test_split(train_inds, val_inds, test_inds)
-        validation = None
-        raise NotImplementedError # TODO: Figure out consistent validation object for both train-test split and cross validation
-    elif 'Fold' in config["method"]:
-        validation = set_up_cross_validation(config["method"], VALIDATION_LIBRARIES)
-        # TODO: Include indices in data_class.folds that match what the validation object is doing in sklearn cross_validate.
-        # TODO: Somehow handle 'fold_on' param... 
-    return ModelEvaluation(validation, config["scoring"], config["name"])
 
+    validation_name = list(config["validation_method"].keys())[0]
+    if 'fold' in validation_name.lower() or 'group' in validation_name.lower():
+        config["validation_method"]["random_state"] = config["random_seed"]
+        val_object = set_up_cross_validation(config["validation_method"], VALIDATION_LIBRARIES)
 
+        if data_class.one_hot_encoded:
+            data_class.folds = [{'train': train_fold, 'val': test_fold}
+                                for (train_fold, test_fold) 
+                                in val_object.split(data_class.X_train, data_class.y_train.argmax(axis=1), groups=data_class.groups)]
+        else:
+            data_class.folds = [{'train': train_fold, 'val': test_fold}
+                                for (train_fold, test_fold) 
+                                in val_object.split(data_class.X_train, data_class.y_train, groups=data_class.groups)]
+
+    return ModelEvaluation(validation_name, val_object, config["scoring"], config["model_type"])
+
+# This model can be used as a base model, if people want a more specific evaluation class, they can create a new one
 class ModelEvaluation:
-    def __init__(self, validation, scoring, module_type):
-        self.validation = validation
+    def __init__(self, validation_name, val_object, scoring, model_type):
+        self.validation_name = validation_name
+        self.val_object = val_object
         self.scoring = scoring
-        self.module_type = module_type
+        self.model_type = model_type
         self.determine_evaluation_method()
 
-    # TODO: Check is model is instance of sklearn or torch model, then call appropriate evaluation function with relevant scoring
+    # TODO: Check if model is instance of sklearn or torch model, then call appropriate evaluation function with relevant scoring
     # TODO: If torch model but evaluation is sklearn, then wrap torch model in skorch
     def determine_evaluation_method(self):
-        if self.module_type == "torch":
+        if self.model_type == "torch":
             self.evaluate_model_specific = self.evaluate_model_torch
             self.is_torch = True
-        elif self.module_type == "sklearn" or self.module_type == "skorch":
+        elif self.model_type == "sklearn" or self.model_type == "skorch":
             self.evaluate_model_specific = self.evaluate_model_sklearn
             self.is_torch = False
         else:
             raise ValueError(
-                f"Model {self.module_type} is not recognized for determining evaulation method."
+                f"Model {self.model_type} is not recognized for determining evaulation method."
             )
 
-    def evaluate_model(self, model, X_train, y_train):
+    # Should evaluate_model take in model and data_class??
+    # Evaluate should include training with prediction, for just prediction then use get_scores
+    def evaluate_model(self, model_class, data_class):
         # Note: This function first fits then evaluates the model.
         # To just get scores on an already fit model, use get_scores()
-        return self.evaluate_model_specific(model, X_train, y_train)
+        return self.evaluate_model_specific(model_class, data_class)
+
 
     # TODO: Figure out if I need groups param if I set up LeaveOneGroupOut.split(X,y groups) in uncostrained_pipeline.py -> set_up_cross_validation
-    def evaluate_model_sklearn(self, model, X_train, y_train, groups=None):
+    def evaluate_model_sklearn(self, model_class, data_class):
         """
         Evaluate a machine learning model using cross-validation and return the results.
 
@@ -195,51 +210,64 @@ class ModelEvaluation:
         Returns:
         dict: A
         """
-        if model is None:
-            model = self.model
-
         # TODO: Parameterize n_jobs
         # Evaluate predictions
+        X_train, y_train = data_class.get_training_data()
+        groups = data_class.groups
+        model = model_class.model
 
-        if isinstance(self.validation, _BaseKFold):
+        if isinstance(self.val_object, _BaseKFold):
             results = cross_validate(
                 model,
                 X_train,
                 y_train,
-                cv=self.validation,
+                cv=self.val_object,
                 scoring=self.scoring,
-                n_jobs=self.validation.get_n_splits() + 1,
+                n_jobs=self.val_object.get_n_splits() + 1,
             )
-        elif isinstance(self.validation, LeaveOneGroupOut):
+        elif isinstance(self.val_object, LeaveOneGroupOut):
             # May need to pass groups as param
             results = cross_val_score(
                 model,
                 X_train,
                 y_train,
-                cv=self.validation,
+                cv=self.val_object,
                 groups=groups,
                 scoring=self.scoring,
-                n_jobs=self.validation.get_n_splits() + 1,
+                n_jobs=self.val_object.get_n_splits() + 1,
             )
-        elif self.validation is None:
+        elif self.val_object is None:
             # For vanilla prediction on y_train
             results = custom_scorer(y_train, model.predict(X_train), self.scoring)
         else:
-            raise ValueError(f"Validation object {self.validation} is not recognized.")
+            raise ValueError(f"Validation object {self.val_object} is not recognized.")
         return results
 
-    def evaluate_model_torch(self, model, X_train, y_train):
+    # TODO: Figure out parallization for torch
+    # TODO: Figure out location to handle one hot encoding vs multiclass for accuracy scores
+    def evaluate_model_torch(self, model_class, data_class):
         scores = {}
-        model.trainer.fit(X_train, y_train)
         
-        if "accuracy" in self.scoring:
-            scores["accuracy"] = model.model.get_accuracy(X_train, y_train)
+        for key in self.scoring: scores[key] = []
+        
+        for i in range(len(data_class.folds)):
+            X_train, y_train, X_val, y_val = data_class.get_fold(i)
+
+            model_class.reset_model()
+            #model.trainer.fit(X_train, y_train)
+            vec_avg_loss, vec_avg_valid_loss = model_class.trainer.train(X_train, y_train, X_val, y_val)
             
-        if "roc_auc" in self.scoring or "auc" in self.scoring or "AUC" in self.scoring:
-            scores["roc_auc"] = model.model.get_auc(X_train, y_train)
+            if data_class.one_hot_encoded: y_val = np.argmax(y_val, axis=-1)
+            
+            if "accuracy" in self.scoring:
+                scores["accuracy"].append(model_class.get_accuracy(X_val, y_val))
+                
+            if "roc_auc" in self.scoring or "auc" in self.scoring or "AUC" in self.scoring:
+                scores["roc_auc"].append(model_class.get_auc(model_class.predict(X_val), y_val))
         
-        # TODO: Handle other metrics
+        # scores = {f"{key}_mean": np.mean(scores[key]) for key in scores} | {f"{key}_std": np.std(scores[key]) for key in scores}
         return scores
+    
         
     def get_scores(self, model, X, y):
         if self.is_torch:

@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 from ..base import BaseModel
-from .base import TorchModelWrapper
+#from .base import TorchModelWrapper
 
 
 class SinusoidPositionalEncoding(nn.Module):
@@ -27,8 +27,9 @@ class SinusoidPositionalEncoding(nn.Module):
         """
         return self.pe[:x.size(0)]
 
-
-class GatedTransformerClassifier(torch.nn.Module, TorchModelWrapper):
+# TODO: comment is Kluge fix for now, but should be fixed in the future
+#class GatedTransformerClassifier(torch.nn.Module, TorchModelWrapper):
+class GatedTransformerClassifier(torch.nn.Module):
     def __init__(self, input_sample, input_dim, hidden_dim, hidden_unit_dim, hidden_unit_dim_time,
                 num_heads_time, num_heads, kernel_size, stride, num_layers, num_layers_time,
                 dropout, conv_dropout, output_dropout, n_target):
