@@ -162,7 +162,10 @@ def get_psd(
     noverlap=512,
     log=True,
 ):
-    """Calculate the power spectral density of a matrix of time series data. Each row should be an array of time series observations"""
+    """
+    Calculate the power spectral density of a matrix of time series data. 
+    Each row should be an array of time series observations.
+    """
     f, pxx = signal.welch(
         X, fs=sampling_frequency, nperseg=window_size, noverlap=noverlap, axis=-1
     )

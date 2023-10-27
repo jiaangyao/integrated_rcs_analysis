@@ -246,7 +246,7 @@ def main(cfg: DictConfig):
             config["sweep"]["parameters"]["n_class"] = {"value": y.shape[-1]}
 
         config["sweep"]["name"] = f"{cfg.run_name}_{cfg.device}_{cfg.time_stamp}_sweep"
-        config["sweep"]["local_directory"] = config["run_dir"]
+        # config["sweep"]["local_directory"] = config["run_dir"]
         sweep_config = config["sweep"]
         sweep_id = wandb.sweep(
             sweep_config,
