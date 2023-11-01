@@ -103,7 +103,7 @@ class MLData(DanticBaseModel):
     
     def assign_train_val_test_indices(self, train_inds=[], val_inds=[], test_inds=[]):
         """
-        Assigns the training, validation, and testing indicies to the dataclass.
+        Assigns the training, validation, and testing indicies to the dataclass fields.
         """
         self.train_val_test_indicies = (train_inds, val_inds, test_inds)
         

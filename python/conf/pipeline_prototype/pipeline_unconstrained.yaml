@@ -2,10 +2,10 @@
 #pipeline_name: unconstrained
 
 # Organization and Logging info
-project: Sleep_Classification_MLP_Debug_2
+project: Sleep_Classification_Demo
 device: 02L
 experiment: LightGBM_pass_1
-run_name: LightXGBoostModel_sweep
+run_name: LightGBM_sweep
 time_stamp: ${now:%Y-%m-%d}_${now:%H-%M-%S}
 BASE_PATH: /media/shortterm_ssd/Clay
 SUBBASE_PATH: ${BASE_PATH}/${project}/${experiment}

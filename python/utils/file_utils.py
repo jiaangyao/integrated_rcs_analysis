@@ -1,6 +1,7 @@
 import os
 import zipfile
 import fnmatch
+import subprocess
 
 def zipdir(path, ziph, exclude_patterns=[]):
     """
@@ -27,3 +28,12 @@ def create_zip(source_directory, output_filename, exclude=[]):
     """
     with zipfile.ZipFile(output_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
         zipdir(source_directory, zipf, exclude_patterns=exclude)
+
+def get_git_info():
+    try:
+        commit = subprocess.check_output(["git", "rev-parse", "HEAD"]).strip().decode('utf-8')
+        branch = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).strip().decode('utf-8')
+        return {"commit": commit, "branch": branch}
+    except subprocess.CalledProcessError:
+        print("An error occurred while trying to fetch git info")
+        return None

@@ -1,0 +1,9 @@
+validation_split: 0.2
+patience: 10
+min_delta: 0.001
+monitor: val_loss
+mode: min
+verbose: True
+baseline: None
+restore_best_weights: True
+random_seed: ${random_seed}

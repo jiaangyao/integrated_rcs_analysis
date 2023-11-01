@@ -3,11 +3,12 @@ from sklearn.model_selection._split import _BaseKFold
 import sklearn.model_selection as skms
 from sklearn.model_selection import train_test_split
 from utils.pipeline_utils import convert_string_to_callable
+from sklearn.model_selection import train_test_split
+from training_eval.early_stopping import EarlyStopping
 
 import numpy as np
 
 from sklearn.metrics import (
-    make_scorer,
     accuracy_score,
     precision_score,
     recall_score,
@@ -128,6 +129,11 @@ def set_up_cross_validation(config_dict, libs):
 def create_eval_class_from_config(config, data_class):
     # TODO: Update with new evaluation config format
     # Partition data into relevant sets if necessary
+    if early_stopping_conf := config.get("early_stopping"):
+        early_stopping = EarlyStopping(**early_stopping_conf)
+    else:
+        early_stopping = None
+        
     if config["data_split"]["name"] == "TrainTestSplit":
         train_inds, test_inds = train_test_split_inds(
             data_class.X,
@@ -147,6 +153,7 @@ def create_eval_class_from_config(config, data_class):
         data_class.assign_train_val_test_indices(train_inds, val_inds, test_inds)
         data_class.train_val_test_split(train_inds, val_inds, test_inds)
 
+    # TODO: Expand to multiple validation methods? Could potentially be useful for comparing different methods... store as list?
     validation_name = list(config["validation_method"].keys())[0]
     if 'fold' in validation_name.lower() or 'group' in validation_name.lower():
         config["validation_method"]["random_state"] = config["random_seed"]
@@ -160,8 +167,75 @@ def create_eval_class_from_config(config, data_class):
             data_class.folds = [{'train': train_fold, 'val': test_fold}
                                 for (train_fold, test_fold) 
                                 in val_object.split(data_class.X_train, data_class.y_train, groups=data_class.groups)]
+    else:
+        val_object = None
 
-    return ModelEvaluation(validation_name, val_object, config["scoring"], config["model_type"])
+    return ModelEvaluation(validation_name, val_object, config["scoring"], config["model_type"]), early_stopping
+
+class VanillaValidation:
+    """
+    Class for vanilla validation (i.e. no cross-validation). Train on train set, validate on validation set.
+    """
+    def __init__(self) -> None:
+        pass
+    
+    def get_scores_sklearn(self, model, X_train, y_train, X_val, y_val, scoring):
+        model.fit(X_train, y_train)
+        return custom_scorer(y_val, model.predict(X_val), scoring)
+    
+    
+    # TODO: This has some redundancy with custom_scorer...
+    def validation_scoring_torch(self, model_class, X_val, y_val, scoring):
+        """
+        Computes validation scores for a given model and validation data.
+
+        Args:
+            model_class (object): The model class to use for scoring.
+            X_val (array-like): The validation input data.
+            y_val (array-like): The validation target data.
+            scoring (list): A list of scoring metrics to compute.
+
+        Returns:
+            dict: A dictionary of scoring metrics and their corresponding scores.
+        """
+        scores = {}
+        
+
+        if "accuracy" in scoring:
+            scores["accuracy"] = model_class.get_accuracy(X_val, y_val)
+            
+        if "roc_auc" in scoring or "auc" in scoring or "AUC" in scoring:
+            scores["roc_auc"] = model_class.get_auc(model_class.predict(X_val), y_val)
+        
+        return scores
+            
+            
+    def get_scores_torch(self, model_class, X_train, y_train, X_val, y_val, scoring, early_stopping, one_hot_encoded, random_seed):
+        """
+        Trains a model and computes validation scores.
+
+        Args:
+            model_class (object): The model class to use for training and scoring.
+            X_train (array-like): The training input data.
+            y_train (array-like): The training target data.
+            X_val (array-like): The validation input data.
+            y_val (array-like): The validation target data.
+            scoring (list): A list of scoring metrics to compute.
+            early_stopping (bool): Whether to use early stopping during training.
+            one_hot_encoded (bool): Whether the target data is one-hot encoded.
+            random_seed (int): The random seed for splitting the data for early stopping.
+
+        Returns:
+            dict: A dictionary of scoring metrics and their corresponding scores.
+        """
+        # NOTE: Put early stopping into own data class?
+        # Early stopping split here...
+        vec_avg_loss, vec_avg_valid_loss = model_class.trainer.train(X_train, y_train)
+        model_class.model.eval()
+        
+        if one_hot_encoded: y_val = np.argmax(y_val, axis=-1)
+        
+        return self.validation_scoring(model_class, X_val, y_val, scoring)
 
 # This model can be used as a base model, if people want a more specific evaluation class, they can create a new one
 class ModelEvaluation:
@@ -170,6 +244,8 @@ class ModelEvaluation:
         self.val_object = val_object
         self.scoring = scoring
         self.model_type = model_type
+        # TODO: IMPLEMENT EARLY STOPPING
+        self.eary_stopping = False
         self.determine_evaluation_method()
 
     # TODO: Check if model is instance of sklearn or torch model, then call appropriate evaluation function with relevant scoring
@@ -236,9 +312,10 @@ class ModelEvaluation:
                 scoring=self.scoring,
                 n_jobs=self.val_object.get_n_splits() + 1,
             )
-        elif self.val_object is None:
+        elif isinstance(self.val_object, VanillaValidation):
             # For vanilla prediction on y_train
-            results = custom_scorer(y_train, model.predict(X_train), self.scoring)
+            X_val, y_val = data_class.get_validation_data()
+            results = self.val_object.get_scores_sklearn(model, X_train, y_train, X_val, y_val, self.scoring)
         else:
             raise ValueError(f"Validation object {self.val_object} is not recognized.")
         return results
@@ -247,32 +324,30 @@ class ModelEvaluation:
     # TODO: Figure out location to handle one hot encoding vs multiclass for accuracy scores
     def evaluate_model_torch(self, model_class, data_class):
         scores = {}
+        vanilla_validation = VanillaValidation()
         
         for key in self.scoring: scores[key] = []
         
         for i in range(len(data_class.folds)):
+            # NOTE: Each fold is treated as a vanilla validation 
             X_train, y_train, X_val, y_val = data_class.get_fold(i)
 
             model_class.reset_model()
-            #model.trainer.fit(X_train, y_train)
-            vec_avg_loss, vec_avg_valid_loss = model_class.trainer.train(X_train, y_train, X_val, y_val)
             
-            if data_class.one_hot_encoded: y_val = np.argmax(y_val, axis=-1)
+            [scores[key].append(score) for key, score 
+            in vanilla_validation.get_scores_torch(model_class, X_train, y_train, X_val, y_val, self.scoring, self.eary_stopping, data_class.one_hot_encoded, data_class.random_seed).items()]
             
-            if "accuracy" in self.scoring:
-                scores["accuracy"].append(model_class.get_accuracy(X_val, y_val))
-                
-            if "roc_auc" in self.scoring or "auc" in self.scoring or "AUC" in self.scoring:
-                scores["roc_auc"].append(model_class.get_auc(model_class.predict(X_val), y_val))
-        
         # scores = {f"{key}_mean": np.mean(scores[key]) for key in scores} | {f"{key}_std": np.std(scores[key]) for key in scores}
         return scores
     
         
-    def get_scores(self, model, X, y):
+    def get_scores(self, model, X, y, one_hot_encoded=False):
         if self.is_torch:
             if hasattr(model.module, "predict"):
-                return custom_scorer(y, model.predict(X), self.scoring)
+                if one_hot_encoded:
+                    return custom_scorer(y, np.argmax(model.predict(X), axis=-1), self.scoring)
+                else:
+                    return custom_scorer(y, model.predict(X), self.scoring)
             else:
                 print("No predict method found, using forward method instead.")
                 return custom_scorer(y, model.forward(X), self.scoring)

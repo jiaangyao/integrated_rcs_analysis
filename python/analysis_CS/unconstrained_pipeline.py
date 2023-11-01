@@ -6,7 +6,7 @@ from loguru import logger
 import numpy as np
 import polars as pl
 from collections import OrderedDict
-from utils.file_utils import create_zip
+from utils.file_utils import create_zip, get_git_info
 
 # TODO: Remove sys.append once I figure out why VSCode hates this working directory
 import sys
@@ -68,6 +68,7 @@ def setup(cfg: DictConfig):
     logger.info("Local Directory Path: {}".format(config["run_dir"]))
     # TODO: Parameterize this...
     create_zip(f'{os.getcwd()}/python', f'{config["run_dir"]}/code.zip', exclude=['analysis_*'])
+    logger.info("Git info: {}".format(get_git_info()))
     
     logger.info(f"Beginning pipeline...")
 
@@ -214,22 +215,24 @@ def main(cfg: DictConfig):
     
     # Set up data object once all preprocessing and feature engineering is complete
     data = MLData(X=X, y=y, groups=groups, one_hot_encoded=one_hot_encoded)
+    
+    # 6. Train / test split (K-fold cross validation, Stratified K-fold cross validation, Group K-fold cross validation)
+    # Set up model evaluation object
+    evaluation_config = config["evaluation"]
+    eval, early_stopping = create_eval_class_from_config(evaluation_config, data)
 
-    # 6. Select model
+    # 7. Select model
     # Note: Can use ArbitraryModel class to wrap any model and compare in pipeline with other models
     model_config = config["model"]
     model_name = model_config["model_name"]
     model_kwargs = model_config["parameters"] if model_config["parameters"] else {}
+    if early_stopping: model_kwargs["early_stopping"] = early_stopping
+    
     model_class = find_and_load_class("model", model_name, kwargs=model_kwargs)
-
-    # Train / test split (K-fold cross validation, Stratified K-fold cross validation, Group K-fold cross validation)
-    # Set up model evaluation object
-    evaluation_config = config["evaluation"]
-    eval = create_eval_class_from_config(evaluation_config, data)
     if evaluation_config["model_type"] == "skorch":
         model_class = SkorchModel(model_class)
 
-    # 7. Train and evaluate model (log to wandb)
+    # 8. Train and evaluate model (log to wandb)
     # (Optuna integration with wandb logging: use callback https://optuna.readthedocs.io/en/stable/reference/generated/optuna.integration.WeightsAndBiasesCallback.html
     # https://medium.com/optuna/optuna-meets-weights-and-biases-58fc6bab893)
     hyperparam_args = config["hyperparameter_optimization"]

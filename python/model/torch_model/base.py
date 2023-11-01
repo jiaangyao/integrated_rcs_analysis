@@ -17,9 +17,10 @@ from scipy.special import softmax  # type: ignore
 import model.torch_model.torch_utils as ptu
 from dataset.torch_dataset import NeuralDataset, NeuralDatasetTest
 from ..base import BaseModel
-from .callbacks import EarlyStopping
+#from .callbacks import EarlyStopping
 #from .mlp_model import MLPModelWrapper
 from .rnn_model import RNNModelWrapper
+from sklearn.model_selection import train_test_split
 
 # TODO: transfer constants to constants directory
 # define global variables
@@ -118,11 +119,8 @@ class BaseTorchTrainer():
         batch_size=32,
         n_epoch=100,
         bool_shuffle=True,
-        bool_early_stopping=False,
-        es_patience=5,
-        es_delta=1e-5,
-        es_metric="val_loss",
         bool_verbose=False,
+        early_stopper=None,
         bool_use_ray=False,
         bool_use_gpu=False,
         n_gpu_per_process: int | float = 0,
@@ -151,13 +149,10 @@ class BaseTorchTrainer():
         self.batch_size = batch_size
         self.n_epoch = n_epoch
         self.bool_shuffle = bool_shuffle
-        
-        # Initialize early stopping parameters
-        self.bool_early_stopping = bool_early_stopping
-        self.es_patience = es_patience
-        self.es_delta = es_delta
-        self.es_metric = es_metric
         self.bool_verbose = bool_verbose
+        
+        # Initialize early stopper
+        self.early_stopper = early_stopper
         
         # initialize ray and GPU utilization flag
         self.bool_use_ray = bool_use_ray
@@ -183,8 +178,9 @@ class BaseTorchTrainer():
         self,
         train_data,
         train_label,
-        valid_data: npt.NDArray | None,
-        valid_label: npt.NDArray | None,
+        # Removing validation data for now, as it is not used if early stopping is not enabled. Split occurs if ealry stopping is enabled
+        # valid_data: npt.NDArray | None,
+        # valid_label: npt.NDArray | None,
     ) -> tp.Tuple[npt.NDArray, npt.NDArray]:
         
         # TODO: Flag to clear model params before training?? This would avoid stacking multiple training sessions on top of each other
@@ -198,6 +194,16 @@ class BaseTorchTrainer():
                 torch.cuda.current_device() == self.device.index
             ), "Make sure you are using specified GPU"
 
+        if self.early_stopper is not None:
+            train_data, valid_data, train_label, valid_label = train_test_split(
+                train_data, train_label, test_size=self.early_stopper.validation_split, random_state=self.early_stopper.random_seed
+            )
+            
+            valid_dataset = NeuralDataset(valid_data, valid_label)
+            valid_dataloader = DataLoader(
+                valid_dataset, batch_size=len(valid_dataset), shuffle=False
+            )
+        
         # initialize dataset and dataloader for training set
         train_dataset = NeuralDataset(
             train_data,
@@ -216,19 +222,8 @@ class BaseTorchTrainer():
             str_task = "multiclass"
 
         # initialize the dataset and dataloader for validation set
-        # bool_run_validation = valid_data is not None and valid_label is not None
-        # TODO: Fix bool_run_validation, move to evaluation class
-        bool_run_validation = False
-        valid_dataset = NeuralDataset(valid_data, valid_label)
-        valid_dataloader = DataLoader(
-            valid_dataset, batch_size=len(valid_dataset), shuffle=False
-        )
-        early_stopper = EarlyStopping(
-            patience=self.es_patience,
-            delta=self.es_delta,
-            verbose=self.bool_verbose,
-            bool_save_checkpoint=False,
-        )
+        bool_run_validation = valid_data is not None and valid_label is not None
+        # bool_run_validation = False
 
         # housekeeping and declare optimizer
         optimizer = self.get_optimizer()
@@ -242,8 +237,6 @@ class BaseTorchTrainer():
             # initialize the loss and the model
             vec_loss = []
             vec_acc = []
-            vec_valid_loss = []
-            vec_valid_acc = []
             self.model.train()
 
             # iterate through the dataset
@@ -268,6 +261,7 @@ class BaseTorchTrainer():
 
                 # compute the accuracy
                 # noinspection PyTypeChecker
+                # TODO: Consider moving accuracy calculation to evaluation class
                 acc = torchmetrics.functional.accuracy(
                     torch.argmax(y_pred, dim=1), torch.argmax(y, dim=1), task=str_task, num_classes=self.n_class
                 )
@@ -279,10 +273,14 @@ class BaseTorchTrainer():
             vec_avg_loss.append(loss)
 
             # now perform validation
+            # TODO: Consider consolidating validation with early stopping
+            # TODO: Consider moving early stopping check to evaluation class (e.g. early_stopping_check() or early_stopping_criteria_met() )
             str_valid_loss = None
             valid_loss = 0
             if bool_run_validation:
                 # initialize the loss and set model to eval mode
+                vec_valid_loss = []
+                vec_valid_acc = []
                 self.model.eval()  # type: ignore
                 with torch.no_grad():
                     for _, (x_valid, y_valid) in enumerate(valid_dataloader):
@@ -321,19 +319,19 @@ class BaseTorchTrainer():
             # call early stopping
             if bool_run_validation and self.bool_early_stopping:
                 if self.es_metric == "val_loss":
-                    early_stopper(valid_loss, self.model)
+                    self.early_stopper(valid_loss, self.model)
                 elif self.es_metric == "val_acc":
-                    early_stopper(valid_acc, self.model, mode="max")
+                    self.early_stopper(valid_acc, self.model, mode="max")
                 else:
                     raise ValueError("es_metric must be either 'val_loss' or 'val_acc'")
 
-                if early_stopper.early_stop:
+                if self.early_stopper.early_stop:
                     if self.bool_verbose:
                         print("Early stopping")
                     break
 
                 # load the last checkpoint with the best model
-                self.model = early_stopper.load_model(self.model)
+                self.model = self.early_stopper.load_model(self.model)
                 
         vec_avg_loss = np.stack(vec_avg_loss, axis=0)
         if bool_run_validation:
@@ -397,14 +395,16 @@ class BaseTorchModel(BaseModel):
     MODEL_ARCHITECURE_KEYS = ["n_input", "n_class", "act_func", "n_layer", "hidden_size", "act_func", "dropout"]
     TRAINER_KEYS = [
         "n_class", "str_loss", "str_reg", "lam", "str_opt", "lr", "transform", "target_transform",
-        "batch_size", "n_epoch", "bool_shuffle", "bool_early_stopping", "es_patience", "es_delta",
-        "es_metric", "bool_verbose", "bool_use_ray", "bool_use_gpu", "n_gpu_per_process", "criterion", "optimizer",
-        "learning_rate"
+        "batch_size", "n_epoch", "bool_shuffle", "bool_verbose", "bool_use_ray", "bool_use_gpu", "n_gpu_per_process", "criterion", "optimizer",
+        "learning_rate", "early_stopper"
     ]
+    EARLYSTOPPING_KEYS = ["bool_early_stopping", "es_patience", "es_delta",
+        "es_metric", "bool_verbose"]
     
-    def __init__(self, model, trainer):
+    def __init__(self, model, trainer, early_stopper=None):
         super().__init__(model)
         self.trainer = trainer
+        self.early_stopper = None
         self.model_kwargs = None
         self.trainer_kwargs = None
     
