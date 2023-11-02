@@ -30,7 +30,7 @@ label_options:
     # 5: 0
     # 6: 0
 
-  OneHotEncode: False
+  OneHotEncode: True
 
 # If the feature columns are TD sensor channels, then the following allows for handling the channels individually
 channel_options:

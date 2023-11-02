@@ -1,6 +1,20 @@
 import torch
 import torch.nn as nn
 
+import typing as tp
+
+import numpy.typing as npt
+import torch.nn as nn
+from .torch_utils import init_gpu
+import torch
+import model.torch_model.torch_utils as ptu
+import numpy.typing as npt
+import model.torch_model.torch_utils as ptu
+
+
+from .base import BaseTorchTrainer, BaseTorchModel, BaseTorchClassifier
+from .mlp_model import TorchMLPTrainer
+
 
 class Conv2dWithConstraint(nn.Conv2d):
     def __init__(self, *args, max_norm: int = 1, **kwargs):
@@ -57,8 +71,8 @@ class EEGNet(nn.Module):
     '''
     def __init__(self,
                 chunk_size: int = 151,
-                num_electrodes: int = 60,
-                in_channels: int = 1,
+                num_electrodes: int = 60, # Number of recording streams
+                in_channels: int = 1, # If raw time series is used, in_channels = 1. Otherwise, number of decompositions (e.g. wavelet filtered channels)
                 F1: int = 8,
                 F2: int = 16,
                 D: int = 2,
@@ -66,7 +80,7 @@ class EEGNet(nn.Module):
                 kernel_1: int = 64,
                 kernel_2: int = 16,
                 dropout: float = 0.25):
-        super(EEGNet, self).__init__()
+        super(self).__init__()
         self.in_channels = in_channels
         self.F1 = F1
         self.F2 = F2
@@ -78,6 +92,7 @@ class EEGNet(nn.Module):
         self.kernel_2 = kernel_2
         self.dropout = dropout
 
+        # Temporal convolution block
         self.block1 = nn.Sequential(
             nn.Conv2d(self.in_channels, self.F1, (1, self.kernel_1), stride=1, padding=(0, self.kernel_1 // 2), groups=1, bias=False),
             nn.BatchNorm2d(self.F1, momentum=0.01, affine=True, eps=1e-3),
@@ -87,9 +102,11 @@ class EEGNet(nn.Module):
                                 stride=1,
                                 padding=(0, 0),
                                 groups=self.F1,
-                                bias=False), nn.BatchNorm2d(self.F1 * self.D, momentum=0.01, affine=True, eps=1e-3),
+                                bias=False), 
+            nn.BatchNorm2d(self.F1 * self.D, momentum=0.01, affine=True, eps=1e-3),
             nn.ELU(), nn.AvgPool2d((1, 4), stride=4), nn.Dropout(p=dropout))
 
+        # Spatial convolution block
         self.block2 = nn.Sequential(
             nn.Conv2d(self.F1 * self.D,
                     self.F1 * self.D, (1, self.kernel_2),
@@ -98,6 +115,7 @@ class EEGNet(nn.Module):
                     bias=False,
                     groups=self.F1 * self.D))
         
+        # Separable convolution block
         self.block3 = nn.Sequential(
             nn.Conv2d(self.F1 * self.D, self.F2, 1, padding=(0, 0), groups=1, bias=False, stride=1),
             nn.BatchNorm2d(self.F2, momentum=0.01, affine=True, eps=1e-3), nn.ELU(), nn.AvgPool2d((1, 8), stride=8),
@@ -131,3 +149,99 @@ class EEGNet(nn.Module):
         x = self.lin(x)
 
         return x
+
+class EEGNetTrainer(BaseTorchTrainer):
+    def __init__(
+        self,
+        model,
+        n_class=2,
+        str_loss='CrossEntropy',
+        str_reg='L2',
+        lam=1e-5,
+        str_opt='Adam',
+        lr=1e-4,
+        transform=None,
+        target_transform=None,
+        batch_size=32,
+        n_epoch=100,
+        bool_shuffle=True,
+        bool_verbose=False,
+        early_stopping=None,
+        bool_use_ray=False,
+        bool_use_gpu=False,
+        n_gpu_per_process: int | float = 0
+    ):
+        super().__init__(model,
+            n_class,
+            str_loss,
+            str_reg,
+            lam,
+            str_opt,
+            lr,
+            transform,
+            target_transform,
+            batch_size,
+            n_epoch,
+            bool_shuffle,
+            early_stopping,
+            bool_verbose,
+            bool_use_ray,
+            bool_use_gpu,
+            n_gpu_per_process
+        )
+
+class EEGNetModel(BaseTorchModel):
+    MODEL_ARCHITECURE_KEYS = ["n_input", "n_class", "act_func", "n_layer", "hidden_size", "act_func", "dropout"]
+    
+    def __init__(
+        self,
+        n_input=64,
+        n_class=2,
+        n_layer=3,
+        hidden_size=32,
+        dropout: float = 0.5,
+        lam=1e-5,
+        act_func="relu",
+        str_reg="L2",
+        str_loss="CrossEntropy",
+        str_opt="Adam",
+        lr=1e-4,
+        early_stopping=None,
+        bool_verbose=False,
+        transform=None,
+        target_transform=None,
+        bool_use_ray=False,
+        bool_use_gpu=False,
+        n_gpu_per_process: int | float = 0,
+    ):
+        
+        self.model_kwargs, self.trainer_kwargs = self.split_kwargs_into_model_and_trainer(locals())
+        # TODO: Improve device logic...
+        self.device = init_gpu(use_gpu=bool_use_gpu)
+        
+        # initialize the model
+        self.model = EEGNet(
+            **self.model_kwargs
+        )
+        self.model.to(self.device)
+        
+        # Initialize Trainer
+        self.trainer = EEGNetTrainer(
+            self.model, **self.trainer_kwargs
+        )
+        super().__init__(self.model, self.trainer, early_stopping)
+    
+    
+    def override_model(self, kwargs: dict) -> None:
+        model_kwargs, trainer_kwargs = self.split_kwargs_into_model_and_trainer(kwargs)
+        self.model_kwargs = model_kwargs
+        self.trainer_kwargs = trainer_kwargs
+        self.model = EEGNet(**model_kwargs)
+        self.trainer = EEGNetTrainer(self.model, **trainer_kwargs)
+        self.model.to(self.device)
+    
+    def reset_model(self) -> None:
+        #self.override_model(self.model_kwargs | self.trainer_kwargs)
+        self.model = EEGNet(**self.model_kwargs)
+        self.trainer = EEGNetTrainer(self.model, **self.trainer_kwargs)
+        self.model.to(self.device)

@@ -4,8 +4,8 @@
 # Organization and Logging info
 project: Sleep_Classification_Demo
 device: 02L
-experiment: LightGBM_pass_1
-run_name: LightGBM_sweep
+experiment: MLP_early_stopping_debug
+run_name: MLP_early_stopping_debug
 time_stamp: ${now:%Y-%m-%d}_${now:%H-%M-%S}
 BASE_PATH: /media/shortterm_ssd/Clay
 SUBBASE_PATH: ${BASE_PATH}/${project}/${experiment}
@@ -22,6 +22,9 @@ wandb:
     - ${device}
     - ${run_name}
 
+# High level pipeline parameters
+random_seed: 42
+
 # Define steps in pipeline
 defaults:
   - _self_
@@ -30,7 +33,7 @@ defaults:
   - feature_engineering: example
   - feature_selection: 
   - class_imbalance_correction: 
-  - model: LightXGBoostModel
+  - model: TorchMLPModel
   - evaluation: classification_default
   - hyperparameter_optimization: WandB
   - sweep: ${hyperparameter_optimization}/${model}

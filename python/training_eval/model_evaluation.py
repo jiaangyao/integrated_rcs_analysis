@@ -5,6 +5,7 @@ from sklearn.model_selection import train_test_split
 from utils.pipeline_utils import convert_string_to_callable
 from sklearn.model_selection import train_test_split
 from training_eval.early_stopping import EarlyStopping
+from utils.wandb_utils import wandb_log
 
 import numpy as np
 
@@ -127,10 +128,9 @@ def set_up_cross_validation(config_dict, libs):
 
 
 def create_eval_class_from_config(config, data_class):
-    # TODO: Update with new evaluation config format
     # Partition data into relevant sets if necessary
     if early_stopping_conf := config.get("early_stopping"):
-        early_stopping = EarlyStopping(**early_stopping_conf)
+        early_stopping = EarlyStopping(**early_stopping_conf | {"val_obj": VanillaValidation()})
     else:
         early_stopping = None
         
@@ -170,7 +170,7 @@ def create_eval_class_from_config(config, data_class):
     else:
         val_object = None
 
-    return ModelEvaluation(validation_name, val_object, config["scoring"], config["model_type"]), early_stopping
+    return ModelEvaluation(validation_name, val_object, config["scoring"], config["model_type"], config["random_seed"]), early_stopping
 
 class VanillaValidation:
     """
@@ -210,7 +210,7 @@ class VanillaValidation:
         return scores
             
             
-    def get_scores_torch(self, model_class, X_train, y_train, X_val, y_val, scoring, early_stopping, one_hot_encoded, random_seed):
+    def get_scores_torch(self, model_class, X_train, y_train, X_val, y_val, scoring, one_hot_encoded, random_seed):
         """
         Trains a model and computes validation scores.
 
@@ -228,24 +228,28 @@ class VanillaValidation:
         Returns:
             dict: A dictionary of scoring metrics and their corresponding scores.
         """
-        # NOTE: Put early stopping into own data class?
-        # Early stopping split here...
         vec_avg_loss, vec_avg_valid_loss = model_class.trainer.train(X_train, y_train)
-        model_class.model.eval()
+        
+        if vec_avg_valid_loss:
+            wandb_log({"Average Epoch Loss": vec_avg_loss, "Average Epoch Validation Loss": vec_avg_valid_loss})
+        else:
+            wandb_log({"Average Epoch Loss": vec_avg_loss})
         
         if one_hot_encoded: y_val = np.argmax(y_val, axis=-1)
         
+        model_class.model.eval()
         return self.validation_scoring(model_class, X_val, y_val, scoring)
 
 # This model can be used as a base model, if people want a more specific evaluation class, they can create a new one
 class ModelEvaluation:
-    def __init__(self, validation_name, val_object, scoring, model_type):
+    def __init__(self, validation_name, val_object, scoring, model_type, random_seed):
         self.validation_name = validation_name
         self.val_object = val_object
         self.scoring = scoring
         self.model_type = model_type
+        self.random_seed = random_seed
         # TODO: IMPLEMENT EARLY STOPPING
-        self.eary_stopping = False
+        # self.eary_stopping = False
         self.determine_evaluation_method()
 
     # TODO: Check if model is instance of sklearn or torch model, then call appropriate evaluation function with relevant scoring
@@ -335,7 +339,7 @@ class ModelEvaluation:
             model_class.reset_model()
             
             [scores[key].append(score) for key, score 
-            in vanilla_validation.get_scores_torch(model_class, X_train, y_train, X_val, y_val, self.scoring, self.eary_stopping, data_class.one_hot_encoded, data_class.random_seed).items()]
+            in vanilla_validation.get_scores_torch(model_class, X_train, y_train, X_val, y_val, self.scoring, data_class.one_hot_encoded, self.random_seed).items()]
             
         # scores = {f"{key}_mean": np.mean(scores[key]) for key in scores} | {f"{key}_std": np.std(scores[key]) for key in scores}
         return scores

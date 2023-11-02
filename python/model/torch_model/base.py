@@ -108,6 +108,7 @@ class BaseTorchTrainer():
     def __init__(
         self,
         model,
+        early_stopping,
         n_class,
         str_loss,
         str_reg,
@@ -120,7 +121,6 @@ class BaseTorchTrainer():
         n_epoch=100,
         bool_shuffle=True,
         bool_verbose=False,
-        early_stopper=None,
         bool_use_ray=False,
         bool_use_gpu=False,
         n_gpu_per_process: int | float = 0,
@@ -152,7 +152,7 @@ class BaseTorchTrainer():
         self.bool_verbose = bool_verbose
         
         # Initialize early stopper
-        self.early_stopper = early_stopper
+        self.early_stopping = early_stopping
         
         # initialize ray and GPU utilization flag
         self.bool_use_ray = bool_use_ray
@@ -194,9 +194,10 @@ class BaseTorchTrainer():
                 torch.cuda.current_device() == self.device.index
             ), "Make sure you are using specified GPU"
 
-        if self.early_stopper is not None:
+        if self.early_stopping is not None:
+            # ! Currently, validation set is only created if early stopping is enabled.
             train_data, valid_data, train_label, valid_label = train_test_split(
-                train_data, train_label, test_size=self.early_stopper.validation_split, random_state=self.early_stopper.random_seed
+                train_data, train_label, test_size=self.early_stopping.validation_split, random_state=self.early_stopping.random_seed
             )
             
             valid_dataset = NeuralDataset(valid_data, valid_label)
@@ -277,7 +278,7 @@ class BaseTorchTrainer():
             # TODO: Consider moving early stopping check to evaluation class (e.g. early_stopping_check() or early_stopping_criteria_met() )
             str_valid_loss = None
             valid_loss = 0
-            if bool_run_validation:
+            if bool_run_validation and self.early_stopping:
                 # initialize the loss and set model to eval mode
                 vec_valid_loss = []
                 vec_valid_acc = []
@@ -309,29 +310,29 @@ class BaseTorchTrainer():
                     str_valid_loss = ", Valid Loss: {:.4f}".format(valid_loss)
                     str_valid_acc = ", Valid Acc: {:.4f}".format(valid_acc)
 
-            # print the loss
-            if self.bool_verbose:
-                print(
-                    "Epoch: {}, Loss: {:.4f}{}".format(epoch + 1, loss, str_valid_loss)
-                )
-                print("Epoch: {}, Acc: {:.4f}{}".format(epoch + 1, acc, str_valid_acc))
+                # print the loss
+                if self.bool_verbose:
+                    print(
+                        "Epoch: {}, Loss: {:.4f}{}".format(epoch + 1, loss, str_valid_loss)
+                    )
+                    print("Epoch: {}, Acc: {:.4f}{}".format(epoch + 1, acc, str_valid_acc))
 
             # call early stopping
-            if bool_run_validation and self.bool_early_stopping:
+            if bool_run_validation and self.early_stopping:
                 if self.es_metric == "val_loss":
-                    self.early_stopper(valid_loss, self.model)
+                    self.early_stopping(valid_loss, self.model)
                 elif self.es_metric == "val_acc":
-                    self.early_stopper(valid_acc, self.model, mode="max")
+                    self.early_stopping(valid_acc, self.model, mode="max")
                 else:
                     raise ValueError("es_metric must be either 'val_loss' or 'val_acc'")
 
-                if self.early_stopper.early_stop:
+                if self.early_stopping.early_stop:
                     if self.bool_verbose:
                         print("Early stopping")
                     break
 
                 # load the last checkpoint with the best model
-                self.model = self.early_stopper.load_model(self.model)
+                self.model = self.early_stopping.load_model(self.model)
                 
         vec_avg_loss = np.stack(vec_avg_loss, axis=0)
         if bool_run_validation:
@@ -396,15 +397,15 @@ class BaseTorchModel(BaseModel):
     TRAINER_KEYS = [
         "n_class", "str_loss", "str_reg", "lam", "str_opt", "lr", "transform", "target_transform",
         "batch_size", "n_epoch", "bool_shuffle", "bool_verbose", "bool_use_ray", "bool_use_gpu", "n_gpu_per_process", "criterion", "optimizer",
-        "learning_rate", "early_stopper"
+        "learning_rate"
     ]
     EARLYSTOPPING_KEYS = ["bool_early_stopping", "es_patience", "es_delta",
         "es_metric", "bool_verbose"]
     
-    def __init__(self, model, trainer, early_stopper=None):
+    def __init__(self, model, trainer, early_stopping=None):
         super().__init__(model)
         self.trainer = trainer
-        self.early_stopper = None
+        self.early_stopping = early_stopping
         self.model_kwargs = None
         self.trainer_kwargs = None
     

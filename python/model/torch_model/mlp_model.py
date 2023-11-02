@@ -94,6 +94,7 @@ class TorchMLPTrainer(BaseTorchTrainer):
     def __init__(
         self,
         model,
+        early_stopping=None,
         n_class=2,
         str_loss='CrossEntropy',
         str_reg='L2',
@@ -106,12 +107,13 @@ class TorchMLPTrainer(BaseTorchTrainer):
         n_epoch=100,
         bool_shuffle=True,
         bool_verbose=False,
-        early_stopper=None,
         bool_use_ray=False,
         bool_use_gpu=False,
         n_gpu_per_process: int | float = 0
     ):
-        super().__init__(model,
+        super().__init__(
+            model,
+            early_stopping,
             n_class,
             str_loss,
             str_reg,
@@ -123,7 +125,6 @@ class TorchMLPTrainer(BaseTorchTrainer):
             batch_size,
             n_epoch,
             bool_shuffle,
-            early_stopper,
             bool_verbose,
             bool_use_ray,
             bool_use_gpu,
@@ -182,7 +183,7 @@ class TorchMLPModel(BaseTorchModel):
         str_loss="CrossEntropy",
         str_opt="Adam",
         lr=1e-4,
-        early_stopper=None,
+        early_stopping=None,
         bool_verbose=False,
         transform=None,
         target_transform=None,
@@ -201,9 +202,13 @@ class TorchMLPModel(BaseTorchModel):
         )
         self.model.to(self.device)
         
+        self.early_stopping = early_stopping
+        
         self.trainer = TorchMLPTrainer(
-            self.model, **self.trainer_kwargs
+            self.model, self.early_stopping, **self.trainer_kwargs
         )
+        
+        super().__init__(self.model, self.trainer, self.early_stopping)
 
     # def predict(self, data: npt.NDArray) -> npt.NDArray:
     #     # ensure that data is in the right format
@@ -269,9 +274,9 @@ class TorchMLPModel(BaseTorchModel):
     def override_model(self, kwargs: dict) -> None:
         model_kwargs, trainer_kwargs = self.split_kwargs_into_model_and_trainer(kwargs)
         self.model_kwargs = model_kwargs
-        self.trainer_kwargs = trainer_kwargs
+        self.trainer_kwargs = trainer_kwargs | {"early_stopping": self.early_stopping}
         self.model = TorchMLPClassifier(**model_kwargs)
-        self.trainer = TorchMLPTrainer(self.model, **trainer_kwargs)
+        self.trainer = TorchMLPTrainer(self.model, self.early_stopping, **trainer_kwargs)
         self.model.to(self.device)
     
     def reset_model(self) -> None:

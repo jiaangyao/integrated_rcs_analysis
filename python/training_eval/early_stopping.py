@@ -1,7 +1,5 @@
 from dataclasses import dataclass, asdict
 from typing import Optional
-from model_evaluation import VanillaValidation
-
 import pathlib
 
 import numpy as np
@@ -23,7 +21,7 @@ class EarlyStopping:
             trace_func=print,
             bool_save_checkpoint=False,
             random_seed=None,
-            val_obj: VanillaValidation = VanillaValidation()
+            val_obj=None
     ):
         """
         Args:
