@@ -70,7 +70,7 @@ class MLData(DanticBaseModel):
         self.X_test = self.X[test_inds]
         self.y_test = self.y[test_inds]
 
-
+    # TODO: Define the following 'get_...' funcs as @property methods?
     def get_training_data(self):
         return self.X_train, self.y_train
 
@@ -99,7 +99,6 @@ class MLData(DanticBaseModel):
         Returns the testing data for all folds.
         """
         return [self.X_train[fold['val']] for fold in self.folds]
-    
     
     def assign_train_val_test_indices(self, train_inds=[], val_inds=[], test_inds=[]):
         """

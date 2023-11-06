@@ -189,7 +189,8 @@ def create_transform_pipeline(steps):
     pipe_steps = []
     pipe_step_paths = []
     for name, (func, kwargs) in steps.items():
-
+        if kwargs is None:
+            kwargs = {}
         # Retrieve the module path of the function for logging
         module_name = inspect.getmodule(func).__name__.rsplit(".", 1)[0]
         if module_name in name:

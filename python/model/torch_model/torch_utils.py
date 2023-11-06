@@ -81,11 +81,11 @@ def init_gpu(
 ):
     global device
 
-    # pick best gpu if flag is set
-    if bool_use_best_gpu:
-        gpu_id = pick_gpu_lowest_memory()
-
     if torch.cuda.is_available() and use_gpu:
+        # pick best gpu if flag is set
+        if bool_use_best_gpu:
+            gpu_id = pick_gpu_lowest_memory()
+            
         device = torch.device("cuda:" + str(gpu_id))
 
         force_cudnn_initialization()

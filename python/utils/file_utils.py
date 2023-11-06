@@ -2,6 +2,24 @@ import os
 import zipfile
 import fnmatch
 import subprocess
+import csv
+
+# Variables
+CSV_COLUMNS = [
+    "project",
+    "time_stamp",
+    "device",
+    "experiment",
+    "info",
+    "run_name",
+    "WandB_url",
+    "WandB_id",
+    "run_dir",
+    "date",
+    "time",
+    "commit",
+    "commit_branch"
+]
 
 def zipdir(path, ziph, exclude_patterns=[]):
     """
@@ -18,6 +36,7 @@ def zipdir(path, ziph, exclude_patterns=[]):
             if not any(fnmatch.fnmatch(file, pattern) for pattern in exclude_patterns):
                 ziph.write(os.path.join(root, file), os.path.relpath(os.path.join(root, file), path))
 
+
 def create_zip(source_directory, output_filename, exclude=[]):
     """
     Create a zip file from a directory, excluding specified patterns.
@@ -29,11 +48,38 @@ def create_zip(source_directory, output_filename, exclude=[]):
     with zipfile.ZipFile(output_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
         zipdir(source_directory, zipf, exclude_patterns=exclude)
 
+
 def get_git_info():
     try:
         commit = subprocess.check_output(["git", "rev-parse", "HEAD"]).strip().decode('utf-8')
         branch = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).strip().decode('utf-8')
-        return {"commit": commit, "branch": branch}
+        return {"git_commit": commit, "git_branch": branch}
     except subprocess.CalledProcessError:
         print("An error occurred while trying to fetch git info")
         return None
+
+
+def dict_to_csv(data_dict, csv_file_path):
+    # Check if the CSV file exists
+    file_exists = os.path.isfile(csv_file_path)
+
+    # Open the CSV file in write mode, create if not exists
+    with open(csv_file_path, 'a', newline='') as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=data_dict.keys())
+
+        # If the file does not exist, write the header first
+        if not file_exists:
+            writer.writeheader()
+
+        # Write the dictionary as a new row in the CSV
+        writer.writerow(data_dict)
+
+
+def add_config_to_csv(config, csv):
+    # Create a dictionary from the config
+    config_dict = {k:v for k,v in config.items() if k in CSV_COLUMNS}
+    
+    config_dict["date"], config_dict['time'] = config_dict["time_stamp"].split("_")
+    
+    # Add the config to the CSV
+    dict_to_csv(config_dict, csv)

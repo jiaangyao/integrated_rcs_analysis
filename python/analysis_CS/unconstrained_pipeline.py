@@ -6,7 +6,7 @@ from loguru import logger
 import numpy as np
 import polars as pl
 from collections import OrderedDict
-from utils.file_utils import create_zip, get_git_info
+from utils.file_utils import create_zip, get_git_info, add_config_to_csv
 
 # TODO: Remove sys.append once I figure out why VSCode hates this working directory
 import sys
@@ -41,9 +41,9 @@ from training_eval.hyperparameter_optimization import HyperparameterOptimization
 
 # Global Variables
 POTENTIAL_FEATURE_LIBRARIES = [
-    np,
     tdp,
     tdf,
+    np,
     skpp,
     skd,
     skfs,
@@ -68,7 +68,9 @@ def setup(cfg: DictConfig):
     logger.info("Local Directory Path: {}".format(config["run_dir"]))
     # TODO: Parameterize this...
     create_zip(f'{os.getcwd()}/python', f'{config["run_dir"]}/code.zip', exclude=['analysis_*'])
-    logger.info("Git info: {}".format(get_git_info()))
+    git_info = get_git_info()
+    logger.info("Git info: {}".format(git_info))
+    config |= git_info
     
     logger.info(f"Beginning pipeline...")
 
@@ -261,8 +263,9 @@ def main(cfg: DictConfig):
         logger.info("WandB project: {}".format(cfg.wandb.project))
         logger.info("WandB entity: {}".format(cfg.wandb.entity))
         logger.info(f"WandB sweep id: {sweep_id}")
+        wandb_url = f"https://wandb.ai/{cfg.wandb.entity}/{cfg.wandb.project}/sweeps/{sweep_id}"
         logger.info(
-            f"WandB sweep url: https://wandb.ai/{cfg.wandb.entity}/{cfg.wandb.project}/sweeps/{sweep_id}"
+            f"WandB sweep url: {wandb_url}"
         )
         logger.info(f"WandB sweep config: {sweep_config}")
         ho.initialize_wandb_params(
@@ -278,6 +281,9 @@ def main(cfg: DictConfig):
                 function=ho.wandb_sweep,
                 count=hyperparam_args["num_runs"],
             )
+        
+        add_config_to_csv(config | {"WandB_url": wandb_url, "WandB_id": sweep_id}, config["run_tracking_csv"])
+        
     elif (
         hyperparam_args["run_search"]
         and hyperparam_args["hyperparam_search_method"] == "Optuna"
@@ -285,11 +291,31 @@ def main(cfg: DictConfig):
         ho.opunta(hyperparam_args)
 
     else:
-        model_class.train()
+        # model_class.train()
         # TODO: Emmulate following from https://docs.wandb.ai/guides/integrations/lightgbm, especially call-back functionality
         # from wandb.lightgbm import wandb_callback, log_summary
         # import lightgbm as lgb
+        
+        # Evaluate predictions
+        results = eval.evaluate_model(
+            model_class, data
+        )
 
+        # Drop prefixes for logging
+        mean_results = {
+            (f'{k.split("_", 1)[-1]}_mean' if 'test_' in k else f'{k}_mean'): np.mean(v) 
+            for k, v in results.items()
+        }
+        std_results = {
+            (f'{k.split("_", 1)[-1]}_std' if 'test_' in k else f'{k}_std'): np.std(v) 
+            for k, v in results.items()
+        }
+
+        # Log model performance metrics to W&B
+        wandb.log(std_results)
+        wandb.log(mean_results)
+
+        add_config_to_csv(config | {"WandB_url": wandb.run.url, "WandB_id": wandb.run.id}, config["run_tracking_csv"])
         # # Log metrics to W&B
         # gbm = lgb.train(..., callbacks=[wandb_callback()])
 

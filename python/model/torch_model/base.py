@@ -3,6 +3,7 @@ from __future__ import print_function
 import typing as tp
 from types import MappingProxyType
 from typing import Any
+import torchmetrics
 
 import torch
 import torch.nn as nn
@@ -223,8 +224,9 @@ class BaseTorchTrainer():
             str_task = "multiclass"
 
         # initialize the dataset and dataloader for validation set
-        bool_run_validation = valid_data is not None and valid_label is not None
-        # bool_run_validation = False
+        # TODO: Fix bool_run_validation
+        # bool_run_validation = valid_data is not None and valid_label is not None
+        bool_run_validation = False
 
         # housekeeping and declare optimizer
         optimizer = self.get_optimizer()
@@ -402,12 +404,12 @@ class BaseTorchModel(BaseModel):
     EARLYSTOPPING_KEYS = ["bool_early_stopping", "es_patience", "es_delta",
         "es_metric", "bool_verbose"]
     
-    def __init__(self, model, trainer, early_stopping=None):
+    def __init__(self, model, trainer, early_stopping=None, model_kwargs=None, trainer_kwargs=None):
         super().__init__(model)
         self.trainer = trainer
         self.early_stopping = early_stopping
-        self.model_kwargs = None
-        self.trainer_kwargs = None
+        self.model_kwargs = model_kwargs
+        self.trainer_kwargs = trainer_kwargs
     
     def split_kwargs_into_model_and_trainer(self, kwargs):
         model_kwargs = {key: value for key, value in kwargs.items() if key in self.MODEL_ARCHITECURE_KEYS}
@@ -432,6 +434,60 @@ class BaseTorchModel(BaseModel):
     
     def reset_model(self) -> None:
         self.override_model(self.model_args, self.model_kwargs)
+    
+    # TODO: Move predict to Classifier class?? Or bump up to BaseTorchModel? Or Keep here? 
+    def predict(self, data: npt.NDArray) -> npt.NDArray:
+        # initialize the dataset and dataloader for testing set
+        test_dataset = NeuralDatasetTest(data)
+        test_dataloader = DataLoader(
+            test_dataset, batch_size=data.shape[0], shuffle=False
+        )
+
+        # initialize the loss and set model to eval mode
+        self.model.eval()
+        vec_y_pred = []
+        with torch.no_grad():
+            for _, x_test in enumerate(test_dataloader):
+                assert (
+                    not self.model.training
+                ), "make sure your network is in eval mode with `.eval()`"
+
+                # forward pass
+                y_test_pred = self.model(x_test)
+
+                # append the probability
+                vec_y_pred.append(y_test_pred)
+
+        # stack the prediction
+        y_pred = torch.cat(vec_y_pred, dim=0)
+
+        return ptu.to_numpy(y_pred)
+
+    # TODO: Move get_accuracy and get_auc to Evaluation class??
+    def get_accuracy(
+        self,
+        data: npt.NDArray,
+        label: npt.NDArray,
+    ):
+        # obtain the prediction
+        y_pred = np.argmax(self.predict(data), axis=1)
+        y_pred = self._check_input(y_pred)
+
+        # if label is one-hot encoded, convert it to integer
+        y_real = self._check_input(label)
+
+        return np.sum(y_pred == y_real) / y_real.shape[0]
+    
+    def get_auc(
+        self,
+        scores: npt.NDArray,
+        label: npt.NDArray,
+    ) -> npt.NDArray:
+        auc = torchmetrics.AUROC(task="multiclass", num_classes=self.model.n_class)(
+            torch.Tensor(scores), torch.Tensor(label).to(torch.long)
+        )
+
+        return ptu.to_numpy(auc)
     
 
 def init_model_torch(

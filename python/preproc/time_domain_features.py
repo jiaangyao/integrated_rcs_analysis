@@ -5,6 +5,14 @@ from scipy import stats, signal
 import numpy as np
 
 
+def identity(X):
+    """
+    Identity function. Returns input.
+    Helpful if no feature engineering is desired.
+    """
+    return X
+
+
 def single_variate_feature_extraction(
     vec: np.ndarray,
     sampling_frequency: int,

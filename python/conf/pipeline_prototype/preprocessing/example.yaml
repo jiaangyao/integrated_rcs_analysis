@@ -1,11 +1,15 @@
 # Just an example...
 functions:
   # Can include just the function call, or the full path to the function, e.g.: scipy.stats.zscore or zscore | numpy.sum or sum (note that np.sum will not work because of custom import name)
+  standardize_df_columns:
+    cols_to_standardize: ['TD_BG', 'TD_key2', 'TD_key3']
   epoch_df_by_timesegment:
     interval: '30s'
     period: '30s'
     td_columns:
+      - TD_BG
       - TD_key2
+      - TD_key3
     group_by_cols:
       - SleepStage
       - SessionIdentity
@@ -15,7 +19,9 @@ functions:
 # Columns to extract from the polars.Dataframe to numpy.ndarray. 
 # The resulting array will be pipelined through the feature engineering steps.
 feature_columns:
+  - TD_BG
   - TD_key2
+  - TD_key3
 
 label_options:
   label_column: SleepStage
@@ -37,7 +43,7 @@ channel_options:
   # If stack channels is True, then the feature columns will be stacked into an n x m x f array, where n is the number of rows, m is the number of channel (i.e. feature) columns, and f is the number of elements per channel column row.
   # Stacking channels is useful for feature engineering steps that operate on individual channels, e.g. FFT
   # If stack channels is False, then the feature columns will be concatenated n x (m*f), i.e. the features in each row will be concatenated, across columns, into a single feature vector.
-  stack_channels: False
+  stack_channels: True
   # pipe_by_channel applies the feature engineering steps to each channel individually, rather than to the entire feature vector.
   pipe_by_channel: False
   # Only one of the following options should be True, and will only execute if pipe_by_channel is True
@@ -45,5 +51,5 @@ channel_options:
   concat_channel_features: False
   # If average_channel_features is True, then channels will be averaged into a single feature vector after feature engineering steps are applied.
   average_channel_features: False
-  # If stack_channel_features is True, then channels will be stacked into multivariate feature matrix.
-  stack_channel_features: False
+  # If stack_channel_features is True, then channels will be stacked into multivariate feature matrix, after feature engineering steps are applied.
+  stack_channel_features: True
