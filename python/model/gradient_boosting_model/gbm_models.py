@@ -19,8 +19,8 @@ class LightXGBoostModel(BaseModel):
     def __init__(self, model_kwargs={}):
         super().__init__(LGBMClassifier(**model_kwargs))
 
-    def override_model(self, model_args, model_kwargs):
-        self.model = LGBMClassifier(*model_args, **model_kwargs)
+    def override_model(self, model_kwargs):
+        self.model = LGBMClassifier(**model_kwargs)
 
 
 class CatBoostModel:

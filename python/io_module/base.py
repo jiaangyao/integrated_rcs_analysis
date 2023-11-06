@@ -3,6 +3,9 @@ import glob
 import polars as pl
 import duckdb
 
+import importlib
+
+
 def parse_dir_rcs_sess(
     p_dir_in: str,
 ) -> list[str]:
@@ -29,7 +32,8 @@ def load_data(data_params):
     Load data from a file or database.
     """
     if data_params['source'] == 'database':
-        con = duckdb.connect(data_params['database_path'], read_only=True)
+        module = importlib.import_module(data_params['database_module'])
+        con = module.connect(data_params['database_path'], read_only=True)
         df = con.sql(data_params['query']).pl()
         con.close()
         return df

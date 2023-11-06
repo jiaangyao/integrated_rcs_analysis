@@ -37,7 +37,7 @@ class HyperparameterOptimization:
         pass
 
     def wandb_sweep(self, config=None):
-        X_train, y_train = self.data.training_data()
+        #X_train, y_train = self.data.get_training_data()
         # Initialize a new wandb run
         with wandb.init(
             config=config,
@@ -48,19 +48,21 @@ class HyperparameterOptimization:
             # If called by wandb.agent this config will be set by Sweep Controller
             config = wandb.config
 
-            self.model_class.override_model((), config)
+            self.model_class.override_model(config.as_dict())
 
             # Evaluate predictions
             results = self.evaluation.evaluate_model(
-                self.model_class.model, X_train, y_train
+                self.model_class, self.data
             )
 
             # Drop prefixes for logging
             mean_results = {
-                f'{k.split("_", 1)[-1]}_mean': np.mean(v) for k, v in results.items()
+                (f'{k.split("_", 1)[-1]}_mean' if 'test_' in k else f'{k}_mean'): np.mean(v) 
+                for k, v in results.items()
             }
             std_results = {
-                f'{k.split("_", 1)[-1]}_std': np.std(v) for k, v in results.items()
+                (f'{k.split("_", 1)[-1]}_std' if 'test_' in k else f'{k}_std'): np.std(v) 
+                for k, v in results.items()
             }
 
             # Log model performance metrics to W&B

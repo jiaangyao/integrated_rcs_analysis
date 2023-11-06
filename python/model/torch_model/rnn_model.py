@@ -4,8 +4,8 @@ import ray
 import numpy.typing as npt
 import torch.nn as nn
 
-
-from .base import TorchModelWrapper
+# TODO: Below caused circular import error with torch_model.base, need to fix
+#from .base import TorchModelWrapper
 
 
 class TorchRNNModel(nn.Module):
@@ -115,7 +115,8 @@ class TorchRNNModel(nn.Module):
         return out
 
 
-class RNNModelWrapper(TorchModelWrapper):
+#class RNNModelWrapper(TorchModelWrapper):
+class RNNModelWrapper():
     def __init__(
         self,
         n_input,

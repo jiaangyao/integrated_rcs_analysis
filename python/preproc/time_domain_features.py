@@ -5,6 +5,14 @@ from scipy import stats, signal
 import numpy as np
 
 
+def identity(X):
+    """
+    Identity function. Returns input.
+    Helpful if no feature engineering is desired.
+    """
+    return X
+
+
 def single_variate_feature_extraction(
     vec: np.ndarray,
     sampling_frequency: int,
@@ -162,7 +170,10 @@ def get_psd(
     noverlap=512,
     log=True,
 ):
-    """Calculate the power spectral density of a matrix of time series data. Each row should be an array of time series observations"""
+    """
+    Calculate the power spectral density of a matrix of time series data. 
+    Each row should be an array of time series observations.
+    """
     f, pxx = signal.welch(
         X, fs=sampling_frequency, nperseg=window_size, noverlap=noverlap, axis=-1
     )

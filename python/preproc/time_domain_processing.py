@@ -3,9 +3,9 @@ import pandas as pd
 from typing import List
 
 
-def standardize_df_cols(df, cols_to_standardize):
+def standardize_df_columns(df, cols_to_standardize):
     """
-    Center and scale variance to 1 for the specified columns in a DataFrame.
+    Center to mean=0 and scale variance=1 for the specified columns in a DataFrame.
     params:
     - df (polars.DataFrame): The DataFrame to be standardized.
     - cols_to_standardize (List[str]): A list of column names to standardize.
@@ -21,7 +21,7 @@ def standardize_df_cols(df, cols_to_standardize):
     )
 
 
-def normalize_df_cols(df, cols_to_standardize, range=[0, 1]):
+def normalize_df_columns(df, cols_to_standardize, range=[0, 1]):
     """
     Normalize the specified columns in a DataFrame to have the range provided.
     params:

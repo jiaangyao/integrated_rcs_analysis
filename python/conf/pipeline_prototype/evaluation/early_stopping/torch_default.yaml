@@ -1,0 +1,11 @@
+validation_split: 0.2
+patience: 10
+delta: 0.001
+monitor: val_loss
+mode: min
+verbose: True
+bool_save_checkpoint: False
+# baseline: None
+# restore_best_weights: True
+random_seed: ${random_seed}
+path: ${run_dir}

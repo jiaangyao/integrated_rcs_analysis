@@ -1,15 +1,18 @@
 # Main config for unconstrained pipeline. Holds parameters on PB identification pipeline.
-pipeline_name: unconstrained
+#pipeline_name: unconstrained
 
 # Organization and Logging info
-project: Reorganized_Pipe_Debug
+project: Sleep_Classification_Trials
 device: 02L
-experiment: debug
-run_name: lightgbm
-BASE_PATH: /media/shortterm_ssd/Clay/
+experiment: EEGNet_debug
+run_name: EEGNet_debug
+info: EEGNet debug run. Fixing data input shape
+time_stamp: ${now:%Y-%m-%d}_${now:%H-%M-%S}
+BASE_PATH: /media/shortterm_ssd/Clay
 SUBBASE_PATH: ${BASE_PATH}/${project}/${experiment}
-run_dir: ${SUBBASE_PATH}/${run_name}_${now:%Y-%m-%d}_${now:%H-%M-%S}
+run_dir: ${SUBBASE_PATH}/${run_name}_${device}_${time_stamp}
 log_file: ${run_dir}/${run_name}.log
+run_tracking_csv: ${BASE_PATH}/ml_run_tracking.csv
 
 # WandB info
 wandb:
@@ -21,6 +24,9 @@ wandb:
     - ${device}
     - ${run_name}
 
+# High level pipeline parameters
+random_seed: 42
+
 # Define steps in pipeline
 defaults:
   - _self_
@@ -29,17 +35,19 @@ defaults:
   - feature_engineering: example
   - feature_selection: 
   - class_imbalance_correction: 
-  - model: LightXGBoostModel
-  - evaluation: sklearn
-  - hyperparameter_optimization: WandB
-  - sweep: ${hyperparameter_optimization}/${model}
+  - model: EEGNetModel
+  - evaluation: classification_default
+  - hyperparameter_optimization: no_search #WandB
+  - sweep: # ${hyperparameter_optimization}/${model} # Set to Empty if hyperparameter_optimization is no_search
 
 # Hydra overrides 
 hydra:
   run:
     dir: ${run_dir}
   sweep:
-    dir: ${SUBBASE_PATH}/multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    #dir: ${SUBBASE_PATH}/multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    #dir: ${run_dir}/sweep
+    dir: ${run_dir}
     subdir: ${hydra.job.num}
   runtime:
     output_dir: ${run_dir}

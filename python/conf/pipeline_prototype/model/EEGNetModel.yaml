@@ -1,0 +1,13 @@
+model_name: EEGNetModel
+parameters:
+    chunk_size: 128
+    num_electrodes: 1 # TODO: IF in_channels = 1 and num_electrodes = 3, then error is thrown...
+    in_channels: 3
+    F1: 3
+    F2: 6
+    D: 3
+    n_class: 5
+    kernel_1: 64
+    kernel_2: 16
+    dropout: 0.25
+    linear_input_size: 2808

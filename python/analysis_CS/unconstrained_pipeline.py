@@ -6,6 +6,7 @@ from loguru import logger
 import numpy as np
 import polars as pl
 from collections import OrderedDict
+from utils.file_utils import create_zip, get_git_info, add_config_to_csv
 
 # TODO: Remove sys.append once I figure out why VSCode hates this working directory
 import sys
@@ -13,8 +14,6 @@ import sys
 sys.path.append("/home/claysmyth/code/integrated_rcs_analysis/python/")
 
 from io_module.base import load_data
-
-# from model.torch_model.mlp_model import SKCompatWrapper, SKCompatWrapperExternal
 
 # Stand-in variable for custom time domain processing functions
 import preproc.time_domain_processing as tdp
@@ -35,16 +34,16 @@ from dataset.data_class import MLData
 from training_eval.model_evaluation import create_eval_class_from_config
 
 # Libraries for model selection
-from model.torch_model.mlp_model import SkorchWrapper
+from model.torch_model.skorch_model import SkorchModel
 
 # Libraries for hyperparameter tuning
 from training_eval.hyperparameter_optimization import HyperparameterOptimization
 
 # Global Variables
 POTENTIAL_FEATURE_LIBRARIES = [
-    np,
     tdp,
     tdf,
+    np,
     skpp,
     skd,
     skfs,
@@ -66,6 +65,14 @@ def setup(cfg: DictConfig):
         format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {module}:{function}:{line} - {message}",
         level="INFO",
     )
+    logger.info("Local Directory Path: {}".format(config["run_dir"]))
+    # TODO: Parameterize this...
+    create_zip(f'{os.getcwd()}/python', f'{config["run_dir"]}/code.zip', exclude=['analysis_*'])
+    git_info = get_git_info()
+    logger.info("Git info: {}".format(git_info))
+    config |= git_info
+    
+    logger.info(f"Beginning pipeline...")
 
     # 2. Log config file to wandb, set up hydra logging, and save to disk
     if (
@@ -80,10 +87,6 @@ def setup(cfg: DictConfig):
             tags=cfg.wandb.tags,
             dir=config["run_dir"],
         )
-
-        # TODO: How to log all this during hyperparameter search?
-        logger.info(f"Beginning pipeline...")
-        logger.info("Local Directory Path: {}".format(config["run_dir"]))
         logger.info("WandB run url: {}".format(run.url))
         logger.info("WandB project: {}".format(run.project))
         logger.info("WandB entity: {}".format(run.entity))
@@ -150,7 +153,11 @@ def main(cfg: DictConfig):
     y = data_df.get_column(label_config["label_column"]).to_numpy().squeeze()
 
     if label_config["OneHotEncode"]:
+        # TODO: Save y before one-hot encoding for later, save both to data object
         y = skpp.OneHotEncoder().fit_transform(y.reshape(-1, 1)).toarray()
+        one_hot_encoded = True
+    else:
+        one_hot_encoded = False
 
     # Extract group labels for LeaveOneGroupOut cross validation (if desired)
     if label_config["group_column"]:
@@ -161,7 +168,7 @@ def main(cfg: DictConfig):
         groups = None
 
     # 5. Develop feature engineering pipeline
-    # TODO: Class imbalance stuff (e.g. SMOTE) would go here (probably, but how to pass y into pipe)...
+    # TODO: Class imbalance, or Data Augmentation,  stuff (e.g. SMOTE) would go here (probably, but how to pass y into pipe)...
     feature_eng_config = config["feature_engineering"]
     feature_eng_funcs = feature_eng_config["functions"]
     function_calls = tuple(
@@ -207,38 +214,44 @@ def main(cfg: DictConfig):
 
     # Save and visualize feature distributions
 
-    # Train / test split (K-fold cross validation, Stratified K-fold cross validation, Group K-fold cross validation)
-    # TODO: Set up train / test split and vanilla hold-out validation, insert into data object
-    data = MLData(X_train=X, y_train=y, groups=groups)
+    
+    # Set up data object once all preprocessing and feature engineering is complete
+    data = MLData(X=X, y=y, groups=groups, one_hot_encoded=one_hot_encoded)
+    
+    # 6. Train / test split (K-fold cross validation, Stratified K-fold cross validation, Group K-fold cross validation)
+    # Set up model evaluation object
+    evaluation_config = config["evaluation"]
+    eval, early_stopping = create_eval_class_from_config(evaluation_config, data)
 
-    # 6. Select model
+    # 7. Select model
     # Note: Can use ArbitraryModel class to wrap any model and compare in pipeline with other models
     model_config = config["model"]
     model_name = model_config["model_name"]
     model_kwargs = model_config["parameters"] if model_config["parameters"] else {}
+    if early_stopping: model_kwargs["early_stopping"] = early_stopping
+    
     model_class = find_and_load_class("model", model_name, kwargs=model_kwargs)
+    if evaluation_config["model_type"] == "skorch":
+        model_class = SkorchModel(model_class)
 
-    # Set up model evaluation object
-    evaluation_config = config["evaluation"]
-    eval = create_eval_class_from_config(evaluation_config)
-    if evaluation_config["name"] == "skorch":
-        model_class = SkorchWrapper(model_class)
-
-    # 7. Train and evaluate model (log to wandb)
+    # 8. Train and evaluate model (log to wandb)
     # (Optuna integration with wandb logging: use callback https://optuna.readthedocs.io/en/stable/reference/generated/optuna.integration.WeightsAndBiasesCallback.html
     # https://medium.com/optuna/optuna-meets-weights-and-biases-58fc6bab893)
     hyperparam_args = config["hyperparameter_optimization"]
     ho = HyperparameterOptimization(model_class, data, eval)
     if hyperparam_args["run_search"] and hyperparam_args["name"].lower() == "wandb":
         if (
-            evaluation_config["name"] == "skorch"
-            or evaluation_config["name"] == "torch"
+            eval.model_type == "skorch"
+            or eval.model_type == "torch"
         ):
             # Add input and output shape, which depends on data
             config["sweep"]["parameters"]["n_input"] = {"value": X.shape[-1]}
             # Assumes y is one-hot encoded
+            # TODO: Remove this assumption
             config["sweep"]["parameters"]["n_class"] = {"value": y.shape[-1]}
 
+        config["sweep"]["name"] = f"{cfg.run_name}_{cfg.device}_{cfg.time_stamp}_sweep"
+        # config["sweep"]["local_directory"] = config["run_dir"]
         sweep_config = config["sweep"]
         sweep_id = wandb.sweep(
             sweep_config,
@@ -247,18 +260,18 @@ def main(cfg: DictConfig):
         )
 
         # Log relevant info
-        logger.info("Local Directory Path: {}".format(config["run_dir"]))
         logger.info("WandB project: {}".format(cfg.wandb.project))
         logger.info("WandB entity: {}".format(cfg.wandb.entity))
         logger.info(f"WandB sweep id: {sweep_id}")
+        wandb_url = f"https://wandb.ai/{cfg.wandb.entity}/{cfg.wandb.project}/sweeps/{sweep_id}"
         logger.info(
-            f"WandB sweep url: https://wandb.ai/{cfg.wandb.entity}/{cfg.wandb.project}/sweeps/{sweep_id}"
+            f"WandB sweep url: {wandb_url}"
         )
         logger.info(f"WandB sweep config: {sweep_config}")
         ho.initialize_wandb_params(
             config["run_dir"], config["wandb"]["group"], config["wandb"]["tags"]
         )
-
+        
         # Run sweep
         if sweep_config["method"] == "grid":
             wandb.agent(sweep_id, function=ho.wandb_sweep)
@@ -268,7 +281,9 @@ def main(cfg: DictConfig):
                 function=ho.wandb_sweep,
                 count=hyperparam_args["num_runs"],
             )
-
+        
+        add_config_to_csv(config | {"WandB_url": wandb_url, "WandB_id": sweep_id}, config["run_tracking_csv"])
+        
     elif (
         hyperparam_args["run_search"]
         and hyperparam_args["hyperparam_search_method"] == "Optuna"
@@ -276,11 +291,31 @@ def main(cfg: DictConfig):
         ho.opunta(hyperparam_args)
 
     else:
-        model_class.train()
+        # model_class.train()
         # TODO: Emmulate following from https://docs.wandb.ai/guides/integrations/lightgbm, especially call-back functionality
         # from wandb.lightgbm import wandb_callback, log_summary
         # import lightgbm as lgb
+        
+        # Evaluate predictions
+        results = eval.evaluate_model(
+            model_class, data
+        )
 
+        # Drop prefixes for logging
+        mean_results = {
+            (f'{k.split("_", 1)[-1]}_mean' if 'test_' in k else f'{k}_mean'): np.mean(v) 
+            for k, v in results.items()
+        }
+        std_results = {
+            (f'{k.split("_", 1)[-1]}_std' if 'test_' in k else f'{k}_std'): np.std(v) 
+            for k, v in results.items()
+        }
+
+        # Log model performance metrics to W&B
+        wandb.log(std_results)
+        wandb.log(mean_results)
+
+        add_config_to_csv(config | {"WandB_url": wandb.run.url, "WandB_id": wandb.run.id}, config["run_tracking_csv"])
         # # Log metrics to W&B
         # gbm = lgb.train(..., callbacks=[wandb_callback()])
 
