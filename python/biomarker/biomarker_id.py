@@ -11,10 +11,10 @@ from omegaconf import DictConfig, OmegaConf
 import hydra
 import wandb
 
-from io_module.pipeline import load_data
+from pipeline.io_pipeline import load_data
 from preproc.rcs_feature import extract_rcs_feature
 from model.pipeline import get_model_params
-from biomarker.pipeline import run_pb_pipeline
+from pipeline.biomakrer_pipeline import run_pb_pipeline
 
 from utils.wandb_utils import wandb_logging_sfs_outer
 
@@ -41,63 +41,63 @@ class DefaultModelTrainer:
         unpack the parameters from the config
         """
         # append the entire configuration
-        self.cfg = dict(OmegaConf.to_container(cfg, resolve=True)) # type: ignore
+        self.cfg = dict(OmegaConf.to_container(cfg, resolve=True))  # type: ignore
 
-        # unpack the experiment related meta parameters
-        self.str_model = cfg["meta"]["str_model"]
-        self.label_type = cfg["meta"]["label_type"]
-        self.str_metric = cfg["meta"]["str_metric"]
-        self.bool_debug = cfg["meta"]["bool_debug"]
+        # # unpack the experiment related meta parameters
+        # self.str_model = cfg["meta"]["str_model"]
+        # self.label_type = cfg["meta"]["label_type"]
+        # self.str_metric = cfg["meta"]["str_metric"]
+        # self.bool_debug = cfg["meta"]["bool_debug"]
 
-        # unpack the subject specfic configs
-        self.str_subject = cfg["patient"]["str_subject"]
-        self.str_side = cfg["patient"]["str_side"]
-        self.stim_level = cfg["patient"]["stim_settings"][self.str_side]["amp_in_mA"]
+        # # unpack the subject specfic configs
+        # self.str_subject = cfg["patient"]["str_subject"]
+        # self.str_side = cfg["patient"]["str_side"]
+        # self.stim_level = cfg["patient"]["stim_settings"][self.str_side]["amp_in_mA"]
 
-        # unpack the paths to the data to be loaded
-        self.p_data = pathlib.Path(cfg["data_paths"]["p_data"])
-        self.f_data = cfg["data_paths"]["f_data"]
-        self.p_output = pathlib.Path(cfg["data_paths"]["p_output"])
-        self.f_output = cfg["data_paths"]["f_output"]
+        # # unpack the paths to the data to be loaded
+        # self.p_data = pathlib.Path(cfg["data_paths"]["p_data"])
+        # self.f_data = cfg["data_paths"]["f_data"]
+        # self.p_output = pathlib.Path(cfg["data_paths"]["p_output"])
+        # self.f_output = cfg["data_paths"]["f_output"]
 
-        # unpack the preprocessing related parameters
-        self.n_ch = cfg["preproc"]["n_ch"]
-        self.fft_len = cfg["preproc"]["fft_len"]
-        self.interval = cfg["preproc"]["interval"]
-        self.update_rate = cfg["preproc"]["update_rate"]
-        self.freq_low_lim = cfg["preproc"]["freq_low_lim"]
-        self.freq_high_lim = cfg["preproc"]["freq_high_lim"]
+        # # unpack the preprocessing related parameters
+        # self.n_ch = cfg["preproc"]["n_ch"]
+        # self.fft_len = cfg["preproc"]["fft_len"]
+        # self.interval = cfg["preproc"]["interval"]
+        # self.update_rate = cfg["preproc"]["update_rate"]
+        # self.freq_low_lim = cfg["preproc"]["freq_low_lim"]
+        # self.freq_high_lim = cfg["preproc"]["freq_high_lim"]
 
-        # unpack the parameters to the feature selection pipeline
-        # will be instantiated later in subclasses
+        # # unpack the parameters to the feature selection pipeline
+        # # will be instantiated later in subclasses
 
-        # unpack the logging related parameters
-        self.bool_use_wandb = cfg["logging"]["bool_use_wandb"]
-        self.wandb_project = cfg["logging"]["wandb_project"]
-        self.wandb_group = cfg["logging"]["wandb_group"]
+        # # unpack the logging related parameters
+        # self.bool_use_wandb = cfg["logging"]["bool_use_wandb"]
+        # self.wandb_project = cfg["logging"]["wandb_project"]
+        # self.wandb_group = cfg["logging"]["wandb_group"]
 
-        # unapck the parallelization related parameters
-        self.bool_use_ray = cfg["parallel"]["bool_use_ray"]
-        self.bool_use_gpu = cfg["parallel"]["bool_use_gpu"]
-        self.bool_use_batch = cfg["parallel"]["bool_use_batch"]
-        self.n_cpu = cfg["parallel"]["n_cpu"]
-        self.n_gpu = cfg["parallel"]["n_gpu"]
-        self.n_cpu_per_process = cfg["parallel"]["n_cpu_per_process"]
-        self.n_gpu_per_process = cfg["parallel"]["n_gpu_per_process"]
-        self.batch_size = cfg["parallel"]["batch_size"]
+        # # unapck the parallelization related parameters
+        # self.bool_use_ray = cfg["parallel"]["bool_use_ray"]
+        # self.bool_use_gpu = cfg["parallel"]["bool_use_gpu"]
+        # self.bool_use_batch = cfg["parallel"]["bool_use_batch"]
+        # self.n_cpu = cfg["parallel"]["n_cpu"]
+        # self.n_gpu = cfg["parallel"]["n_gpu"]
+        # self.n_cpu_per_process = cfg["parallel"]["n_cpu_per_process"]
+        # self.n_gpu_per_process = cfg["parallel"]["n_gpu_per_process"]
+        # self.batch_size = cfg["parallel"]["batch_size"]
 
-        # unpack the dynamics related parameters
-        self.bool_use_dyna = cfg["dynamics"]["bool_use_dyna"]
-        self.n_dyna_start = cfg["dynamics"]["n_dyna_start"]
-        self.n_dyna_stop = cfg["dynamics"]["n_dyna_stop"]
+        # # unpack the dynamics related parameters
+        # self.bool_use_dyna = cfg["dynamics"]["bool_use_dyna"]
+        # self.n_dyna_start = cfg["dynamics"]["n_dyna_start"]
+        # self.n_dyna_stop = cfg["dynamics"]["n_dyna_stop"]
 
-        # sanity checks
-        assert (
-            self.str_subject in _VEC_STR_SUBJECT
-        ), "Data must be from defined subjects"
-        assert (
-            self.str_side in _VEC_STR_SIDE
-        ), "Data must be from the left or right hemispheres"
+        # # sanity checks
+        # assert (
+        #     self.str_subject in _VEC_STR_SUBJECT
+        # ), "Data must be from defined subjects"
+        # assert (
+        #     self.str_side in _VEC_STR_SIDE
+        # ), "Data must be from the left or right hemispheres"
 
     def train_side(self):
         raise NotImplementedError("This method should be overriden by the subclass")
@@ -110,67 +110,69 @@ class SFSTrainer(DefaultModelTrainer):
         """
         super().__init__(cfg)
 
-        # unpack the parameters to the feature selection pipeline
-        self.str_feature_selection = cfg["feature_selection"]["name"]
+        # # unpack the parameters to the feature selection pipeline
+        # self.str_feature_selection = cfg["feature_selection"]["name"]
 
-        # unpack the meta settings for feature selection
-        self.n_rep = cfg["feature_selection"]["n_rep"]
-        self.n_fin_pb = cfg["feature_selection"]["n_fin_pb"]
-        self.n_candidate_peak = cfg["feature_selection"]["n_candidate_peak"]
-        self.n_candidate_pb = cfg["feature_selection"]["n_candidate_pb"]
-        self.width = cfg["feature_selection"]["width"]
-        self.max_width = cfg["feature_selection"]["max_width"]
-        self.bool_force_acc = cfg["feature_selection"]["bool_force_acc"]
+        # # unpack the meta settings for feature selection
+        # self.n_rep = cfg["feature_selection"]["n_rep"]
+        # self.n_fin_pb = cfg["feature_selection"]["n_fin_pb"]
+        # self.n_candidate_peak = cfg["feature_selection"]["n_candidate_peak"]
+        # self.n_candidate_pb = cfg["feature_selection"]["n_candidate_pb"]
+        # self.width = cfg["feature_selection"]["width"]
+        # self.max_width = cfg["feature_selection"]["max_width"]
+        # self.bool_force_acc = cfg["feature_selection"]["bool_force_acc"]
 
-        self.n_fold = cfg["feature_selection"]["n_fold"]
-        self.bool_use_strat_kfold = cfg["feature_selection"]["bool_use_strat_kfold"]
-        self.random_seed = cfg["feature_selection"]["random_seed"]
+        # self.n_fold = cfg["feature_selection"]["n_fold"]
+        # self.bool_use_strat_kfold = cfg["feature_selection"]["bool_use_strat_kfold"]
+        # self.random_seed = cfg["feature_selection"]["random_seed"]
 
-        self.bool_tune_hyperparams = cfg["feature_selection"]["bool_tune_hyperparams"]
+        # self.bool_tune_hyperparams = cfg["feature_selection"]["bool_tune_hyperparams"]
 
-        # sanity checks
-        assert self.label_type in _VEC_LABEL_TYPE, "Label type must be defined"
-        assert self.str_metric in _VEC_STR_METRIC, "Metric must be defined"
-        assert not (self.str_metric == "avg_acc" and not self.bool_force_acc)
-        assert not (self.str_metric != "avg_acc" and self.bool_force_acc)
+        # # sanity checks
+        # assert self.label_type in _VEC_LABEL_TYPE, "Label type must be defined"
+        # assert self.str_metric in _VEC_STR_METRIC, "Metric must be defined"
+        # assert not (self.str_metric == "avg_acc" and not self.bool_force_acc)
+        # assert not (self.str_metric != "avg_acc" and self.bool_force_acc)
 
-        # set the right number of CPUs and GPUs to use
-        if self.bool_use_ray:
-            # first update according to batch size
-            if not self.bool_tune_hyperparams:
-                n_band_max = self.n_ch * (self.freq_high_lim - self.freq_low_lim + 1)
-                self.n_cpu_per_process = (
-                    np.ceil(self.n_cpu / np.ceil(n_band_max / self.batch_size))
-                    if self.bool_use_batch
-                    else self.n_cpu_per_process
-                )
+        # # set the right number of CPUs and GPUs to use
+        # if self.bool_use_ray:
+        #     # first update according to batch size
+        #     if not self.bool_tune_hyperparams:
+        #         n_band_max = self.n_ch * (self.freq_high_lim - self.freq_low_lim + 1)
+        #         self.n_cpu_per_process = (
+        #             np.ceil(self.n_cpu / np.ceil(n_band_max / self.batch_size))
+        #             if self.bool_use_batch
+        #             else self.n_cpu_per_process
+        #         )
 
-            self.n_gpu_per_process = (
-                0.9 * self.n_gpu / np.round(self.n_cpu / self.n_cpu_per_process)
-                if self.bool_use_batch and self.bool_use_gpu
-                else self.n_gpu_per_process
-            )
+        #     self.n_gpu_per_process = (
+        #         0.9 * self.n_gpu / np.round(self.n_cpu / self.n_cpu_per_process)
+        #         if self.bool_use_batch and self.bool_use_gpu
+        #         else self.n_gpu_per_process
+        #     )
 
-            # set the GPU per process
-            self.n_cpu_per_process = (
-                np.ceil(self.n_cpu / np.ceil(self.n_gpu / self.n_gpu_per_process))
-                if self.bool_use_gpu
-                else self.n_cpu_per_process
-            )
+        #     # set the GPU per process
+        #     self.n_cpu_per_process = (
+        #         np.ceil(self.n_cpu / np.ceil(self.n_gpu / self.n_gpu_per_process))
+        #         if self.bool_use_gpu
+        #         else self.n_cpu_per_process
+        #     )
 
-            # modify value in original config also
-            self.cfg["parallel"]["n_cpu_per_process"] = self.n_cpu_per_process
-            self.cfg["parallel"]["n_gpu_per_process"] = self.n_gpu_per_process
+        #     # modify value in original config also
+        #     self.cfg["parallel"]["n_cpu_per_process"] = self.n_cpu_per_process
+        #     self.cfg["parallel"]["n_gpu_per_process"] = self.n_gpu_per_process
 
-        # debug related flags
-        if self.bool_debug:
-            Warning("Debug mode is on, only 1 rep will be run")
-            self.n_rep = 1
+        # # debug related flags
+        # if self.bool_debug:
+        #     Warning("Debug mode is on, only 1 rep will be run")
+        #     self.n_rep = 1
 
     def load_data(self):
-        data_td, label_td, fs, str_ch, ch2use = load_data(self.p_data, self.f_data, self.label_type)
+        data_td = load_data(
+            self.cfg["data_source"],
+        )
 
-        return data_td, label_td, fs, str_ch, ch2use
+        return data_td
 
     def initialize_ray(self):
         # initialize ray
@@ -227,12 +229,12 @@ class SFSTrainer(DefaultModelTrainer):
 
     def extract_features(
         self,
-        data_td, label_td, fs, str_ch, ch2use,
+        data_td,
         n_dynamics=0,
     ):
         # obtain the features
         features, y_class, y_stim, labels_cell, _ = extract_rcs_feature(
-            data_td, label_td, fs, ch2use,
+            data_td,
             stim_level=self.stim_level,
             interval=self.interval,
             update_rate=self.update_rate,
@@ -361,42 +363,42 @@ class SFSTrainer(DefaultModelTrainer):
     def train_side(self):
         """Training pipeline for a single side of the brain"""
 
-        # runtime sanity checks
-        assert not self.bool_use_dyna, "Dynamics should not be used for model comp SFS"
+        # # runtime sanity checks
+        # assert not self.bool_use_dyna, "Dynamics should not be used for model comp SFS"
 
-        # initialize wandb logger
-        self.initialize_wandb()
+        # # initialize wandb logger
+        # self.initialize_wandb()
 
         # load the data
-        data_td, label_td, fs, str_ch, ch2use = self.load_data()
+        data_td = self.load_data()
 
-        # initialize ray
-        self.initialize_ray()
+        # # initialize ray
+        # self.initialize_ray()
 
-        # load the model configurations (could be changed later)
-        model_cfg, trainer_cfg = get_model_params(
-            self.str_model,
-            bool_use_ray=self.bool_use_ray,
-            bool_use_gpu=self.bool_use_gpu,
-            n_gpu_per_process=self.n_gpu_per_process,
-            bool_tune_hyperparams=self.bool_tune_hyperparams,
-        )
+        # # load the model configurations (could be changed later)
+        # model_cfg, trainer_cfg = get_model_params(
+        #     self.str_model,
+        #     bool_use_ray=self.bool_use_ray,
+        #     bool_use_gpu=self.bool_use_gpu,
+        #     n_gpu_per_process=self.n_gpu_per_process,
+        #     bool_tune_hyperparams=self.bool_tune_hyperparams,
+        # )
 
         # obtain the features
         features, y_class, y_stim, labels_cell = self.extract_features(
-            data_td, label_td, fs, str_ch, ch2use,
+            data_td,
             n_dynamics=0,
         )
 
-        # perform SFS inner loop and iterate through the repetitions
-        output_label, _, _ = self.SFS_inner_loop(
-            features,
-            y_class,
-            y_stim,
-            labels_cell,
-            model_cfg,
-            trainer_cfg,
-        )
+        # # perform SFS inner loop and iterate through the repetitions
+        # output_label, _, _ = self.SFS_inner_loop(
+        #     features,
+        #     y_class,
+        #     y_stim,
+        #     labels_cell,
+        #     model_cfg,
+        #     trainer_cfg,
+        # )
 
         # shutdown ray in case of using it
         self.terminate_ray()

@@ -5,6 +5,53 @@ import pandas as pd
 from ._pwelch_psd_feature import extract_rcs_feature_pwelch
 
 
+def extract_td_data_df(df: pd.DataFrame, label_type: str):
+    # epoching operation
+
+    # TODO: make the output from this function into a numpy array
+    # obtain the sampling rate from data
+    vec_fs = df["samplerate"].unique()
+    vec_fs_valid = vec_fs[np.logical_not(np.isnan(vec_fs))]
+    assert len(vec_fs_valid) == 1
+    fs = vec_fs_valid[0]
+
+    # now obtain the data from all cortical channels
+    vec_ch_neural = [True if "key" in ch.lower() else False for ch in df.columns]
+    vec_str_ch = df.columns[vec_ch_neural]
+    str_ch = [ch.split("_")[1] for ch in vec_str_ch]
+
+    # obtain the boolean for all variables needed for analysis
+    bool_col2use = np.logical_or.reduce(
+        (
+            df.columns.str.contains("time", case=False),
+            df.columns.str.contains("key", case=False),
+            df.columns.str.contains("stim", case=False),
+        )
+    )
+
+    # obtain the number of cortical channels
+    # TODO: make into a separate function - and understand what it's really doing
+    new_boolK = df.columns[bool_col2use].str.contains("key", case=False)
+    indK = np.where(new_boolK)[0]
+    # now hardcode the column to choose from
+    if len(indK) >= 3:
+        ch2use = [0, 2, 3]
+    else:
+        ch2use = [0, 1]
+
+    # organizing data
+    if label_type.lower() == "med":
+        data_td = df.loc[:, bool_col2use]
+        label_td = df["MedState"].values
+    elif label_type.lower() == "sleep":
+        data_td = df.loc[:, bool_col2use]
+        label_td = df["SleepStageBinary"].values
+    else:
+        raise NotImplementedError
+
+    return data_td, label_td, fs, str_ch, ch2use
+
+
 def extract_rcs_feature(
     data_td: pd.DataFrame,
     label_td,
