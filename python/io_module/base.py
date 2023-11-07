@@ -1,3 +1,7 @@
+"""
+This file contains basic functions useful for input/output of data.
+"""
+
 import pathlib
 import glob
 import polars as pl
