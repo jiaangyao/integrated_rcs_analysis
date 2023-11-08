@@ -39,75 +39,116 @@ from torchmetrics import (
     AveragePrecision,
     CohenKappa,
     MatthewsCorrCoef,
-    ConfusionMatrix
+    ConfusionMatrix,
+    PrecisionRecallCurve,
 )
 
-def confusion_matrix_torch(y_true, y_pred):
+def get_num_classes(y_true, y_pred, one_hot_encoded):
     """
-    Computes confusion matrix for a given model and validation data.
-    DOES NOT SUPPORT MULITLABEL YET... Assumes each sample only has one label.
+    Determines the number of classes based on the true and predicted labels.
 
     Args:
-        y_true (array-like): The validation target data.
-        y_pred (array-like): The validation predictions.
+        y_true (array-like): The true labels.
+        y_pred (array-like): The predicted labels.
+        one_hot_encoded (bool): Whether the labels are one-hot encoded.
+
+    Returns:
+        int: The number of classes.
+    """
+    # Take the max of the number of classes in y_true and y_pred, 
+    # in case all classes are not present in one
+    if one_hot_encoded:
+        num_classes = np.max([y_true.shape[-1], y_pred.shape[-1]])
+    else:
+        num_classes = max(len(np.unique(y_true)), len(np.unique(y_pred)))
+    return int(num_classes)
+
+# Define function to calculate desired scores
+def custom_scorer_torch(y_true, y_pred, scoring, one_hot_encoded=False):
+    """
+    Computes various scoring metrics for the true and predicted labels.
+
+    Args:
+        y_true (array-like): The true labels.
+        y_pred (array-like): The predicted labels.
+        scoring (list): A list of scoring metrics to compute.
+        one_hot_encoded (bool): Whether the labels are one-hot encoded.
 
     Returns:
         dict: A dictionary of scoring metrics and their corresponding scores.
     """
-    num_classes = len(torch.unique(y_true))
+    scoring = [score.lower() for score in scoring]
+    scores = {}
+
+    # Ensure y_true and y_pred are tensors
+    if not isinstance(y_true, torch.Tensor):
+        y_true_tensor = torch.tensor(y_true)
+    else:
+        y_true_tensor = y_true
+    
+    if not isinstance(y_pred, torch.Tensor):
+        y_pred_tensor = torch.tensor(y_pred)
+    else:
+        y_pred_tensor = y_pred
+    
+    # Get number of classes   
+    num_classes = get_num_classes(y_true, y_pred, one_hot_encoded)
     if num_classes == 2:
         task = "binary"
     else:
         task = "multiclass"
+    
+    # All metrics assume that y_true is not one-hot encoded
+    if one_hot_encoded:
+        y_true_tensor = torch.argmax(y_true_tensor, axis=-1)
         
-    confusion_matrix = ConfusionMatrix(task=task, num_classes=len(torch.unique(y_true)))
-    return confusion_matrix(y_pred, y_true).detach().cpu().numpy()
+    if ("roc_auc" in scoring or "auc" in scoring) and one_hot_encoded:
+        roc_auc = AUROC(num_classes=num_classes, average='weighted', task=task)
+        scores["roc_auc"] = roc_auc(y_pred_tensor, y_true_tensor).numpy()
+    
+    if ('precision_recall_curve' in scoring or 
+            'prc' in scoring or 'pr_curve' in scoring or 
+            'precisionrecallcurve' in scoring or 'prcurve' in scoring) and one_hot_encoded:
+        raise NotImplementedError("Precision recall curve is not yet implemented for one-hot encoded data.")
+        # precision_recall_curve = PrecisionRecallCurve(num_classes=num_classes, task=task)
+        # scores['precision_recall_curve'] = precision_recall_curve(y_pred_tensor, y_true_tensor).numpy()
+    
+    # For the rest of the metrics, 
+    # we need to convert from one-hot encoding of predictions to class labels
+    if one_hot_encoded:
+        y_pred_tensor = torch.argmax(y_pred_tensor, axis=-1)
 
-# Define function to calculate desired scores
-def custom_scorer_torch(y_true, y_pred, scoring):
-    """
-    Assumes y_pred is NOT one-hot encoded
-    """
-    scoring = [score.lower() for score in scoring]
-    scores = {}
-
-    y_true_tensor = torch.tensor(y_true)
-    y_pred_tensor = torch.tensor(y_pred)
-
-    if "accuracy" in scoring or "acc" in scoring or "ACC" in scoring:
-        accuracy = Accuracy()
+    if "accuracy" in scoring or "acc" in scoring:
+        accuracy = Accuracy(num_classes=num_classes, task=task)
         scores["accuracy"] = accuracy(y_pred_tensor, y_true_tensor).item()
 
     if "precision" in scoring:
-        precision = Precision(average='weighted', num_classes=len(torch.unique(y_true_tensor)))
+        precision = Precision(average='weighted', num_classes=num_classes, task=task)
         scores["precision"] = precision(y_pred_tensor, y_true_tensor).item()
 
     if "recall" in scoring:
-        recall = Recall(average='weighted', num_classes=len(torch.unique(y_true_tensor)))
+        recall = Recall(average='weighted', num_classes=num_classes, task=task)
         scores["recall"] = recall(y_pred_tensor, y_true_tensor).item()
 
     if "f1" in scoring:
-        f1 = F1Score(average='weighted', num_classes=len(torch.unique(y_true_tensor)))
+        f1 = F1Score(average='weighted', num_classes=num_classes, task=task)
         scores["f1"] = f1(y_pred_tensor, y_true_tensor).item()
 
-    if "roc_auc" in scoring or "auc" in scoring or "AUC" in scoring:
-        roc_auc = AUROC(num_classes=len(torch.unique(y_true_tensor)), average='weighted')
-        scores["roc_auc"] = roc_auc(y_pred_tensor, y_true_tensor).item()
-
     if "average_precision" in scoring:
-        average_precision = AveragePrecision(num_classes=len(torch.unique(y_true_tensor)), average='weighted')
+        average_precision = AveragePrecision(num_classes=num_classes, average='weighted', task=task)
         scores["average_precision"] = average_precision(y_pred_tensor, y_true_tensor).item()
 
-    if "cohen_kappa" in scoring:
-        cohen_kappa = CohenKappa(num_classes=len(torch.unique(y_true_tensor)))
+    if "cohen_kappa" in scoring or "kappa" in scoring or "cohenkappa" in scoring:
+        cohen_kappa = CohenKappa(num_classes=num_classes, task=task)
         scores["cohen_kappa"] = cohen_kappa(y_pred_tensor, y_true_tensor).item()
 
-    if "matthews_corrcoef" in scoring:
-        matthews_corrcoef = MatthewsCorrCoef(num_classes=len(torch.unique(y_true_tensor)))
+    if "matthews_corrcoef" in scoring or "mcc" in scoring or "matthewscorrcoef" in scoring:
+        matthews_corrcoef = MatthewsCorrCoef(num_classes=num_classes, task=task)
         scores["matthews_corrcoef"] = matthews_corrcoef(y_pred_tensor, y_true_tensor).item()
         
     if "confusion_matrix" in scoring or "confusionmatrix" in scoring:
-        scores["confusion_matrix"] = confusion_matrix_torch(y_true_tensor, y_pred_tensor)
+        confusion_matrix = ConfusionMatrix(num_classes=num_classes, task=task)
+        scores["confusion_matrix"] = confusion_matrix(y_pred_tensor, y_true_tensor).numpy()
 
     return scores
 
@@ -236,7 +277,7 @@ def create_eval_class_from_config(config, data_class):
         data_class.assign_train_val_test_indices(train_inds, val_inds, test_inds)
         data_class.train_val_test_split(train_inds, val_inds, test_inds)
 
-    # TODO: Expand to multiple validation methods? Could potentially be useful for comparing different methods... store as list?
+    # TODO: Expand to multiple (i.e. more than one) validation methods? Could potentially be useful for comparing different methods... store as list?
     validation_name = list(config["validation_method"].keys())[0]
     if 'fold' in validation_name.lower() or 'group' in validation_name.lower():
         config["validation_method"]["random_state"] = config["random_seed"]
@@ -268,31 +309,31 @@ class VanillaValidation:
     
     
     # TODO: This has some redundancy with custom_scorer...
-    def validation_scoring_torch(self, model_class, X_val, y_val, scoring):
-        """
-        Computes validation scores for a given model and validation data.
+    # def validation_scoring_torch(self, model_class, X_val, y_val, scoring):
+    #     """
+    #     Computes validation scores for a given model and validation data.
 
-        Args:
-            model_class (object): The model class to use for scoring.
-            X_val (array-like): The validation input data.
-            y_val (array-like): The validation target data.
-            scoring (list): A list of scoring metrics to compute.
+    #     Args:
+    #         model_class (object): The model class to use for scoring.
+    #         X_val (array-like): The validation input data.
+    #         y_val (array-like): The validation target data.
+    #         scoring (list): A list of scoring metrics to compute.
 
-        Returns:
-            dict: A dictionary of scoring metrics and their corresponding scores.
-        """
-        scores = {}
+    #     Returns:
+    #         dict: A dictionary of scoring metrics and their corresponding scores.
+    #     """
+    #     scores = {}
         
 
-        if "accuracy" in scoring:
-            scores["accuracy"] = model_class.get_accuracy(X_val, y_val)
+    #     if "accuracy" in scoring:
+    #         scores["accuracy"] = model_class.get_accuracy(X_val, y_val)
             
-        if "roc_auc" in scoring or "auc" in scoring or "AUC" in scoring:
-            scores["roc_auc"] = model_class.get_auc(model_class.predict(X_val), y_val)
+    #     if "roc_auc" in scoring or "auc" in scoring or "AUC" in scoring:
+    #         scores["roc_auc"] = model_class.get_auc(model_class.predict(X_val), y_val)
         
-        # TODO: Set model to evaluation mode by calling Model, then call custom_scorer_torch
+    #     # TODO: Set model to evaluation mode by calling Model, then call custom_scorer_torch
         
-        return scores
+    #     return scores
             
             
     def get_scores_torch(self, model_class, X_train, y_train, X_val, y_val, scoring, one_hot_encoded, random_seed):
@@ -313,31 +354,14 @@ class VanillaValidation:
         Returns:
             dict: A dictionary of scoring metrics and their corresponding scores.
         """
-        vec_avg_loss, vec_avg_valid_loss = model_class.trainer.train(X_train, y_train)
-        
-        # TODO: Move WandB logic elsewhere
-        if vec_avg_valid_loss:
-            data = [[x, y] for (x, y) in zip(np.arange(len(vec_avg_loss)), vec_avg_loss)]
-            table = wandb.Table(data=data, columns = ["Epoch", "Average Loss"])
-            loss_plot = {"Epoch Loss" : wandb.plot.line(table, "Epoch", "Average Loss", title="Epoch Loss")}
-            
-            
-            data_val = [[x, y] for (x, y) in zip(np.arange(len(vec_avg_valid_loss)), vec_avg_valid_loss)]
-            table_val = wandb.Table(data=data_val, columns = ["Epoch", "Average Val Loss"])
-            loss_val_plot = {"Epoch Val Loss" : wandb.plot.line(table_val, "Epoch", "Average Val Loss", title="Epoch Val Loss")}
-            
-            wandb_log(loss_plot | loss_val_plot)
-        else:
-            data = [[x, y] for (x, y) in zip(np.arange(len(vec_avg_loss)), vec_avg_loss)]
-            table = wandb.Table(data=data, columns = ["Epoch", "Average Loss"])
-            loss_plot = {"Epoch Loss" : wandb.plot.line(table, "Epoch", "Average Loss", title="Epoch Loss")}
-            wandb_log(loss_plot)
-        
-        if one_hot_encoded: y_val = np.argmax(y_val, axis=-1)
+        epoch_avg_loss, epoch_avg_valid_loss = model_class.trainer.train(X_train, y_train)
         
         model_class.model.eval()
-        return self.validation_scoring_torch(model_class, X_val, y_val, scoring)
-
+        y_pred = model_class.predict(X_val)
+        
+        #return self.validation_scoring_torch(model_class, X_val, y_val, scoring), epoch_avg_loss, epoch_avg_valid_loss
+        return custom_scorer_torch(y_val, y_pred, scoring, one_hot_encoded), epoch_avg_loss, epoch_avg_valid_loss
+        
 # This model can be used as a base model, if people want a more specific evaluation class, they can create a new one
 class ModelEvaluation:
     def __init__(self, validation_name, val_object, scoring, model_type, random_seed):
@@ -426,6 +450,8 @@ class ModelEvaluation:
     # TODO: Figure out location to handle one hot encoding vs multiclass for accuracy scores
     def evaluate_model_torch(self, model_class, data_class):
         scores = {}
+        epoch_losses = []
+        epoch_val_losses = []
         vanilla_validation = VanillaValidation()
         
         for key in self.scoring: scores[key] = []
@@ -436,22 +462,27 @@ class ModelEvaluation:
 
             model_class.reset_model()
             
-            [scores[key].append(score) for key, score 
-            in vanilla_validation.get_scores_torch(model_class, X_train, y_train, X_val, y_val, self.scoring, data_class.one_hot_encoded, self.random_seed).items()]
+            fold_scores, epoch_avg_loss, epoch_avg_valid_loss = vanilla_validation.get_scores_torch(model_class, X_train, y_train, X_val, y_val, self.scoring, data_class.one_hot_encoded, self.random_seed)
             
+            # Collect scores
+            [scores[key].append(score) for key, score in fold_scores.items()]
+            epoch_losses.append(epoch_avg_loss)
+            if epoch_avg_valid_loss: epoch_val_losses.append(epoch_avg_valid_loss)
+
         # scores = {f"{key}_mean": np.mean(scores[key]) for key in scores} | {f"{key}_std": np.std(scores[key]) for key in scores}
-        return scores
+        return scores, epoch_losses, epoch_val_losses
     
-        
+    # NOT DEBUGGED
     def get_scores(self, model, X, y, one_hot_encoded=False):
+        # Example use case: Get scores for a model that has already been trained, e.g. on a test set
         if self.is_torch:
             if hasattr(model.module, "predict"):
                 if one_hot_encoded:
-                    return custom_scorer(y, np.argmax(model.predict(X), axis=-1), self.scoring)
+                    return custom_scorer_torch(y, np.argmax(model.predict(X), axis=-1), self.scoring)
                 else:
-                    return custom_scorer(y, model.predict(X), self.scoring)
+                    return custom_scorer_torch(y, model.predict(X), self.scoring)
             else:
                 print("No predict method found, using forward method instead.")
-                return custom_scorer(y, model.forward(X), self.scoring)
+                return custom_scorer_torch(y, model.forward(X), self.scoring)
         else:
-            return custom_scorer(y, model.predict(X), self.scoring)
+            return custom_scorer_sklearn(y, model.predict(X), self.scoring)
