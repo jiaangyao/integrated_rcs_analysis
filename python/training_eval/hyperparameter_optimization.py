@@ -2,6 +2,9 @@ import optuna
 import wandb
 from ray import tune
 import numpy as np
+from loguru import logger
+from analysis_CS.process_classification_results import process_and_log_eval_results_sklearn, process_and_log_eval_results_torch
+
 
 # TODO: Implement hyperparameter optimization via Optuna, WandB, and/or Ray Tune
 
@@ -47,27 +50,34 @@ class HyperparameterOptimization:
         ):
             # If called by wandb.agent this config will be set by Sweep Controller
             config = wandb.config
+            wandb.log({'metadata/local_dir': self.output_dir})
 
             self.model_class.override_model(config.as_dict())
 
             # Evaluate predictions
-            results = self.evaluation.evaluate_model(
+            results, epoch_losses, epoch_val_losses = self.evaluation.evaluate_model(
                 self.model_class, self.data
             )
+            
+            if self.evaluation.model_type == 'torch':
+                if epoch_val_losses: raise NotImplementedError("Epoch Validation processing and logging not yet implemented for torch models")
+                process_and_log_eval_results_torch(results, config["run_dir"], epoch_losses, epoch_val_losses)
+            elif self.evaluation.model_type == 'sklearn':
+                process_and_log_eval_results_sklearn(results, config["run_dir"])
 
-            # Drop prefixes for logging
-            mean_results = {
-                (f'{k.split("_", 1)[-1]}_mean' if 'test_' in k else f'{k}_mean'): np.mean(v) 
-                for k, v in results.items()
-            }
-            std_results = {
-                (f'{k.split("_", 1)[-1]}_std' if 'test_' in k else f'{k}_std'): np.std(v) 
-                for k, v in results.items()
-            }
+            # # Drop prefixes for logging
+            # mean_results = {
+            #     (f'{k.split("_", 1)[-1]}_mean' if 'test_' in k else f'{k}_mean'): np.mean(v) 
+            #     for k, v in results.items()
+            # }
+            # std_results = {
+            #     (f'{k.split("_", 1)[-1]}_std' if 'test_' in k else f'{k}_std'): np.std(v) 
+            #     for k, v in results.items()
+            # }
 
-            # Log model performance metrics to W&B
-            wandb.log(std_results)
-            wandb.log(mean_results)
+            # # Log model performance metrics to W&B
+            # wandb.log(std_results)
+            # wandb.log(mean_results)
 
             # TODO: Implement if test_model is true, then log results on hold-out test set
             # if self.test_model:

@@ -227,6 +227,8 @@ class EEGNetModel(BaseTorchModel):
         n_class=2,
         dropout: float = 0.5,
         lam=1e-5,
+        n_epoch=20,
+        batch_size=32,
         act_func="relu",
         str_reg="L2",
         str_loss="CrossEntropy",

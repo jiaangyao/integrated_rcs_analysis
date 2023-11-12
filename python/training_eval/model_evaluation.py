@@ -104,7 +104,7 @@ def custom_scorer_torch(y_true, y_pred, scoring, one_hot_encoded=False):
         
     if ("roc_auc" in scoring or "auc" in scoring) and one_hot_encoded:
         roc_auc = AUROC(num_classes=num_classes, average='weighted', task=task)
-        scores["roc_auc"] = roc_auc(y_pred_tensor, y_true_tensor).numpy()
+        scores["roc_auc"] = roc_auc(y_pred_tensor, y_true_tensor).item()
     
     if ('precision_recall_curve' in scoring or 
             'prc' in scoring or 'pr_curve' in scoring or 
@@ -281,6 +281,7 @@ def create_eval_class_from_config(config, data_class):
     validation_name = list(config["validation_method"].keys())[0]
     if 'fold' in validation_name.lower() or 'group' in validation_name.lower():
         config["validation_method"]["random_state"] = config["random_seed"]
+        # TODO: Is vanilla validation set up?
         val_object = set_up_cross_validation(config["validation_method"], VALIDATION_LIBRARIES)
 
         if data_class.one_hot_encoded:
@@ -444,7 +445,7 @@ class ModelEvaluation:
             results = self.val_object.get_scores_sklearn(model, X_train, y_train, X_val, y_val, self.scoring)
         else:
             raise ValueError(f"Validation object {self.val_object} is not recognized.")
-        return results
+        return results, [], [] # Empty lists for epoch losses and validation losses
 
     # TODO: Figure out parallization for torch
     # TODO: Figure out location to handle one hot encoding vs multiclass for accuracy scores
