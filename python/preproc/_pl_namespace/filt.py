@@ -9,9 +9,19 @@ FLOAT_EXPR = Union[float, pl.Expr]
 FLOAT_INT_EXPR = Union[int, float, pl.Expr]
 INT_EXPR = Union[int, pl.Expr]
 
+def try_filter(sos, x):
+    try:
+        filtered = sosfiltfilt(sos, x)
+    except ValueError as e:
+        print(f'Error: {e}')
+        print(f'Length of x: {len(x)}')
+        print('Returning Null')
+        return pl.Series(pl.lit(None))
+    return filtered
+
 def butterworth_bandpass_np(x: npt.NDArray , N, Wn, fs) -> pl.Series:
     sos = butter(N, Wn, 'bandpass', fs=fs, output='sos')
-    filtered = sosfiltfilt(sos, x)
+    filtered = try_filter(sos, x)
     return pl.Series(filtered)
 
 def butterworth_bandpass(x: TIME_SERIES_T, N: int, Wn: list, fs: int) -> TIME_SERIES_T:
@@ -22,7 +32,7 @@ def butterworth_bandpass(x: TIME_SERIES_T, N: int, Wn: list, fs: int) -> TIME_SE
     
 def butterworth_lowpass_np(x: npt.NDArray , N, Wn, fs) -> pl.Series:
     sos = butter(N, Wn, 'lowpass', fs=fs, output='sos')
-    filtered = sosfiltfilt(sos, x)
+    filtered = try_filter(sos, x)
     return pl.Series(filtered)
 
 def butterworth_lowpass(x: TIME_SERIES_T, N: int, Wn: list, fs: int) -> TIME_SERIES_T:
@@ -31,7 +41,7 @@ def butterworth_lowpass(x: TIME_SERIES_T, N: int, Wn: list, fs: int) -> TIME_SER
 
 def butterworth_highpass_np(x: npt.NDArray , N, Wn, fs) -> pl.Series:
     sos = butter(N, Wn, 'highpass', fs=fs, output='sos')
-    filtered = sosfiltfilt(sos, x)
+    filtered = try_filter(sos, x)
     return pl.Series(filtered)
 
 def butterworth_highpass(x: TIME_SERIES_T, N: int, Wn: list, fs: int) -> TIME_SERIES_T:

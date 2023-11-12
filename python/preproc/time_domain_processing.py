@@ -1,4 +1,5 @@
 import polars as pl
+import polars.selectors as cs
 import pandas as pd
 from typing import List, Union, Dict
 from ._pl_namespace.filt import butterworth_bandpass_np
@@ -197,24 +198,28 @@ def bandpass_filter(df: pl.DataFrame, columns: List[str], filt_args: Dict, group
     - group_by (List[str]): A list of columns to group by. Default is []. (E.g. group_by=['SessionIdentity'] or group_by=['SessionDate'])
 
     returns:
-    - polars.DataFrame: A new DataFrame with the specified columns filtered as new columns, with suffix.
+    - polars.DataFrame: A new DataFrame with the specified columns filtered as new columns, with suffix. The Suffix is the key from the filt_args dictionary.
     """
     # First, chunk together sections of non-null and null values, 
     # to avoid introducing artifacts at the boundaries of null values.
     # Use row count (row_nr) to keep track of row order, e.g. as index column
+    pl_cols = cs.by_name(*columns)
     df = df.with_row_count().set_sorted('row_nr').with_columns(
         # Check which values are null or nan
-        (pl.when(pl.col(columns[0]).is_null() | pl.col(columns[0]).is_nan()).then(pl.lit(1)).otherwise(pl.lit(0))
+        # pl.concat_list(*columns).is_null().any() OR pl.any_horizontal(pl_cols.is_null())
+        (pl.when(pl.any_horizontal(pl_cols.is_null()) | pl.any_horizontal(pl_cols.is_nan()))
+        .then(pl.lit(1)).otherwise(pl.lit(0))
         # Check to see when values change from null or nan to not null or nan, and vice versa
         .diff().fill_null(0).abs()
         # Assign a row number to each row where there is a switch from null to non-null, or vice versa
         * pl.col('row_nr'))
         # Fill 0's with previous row number to get a unique identifier for each null/non-null segment
         .cumsum().alias('null_seg_nr')
-    )
+    # Drop Null Rows, i.e. where columns are null (usually due to disconnects)
+    ).filter(pl.all_horizontal(pl_cols.is_not_null()) & pl.all_horizontal(pl_cols.is_not_null()))
     
-    # Call the filtering function on each desired column and time segment
-    df_filt = df.group_by(group_by + ['null_seg_nr']).agg([
+    # Call the filtering function on each desired column and time segment, avoiding null sections
+    df_filt = (df.group_by(group_by + ['null_seg_nr']).agg([
                 pl.col(col).filt.butterworth_bp(N, Wn, fs).suffix(f'_{key}')
                 # Note: can also use map_elements on the numpy array directly
                 # pl.col(col).map_elements(lambda x: butterworth_bandpass_np(x.to_numpy(), N, Wn, fs)).suffix(f'_{key}')
@@ -222,7 +227,16 @@ def bandpass_filter(df: pl.DataFrame, columns: List[str], filt_args: Dict, group
                 for col in columns
             ] 
             + [pl.col('row_nr')]
-        ).drop(group_by + ['null_seg_nr']).explode(['row_nr'] + [f'{col}_{key}' for key in filt_args.keys() for col in columns]).sort('row_nr')
+        )
+        # Remove rows where the filter returned null
+        .filter(pl.all_horizontal(pl.all().is_not_null()))
+        # Remove unnecessary columns
+        .drop(group_by + ['null_seg_nr'])
+        # Convert back to long format
+        .explode(['row_nr'] + [f'{col}_{key}' for key in filt_args.keys() for col in columns])
+        # Sort back into chronological order
+        .sort('row_nr')
+    )
     
     # Join as new columns into original DataFrame
     return df.join(df_filt, on='row_nr', how='left').drop(['row_nr', 'null_seg_nr'])
