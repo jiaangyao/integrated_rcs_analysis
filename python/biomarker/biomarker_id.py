@@ -239,14 +239,13 @@ class SFSTrainer(DefaultModelTrainer):
         n_dynamics=0,
         amp_gain=None,
     ):
-        
         str_side = self.cfg["patient"]["str_side"]
         stim_level = self.cfg["patient"]["stim_settings"][str_side]["amp_in_mA"]
-            
+
         # obtain the features
         features, y_class, y_stim, labels_cell, _ = extract_rcs_feature(
             data_td,
-            str_side = self.cfg["preproc_settings"],
+            self.cfg["preproc"],
             stim_level=stim_level,
             bool_use_dyna=False,
             amp_gain=amp_gain,

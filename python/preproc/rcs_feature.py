@@ -1,12 +1,12 @@
 import numpy as np
 import numpy.typing as npt
-import pandas as pd
+import polars as pl
 
 from ._pwelch_psd_feature import extract_rcs_feature_pwelch
 from ._rcssim_helpers import rcssim_fft_wrapper
+from .time_domain_base import identity
 
-
-def extract_td_data_df(df: pd.DataFrame, label_type: str):
+def extract_td_data_df(df: pl.DataFrame, label_type: str):
     # epoching operation
 
     # TODO: make the output from this function into a numpy array
@@ -53,11 +53,13 @@ def extract_td_data_df(df: pd.DataFrame, label_type: str):
     return data_td, label_td, fs, str_ch, ch2use
 
 
+# TODO: check out the polarify decorator
 def extract_rcs_feature(
-    data_td: pd.DataFrame,
-    label_td,
-    fs,
-    ch2use,
+    data_td: pl.DataFrame,
+    # label_td,
+    # fs,
+    # ch2use,
+    preproc_settings: dict,
     stim_level: list = [],
     fft_len=None,
     interval=0.05,
@@ -66,9 +68,13 @@ def extract_rcs_feature(
     high_lim=100,
     bool_use_dyna=False,
     n_dynamics=1,
-    gain=None,
+    amp_gain=None,
     str_method="pwelch",
 ):
+    
+    # time domain functions
+    data_td = identity(data_td)
+
     # extract features for training using welch's method
     if str_method == "pwelch":
         (
