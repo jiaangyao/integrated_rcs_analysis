@@ -267,21 +267,22 @@ def create_eval_class_from_config(config, data_class):
         data_class.assign_train_val_test_indices(train_inds, [], test_inds)
         data_class.train_test_split(train_inds, test_inds)
     
-    elif config["data_split"]["name"] == "TrainValidationTestSplit":
-        train_inds, val_inds, test_inds = train_val_test_split_inds(
-            data_class.X,
-            config["data_split"]["validation_size"], 
-            config["data_split"]["test_size"], 
-            config["random_seed"]
-        )
-        data_class.assign_train_val_test_indices(train_inds, val_inds, test_inds)
-        data_class.train_val_test_split(train_inds, val_inds, test_inds)
+    # ! TrainValidationTestSplit to be deprecated in favor of treating VanillaValidation as special case of 1 fold cross validation...
+    # ! This way all validation methods are treated as folds
+    # elif config["data_split"]["name"] == "TrainValidationTestSplit":
+    #     train_inds, val_inds, test_inds = train_val_test_split_inds(
+    #         data_class.X,
+    #         config["data_split"]["validation_size"], 
+    #         config["data_split"]["test_size"], 
+    #         config["random_seed"]
+    #     )
+    #     data_class.assign_train_val_test_indices(train_inds, val_inds, test_inds)
+    #     data_class.train_val_test_split(train_inds, val_inds, test_inds)
 
     # TODO: Expand to multiple (i.e. more than one) validation methods? Could potentially be useful for comparing different methods... store as list?
     validation_name = list(config["validation_method"].keys())[0]
     if 'fold' in validation_name.lower() or 'group' in validation_name.lower():
         config["validation_method"]["random_state"] = config["random_seed"]
-        # TODO: Is vanilla validation set up?
         val_object = set_up_cross_validation(config["validation_method"], VALIDATION_LIBRARIES)
 
         if data_class.one_hot_encoded:
@@ -292,7 +293,10 @@ def create_eval_class_from_config(config, data_class):
             data_class.folds = [{'train': train_fold, 'val': test_fold}
                                 for (train_fold, test_fold) 
                                 in val_object.split(data_class.X_train, data_class.y_train, groups=data_class.groups)]
-    else:
+    # Treating VanillaValidation as special case of 1 fold cross validation
+    elif "vanilla" in validation_name.lower():
+        train_fold, test_fold = train_test_split_inds(data_class.X_train, config["validation_method"]["validation_size"], random_seed=config["random_seed"])
+        data_class.folds = [{"train": train_fold, "val": test_fold}]
         val_object = None
 
     return ModelEvaluation(validation_name, val_object, config["scoring"], config["model_type"], config["random_seed"]), early_stopping
@@ -371,12 +375,10 @@ class ModelEvaluation:
         self.scoring = scoring
         self.model_type = model_type
         self.random_seed = random_seed
-        # TODO: IMPLEMENT EARLY STOPPING
+        # TODO: IMPLEMENT EARLY STOPPING. On second thought, early stopping should not exist here... keep entirely in model and just call necessary functions
         # self.eary_stopping = False
         self.determine_evaluation_method()
 
-    # TODO: Check if model is instance of sklearn or torch model, then call appropriate evaluation function with relevant scoring
-    # TODO: If torch model but evaluation is sklearn, then wrap torch model in skorch
     def determine_evaluation_method(self):
         if self.model_type == "torch":
             self.evaluate_model_specific = self.evaluate_model_torch
@@ -448,7 +450,6 @@ class ModelEvaluation:
         return results, [], [] # Empty lists for epoch losses and validation losses
 
     # TODO: Figure out parallization for torch
-    # TODO: Figure out location to handle one hot encoding vs multiclass for accuracy scores
     def evaluate_model_torch(self, model_class, data_class):
         scores = {}
         epoch_losses = []

@@ -1,7 +1,11 @@
 validation_split: 0.2
 patience: 10
 delta: 0.001
-monitor: val_loss
+metrics: 
+  - loss
+  - accuracy
+# es_metric is the metric to monitor for early stopping, should be one of the strings included in 'metrics'
+es_metric: loss
 mode: min
 verbose: True
 bool_save_checkpoint: False
