@@ -9,7 +9,7 @@ import datetime
 import pandas as pd
 import numpy as np
 
-from .base import parse_dir_rcs_sess
+from .io_base import parse_dir_rcs_sess
 
 
 def load_csv_df(
