@@ -11,7 +11,7 @@ model_type: torch #sklearn # Options: torch, skorch, sklearn
 random_seed: ${random_seed}
 validation_method:
   StratifiedKFold:
-    n_splits: 5
+    n_splits: 2
     shuffle: True
     random_state: ${random_seed}
   # LeaveOneGroupOut:

@@ -464,30 +464,30 @@ class BaseTorchModel(BaseModel):
         return ptu.to_numpy(y_pred)
 
     # TODO: Move get_accuracy and get_auc to Evaluation class??
-    def get_accuracy(
-        self,
-        data: npt.NDArray,
-        label: npt.NDArray,
-    ):
-        # obtain the prediction
-        y_pred = np.argmax(self.predict(data), axis=1)
-        y_pred = self._check_input(y_pred)
+    # def get_accuracy(
+    #     self,
+    #     data: npt.NDArray,
+    #     label: npt.NDArray,
+    # ):
+    #     # obtain the prediction
+    #     y_pred = np.argmax(self.predict(data), axis=1)
+    #     y_pred = self._check_input(y_pred)
 
-        # if label is one-hot encoded, convert it to integer
-        y_real = self._check_input(label)
+    #     # if label is one-hot encoded, convert it to integer
+    #     y_real = self._check_input(label)
 
-        return np.sum(y_pred == y_real) / y_real.shape[0]
+    #     return np.sum(y_pred == y_real) / y_real.shape[0]
     
-    def get_auc(
-        self,
-        scores: npt.NDArray,
-        label: npt.NDArray,
-    ) -> npt.NDArray:
-        auc = torchmetrics.AUROC(task="multiclass", num_classes=self.model.n_class)(
-            torch.Tensor(scores), torch.Tensor(label).to(torch.long)
-        )
+    # def get_auc(
+    #     self,
+    #     scores: npt.NDArray,
+    #     label: npt.NDArray,
+    # ) -> npt.NDArray:
+    #     auc = torchmetrics.AUROC(task="multiclass", num_classes=self.model.n_class)(
+    #         torch.Tensor(scores), torch.Tensor(label).to(torch.long)
+    #     )
 
-        return ptu.to_numpy(auc)
+    #     return ptu.to_numpy(auc)
     
 
 def init_model_torch(

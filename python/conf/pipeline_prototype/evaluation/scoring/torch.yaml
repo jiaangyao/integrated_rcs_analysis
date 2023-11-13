@@ -1,2 +1,5 @@
 - accuracy
 - roc_auc
+- confusion_matrix
+- precision
+- recall
