@@ -1,6 +1,18 @@
+"""
+This function contains base functionalities for preprocessing data in time domain. (Previously preproc/time_domain_processing)
+"""
+from typing import List
+
 import polars as pl
 import pandas as pd
-from typing import List
+
+
+def identity(X):
+    """
+    Identity function. Returns input.
+    Helpful if no feature engineering is desired.
+    """
+    return X
 
 
 def standardize_df_columns(df, cols_to_standardize):

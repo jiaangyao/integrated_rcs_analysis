@@ -1,6 +1,0 @@
-defaults:
-  - base_preproc
-
-fft_len: 2
-interval: 0.5
-update_rate: 30

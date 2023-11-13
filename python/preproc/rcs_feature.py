@@ -3,6 +3,7 @@ import numpy.typing as npt
 import pandas as pd
 
 from ._pwelch_psd_feature import extract_rcs_feature_pwelch
+from ._rcssim_helpers import rcssim_fft_wrapper
 
 
 def extract_td_data_df(df: pd.DataFrame, label_type: str):
@@ -65,6 +66,7 @@ def extract_rcs_feature(
     high_lim=100,
     bool_use_dyna=False,
     n_dynamics=1,
+    gain=None,
     str_method="pwelch",
 ):
     # extract features for training using welch's method

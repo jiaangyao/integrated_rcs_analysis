@@ -1,8 +1,13 @@
+"""
+This function contains base functionalities for preprocessing data in spectral domain. (Previously preproc/time_domain_features)
+"""
 import itertools
-from sklearn.linear_model import LinearRegression
 from collections import OrderedDict
-from scipy import stats, signal
+
 import numpy as np
+import numpy.typing as npt
+from scipy import stats, signal
+from sklearn.linear_model import LinearRegression
 
 
 def identity(X):
@@ -12,7 +17,7 @@ def identity(X):
     """
     return X
 
-
+# TODO: split this function into two and move some of them to the transform?
 def single_variate_feature_extraction(
     vec: np.ndarray,
     sampling_frequency: int,
@@ -59,6 +64,7 @@ def single_variate_feature_extraction(
     # Auto-correlation takes a long time to calculate... so is omitted
     # features['peak_auto_corr'] = np.max(np.correlate(vec, vec, mode='full'))
 
+    # TODO: think about combining this with function below?
     # Frequency domain features
     f, pxx = signal.welch(
         vec, fs=sampling_frequency, nperseg=window_size, noverlap=noverlap, axis=-1
@@ -171,7 +177,7 @@ def get_psd(
     log=True,
 ):
     """
-    Calculate the power spectral density of a matrix of time series data. 
+    Calculate the power spectral density of a matrix of time series data.
     Each row should be an array of time series observations.
     """
     f, pxx = signal.welch(
