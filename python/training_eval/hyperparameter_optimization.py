@@ -13,7 +13,7 @@ class HyperparameterOptimization:
         self.evaluation = eval  # Should be an instance of training_eval.model_evaluation.ModelEvaluation
 
     def initialize_wandb_params(self, output_dir, wandb_group, wandb_tags):
-        self.output_dir = output_dir # Typically the local directory
+        self.output_dir = output_dir
         self.wandb_group = wandb_group
         self.wandb_tags = wandb_tags
 

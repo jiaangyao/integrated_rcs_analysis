@@ -4,8 +4,7 @@ from omegaconf import OmegaConf, DictConfig
 import wandb
 from loguru import logger
 import numpy as np
-import polars as pl # All preprocessing is done with polars
-import pandas as pd # This is for logging dataframes to wandb
+import polars as pl
 from collections import OrderedDict
 from utils.file_utils import create_zip, get_git_info, add_config_to_csv
 
@@ -296,56 +295,25 @@ def main(cfg: DictConfig):
         # TODO: Emmulate following from https://docs.wandb.ai/guides/integrations/lightgbm, especially call-back functionality
         # from wandb.lightgbm import wandb_callback, log_summary
         # import lightgbm as lgb
-        #TODO: Log
+        
         # Evaluate predictions
-        results, epoch_losses, epoch_val_losses = eval.evaluate_model(
+        results = eval.evaluate_model(
             model_class, data
         )
-        
 
         # Drop prefixes for logging
         mean_results = {
-            (f'{k.split("_", 1)[-1]}_mean' if 'test_' in k else f'{k}_mean'): np.mean(v, axis=0) 
+            (f'{k.split("_", 1)[-1]}_mean' if 'test_' in k else f'{k}_mean'): np.mean(v) 
             for k, v in results.items()
         }
         std_results = {
-            (f'{k.split("_", 1)[-1]}_std' if 'test_' in k else f'{k}_std'): np.std(v, axis=0) 
+            (f'{k.split("_", 1)[-1]}_std' if 'test_' in k else f'{k}_std'): np.std(v) 
             for k, v in results.items()
         }
 
         # Log model performance metrics to W&B
         wandb.log(std_results)
         wandb.log(mean_results)
-        
-        if epoch_val_losses:
-            loss_df = pd.DataFrame(
-                {f'Fold_{i}': epoch_losses[i] for i in range(len(epoch_losses))}
-                | {f'Fold_{i}_Val': epoch_val_losses[i] for i in range(len(epoch_val_losses))}
-                | {'Epoch': np.arange(len(epoch_losses[0]))}
-            )
-            # data = [[x, y] for (x, y) in zip(np.arange(len(epoch_losses)), epoch_losses)]
-            table = wandb.Table(data=loss_df)
-            wandb.log({"Epoch_Loss": table})
-            #loss_plot = {"Epoch Loss" : wandb.plot.line(table, "Epoch", "Average Loss", title="Epoch Loss")}
-            
-            
-            # data_val = [[x, y] for (x, y) in zip(np.arange(len(epoch_val_losses)), epoch_val_losses)]
-            # table_val = wandb.Table(data=data_val, columns = ["Epoch", "Average Val Loss"])
-            # loss_val_plot = {"Epoch Val Loss" : wandb.plot.line(table_val, "Epoch", "Average Val Loss", title="Epoch Val Loss")}
-            
-            # wandb.log(loss_plot | loss_val_plot)
-        else:
-            loss_df = pd.DataFrame(
-                {f'Fold_{i}': epoch_losses[i] for i in range(len(epoch_losses))}
-                | {'Epoch': np.arange(len(epoch_losses[0]))}
-            )
-            # data = [[x, y] for (x, y) in zip(np.arange(len(epoch_losses)), epoch_losses)]
-            table = wandb.Table(data=loss_df)
-            wandb.log({"Epoch_Loss": table})
-            # data = [[x, y] for (x, y) in zip(np.arange(len(epoch_losses)), epoch_losses)]
-            # table = wandb.Table(data=data, columns = ["Epoch", "Average Loss"])
-            wandb.log({"Epoch Loss" : wandb.plot.line_series(xs=np.arange(len(epoch_losses)), 
-                        ys=epoch_losses, keys=[f'Fold {i}' for i in range(len(epoch_losses))], title="Epoch Loss")})
 
         add_config_to_csv(config | {"WandB_url": wandb.run.url, "WandB_id": wandb.run.id}, config["run_tracking_csv"])
         # # Log metrics to W&B

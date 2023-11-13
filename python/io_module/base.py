@@ -32,7 +32,6 @@ def load_data(data_params):
     Load data from a file or database.
     """
     if data_params['source'] == 'database':
-        # TODO: This assumes duckdb, especially .pl() call. Make this more general.
         module = importlib.import_module(data_params['database_module'])
         con = module.connect(data_params['database_path'], read_only=True)
         df = con.sql(data_params['query']).pl()

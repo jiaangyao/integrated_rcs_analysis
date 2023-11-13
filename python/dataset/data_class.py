@@ -65,7 +65,6 @@ class MLData(DanticBaseModel):
         Returns:
             None
         """
-        print('Splitting data into training and testing sets...')
         self.X_train = self.X[train_inds]
         self.y_train = self.y[train_inds]
         self.X_test = self.X[test_inds]

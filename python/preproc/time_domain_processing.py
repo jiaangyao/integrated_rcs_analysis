@@ -1,7 +1,6 @@
 import polars as pl
 import pandas as pd
-from typing import List, Union, Dict
-from ._pl_namespace.filt import butterworth_bandpass_np
+from typing import List
 
 
 def standardize_df_columns(df, cols_to_standardize):
@@ -169,60 +168,3 @@ def epoch_df_by_timesegment(
         )
 
     return df_epoched
-
-
-def bandpass_filter(df: pl.DataFrame, columns: List[str], filt_args: Dict, group_by=[]) -> pl.DataFrame:
-    """
-    Apply a bandpass filter to the specified columns in a DataFrame.
-    params:
-    - df (polars.DataFrame): The DataFrame to be filtered.
-    - columns (List[str]): A list of column names to apply the filter.
-    - filt_args (Dict): Dictionary of list or tuple of arguments to pass to scipy.signal.butter for the bandpass filter. 
-        Each key-value pair is applied to each column in 'columns'. Each Dictionary key should be the desired suffix name for new column, and each value should be a list or tuple of arguments to pass to scipy.signal.butter.
-        Tuple | List Parameters for scipy.signal.butter:
-            Nint
-            The order of the filter. For bandpass and bandstop filters, the resulting order of the final second-order sections (sos) matrix is 2*N, with N the number of biquad sections of the desired system.
-
-            Wn 
-            The critical frequency or frequencies. For bandpass and bandstop filters, Wn is a length-2 sequence.
-
-            For a Butterworth filter, this is the point at which the gain drops to 1/sqrt(2) that of the passband (the “-3 dB point”).
-
-            For digital filters, if fs is not specified, Wn units are normalized from 0 to 1, where 1 is the Nyquist frequency (Wn is thus in half cycles / sample and defined as 2*critical frequencies / fs). If fs is specified, Wn is in the same units as fs.
-
-            For analog filters, Wn is an angular frequency (e.g. rad/s).
-
-            fsfloat
-            The sampling frequency of the digital system.
-    - group_by (List[str]): A list of columns to group by. Default is []. (E.g. group_by=['SessionIdentity'] or group_by=['SessionDate'])
-
-    returns:
-    - polars.DataFrame: A new DataFrame with the specified columns filtered as new columns, with suffix.
-    """
-    # First, chunk together sections of non-null and null values, 
-    # to avoid introducing artifacts at the boundaries of null values.
-    # Use row count (row_nr) to keep track of row order, e.g. as index column
-    df = df.with_row_count().set_sorted('row_nr').with_columns(
-        # Check which values are null or nan
-        (pl.when(pl.col(columns[0]).is_null() | pl.col(columns[0]).is_nan()).then(pl.lit(1)).otherwise(pl.lit(0))
-        # Check to see when values change from null or nan to not null or nan, and vice versa
-        .diff().fill_null(0).abs()
-        # Assign a row number to each row where there is a switch from null to non-null, or vice versa
-        * pl.col('row_nr'))
-        # Fill 0's with previous row number to get a unique identifier for each null/non-null segment
-        .cumsum().alias('null_seg_nr')
-    )
-    
-    # Call the filtering function on each desired column and time segment
-    df_filt = df.group_by(group_by + ['null_seg_nr']).agg([
-                pl.col(col).filt.butterworth_bp(N, Wn, fs).suffix(f'_{key}')
-                # Note: can also use map_elements on the numpy array directly
-                # pl.col(col).map_elements(lambda x: butterworth_bandpass_np(x.to_numpy(), N, Wn, fs)).suffix(f'_{key}')
-                for key, (N, Wn, fs) in filt_args.items()
-                for col in columns
-            ] 
-            + [pl.col('row_nr')]
-        ).drop(group_by + ['null_seg_nr']).explode(['row_nr'] + [f'{col}_{key}' for key in filt_args.keys() for col in columns]).sort('row_nr')
-    
-    # Join as new columns into original DataFrame
-    return df.join(df_filt, on='row_nr', how='left').drop(['row_nr', 'null_seg_nr'])
