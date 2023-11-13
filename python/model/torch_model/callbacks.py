@@ -10,8 +10,10 @@ class EarlyStopping:
     def __init__(
             self,
             patience=7,
-            verbose=False,
             delta=0.0,
+            metrics=["loss", "accuracy"],
+            es_metric="loss",
+            verbose=False,
             path="~/Documents/temp",
             filename="checkpoint.pt",
             trace_func=print,
@@ -31,12 +33,14 @@ class EarlyStopping:
                             Default: print
         """
         self.patience = patience
+        self.delta = delta
+        self.metrics = metrics
+        self.es_metric = es_metric
         self.verbose = verbose
         self.counter = 0
         self.best_score = None
-        self.early_stop = False
+        self.early_stop = True
         self.val_loss_min = np.Inf
-        self.delta = delta
         self.path = pathlib.Path(path)
         self.filename = filename
         self.trace_func = trace_func

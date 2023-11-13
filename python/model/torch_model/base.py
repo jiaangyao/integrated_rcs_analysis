@@ -23,6 +23,8 @@ from ..base import BaseModel
 from .rnn_model import RNNModelWrapper
 from sklearn.model_selection import train_test_split
 
+from training_eval.model_evaluation import custom_scorer_torch
+
 # TODO: transfer constants to constants directory
 # define global variables
 # _STR_TO_ACTIVATION = {
@@ -69,19 +71,19 @@ class BaseTorchClassifier:
         return ptu.to_numpy(y_pred)
 
     # TODO: Move get_accuracy and get_auc to Evaluation class??
-    def get_accuracy(
-        self,
-        data: npt.NDArray,
-        label: npt.NDArray,
-    ):
-        # obtain the prediction
-        y_pred = np.argmax(self.predict(data), axis=1)
-        y_pred = self._check_input(y_pred)
+    # def get_accuracy(
+    #     self,
+    #     data: npt.NDArray,
+    #     label: npt.NDArray,
+    # ):
+    #     # obtain the prediction
+    #     y_pred = np.argmax(self.predict(data), axis=1)
+    #     y_pred = self._check_input(y_pred)
 
-        # if label is one-hot encoded, convert it to integer
-        y_real = self._check_input(label)
+    #     # if label is one-hot encoded, convert it to integer
+    #     y_real = self._check_input(label)
 
-        return np.sum(y_pred == y_real) / y_real.shape[0]
+    #     return np.sum(y_pred == y_real) / y_real.shape[0]
 
     def predict_proba(self, data):
         class_prob = softmax(self.predict(data), axis=1)
@@ -133,6 +135,7 @@ class BaseTorchTrainer():
 
         # initialize the loss function
         self.str_loss = str_loss
+        self.loss_fn = self.get_loss()
 
         # initialize the regularization
         self.str_reg = str_reg
@@ -141,6 +144,7 @@ class BaseTorchTrainer():
         # initialize the optimizer
         self.str_opt = str_opt
         self.lr = lr
+        self.optimizer = self.get_optimizer()
 
         # initialize the transforms
         self.transform = transform
@@ -225,12 +229,8 @@ class BaseTorchTrainer():
 
         # initialize the dataset and dataloader for validation set
         # TODO: Fix bool_run_validation
-        # bool_run_validation = valid_data is not None and valid_label is not None
-        bool_run_validation = False
-
-        # housekeeping and declare optimizer
-        optimizer = self.get_optimizer()
-        loss_fn = self.get_loss()
+        bool_run_validation = valid_data is not None and valid_label is not None
+        # bool_run_validation = False
 
         # train the model
         assert self.model is not None, "Make sure you have initialized the model"
@@ -252,12 +252,12 @@ class BaseTorchTrainer():
                 y_pred = self.model(x_train)
 
                 # compute the loss
-                loss = loss_fn(y_pred, y.float())
+                loss = self.loss_fn(y_pred, y.float())
 
                 # backward pass
                 loss.backward()
-                optimizer.step()
-                optimizer.zero_grad()
+                self.optimizer.step()
+                self.optimizer.zero_grad()
 
                 # append loss
                 vec_loss.append(loss.item())
@@ -283,7 +283,7 @@ class BaseTorchTrainer():
             if bool_run_validation and self.early_stopping:
                 # initialize the loss and set model to eval mode
                 vec_valid_loss = []
-                vec_valid_acc = []
+                vec_valid_metric = []
                 self.model.eval()  # type: ignore
                 with torch.no_grad():
                     for _, (x_valid, y_valid) in enumerate(valid_dataloader):
@@ -295,19 +295,19 @@ class BaseTorchTrainer():
                         y_valid_pred = self.model(x_valid)
 
                         # compute the loss
-                        valid_loss = loss_fn(y_valid_pred, y_valid)
+                        valid_loss = self.loss_fn(y_valid_pred, y_valid)
                         vec_valid_loss.append(valid_loss.item())
 
                         # compute the accuracy
                         # noinspection PyTypeChecker
-                        valid_acc = torchmetrics.functional.accuracy(
+                        valid_metric = torchmetrics.functional.accuracy(
                             torch.argmax(y_valid_pred, dim=1), torch.argmax(y_valid, dim=1), task=str_task, num_classes=self.n_class
                         )
-                        vec_valid_acc.append(valid_acc.item())
+                        vec_valid_metric.append(valid_acc.item())
 
                     # obtain the average loss
                     valid_loss = np.mean(np.stack(vec_valid_loss, axis=0))
-                    valid_acc = np.mean(np.stack(vec_valid_acc, axis=0))
+                    valid_acc = np.mean(np.stack(vec_valid_metric, axis=0))
                     vec_avg_valid_loss.append(valid_loss)
                     str_valid_loss = ", Valid Loss: {:.4f}".format(valid_loss)
                     str_valid_acc = ", Valid Acc: {:.4f}".format(valid_acc)
@@ -514,3 +514,6 @@ def init_model_torch(
         raise NotImplementedError
 
     return model
+
+
+df.select(columns).to_numpy()
