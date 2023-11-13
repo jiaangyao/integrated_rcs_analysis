@@ -264,7 +264,7 @@ class BaseTorchTrainer():
 
                 # compute the accuracy
                 # noinspection PyTypeChecker
-                # TODO: Consider moving accuracy calculation to evaluation class
+                # TODO: Call custom_scorer_torch() with metrics list
                 acc = torchmetrics.functional.accuracy(
                     torch.argmax(y_pred, dim=1), torch.argmax(y, dim=1), task=str_task, num_classes=self.n_class
                 )
@@ -300,6 +300,7 @@ class BaseTorchTrainer():
 
                         # compute the accuracy
                         # noinspection PyTypeChecker
+                        # TODO: Just call custom_scorer_torch() with metrics list
                         valid_metric = torchmetrics.functional.accuracy(
                             torch.argmax(y_valid_pred, dim=1), torch.argmax(y_valid, dim=1), task=str_task, num_classes=self.n_class
                         )
@@ -514,6 +515,3 @@ def init_model_torch(
         raise NotImplementedError
 
     return model
-
-
-df.select(columns).to_numpy()
