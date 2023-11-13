@@ -7,7 +7,7 @@ import numpy.typing as npt
 import scipy.stats as stats
 from omegaconf import DictConfig
 
-from .base import get_idx_ch, _MAX_NUMBER_OF_FINAL_PB
+from biomarker.base import get_idx_ch, _MAX_NUMBER_OF_FINAL_PB
 from biomarker.PBgen.hymer_pb_wrapper import hymer_pb_method
 from biomarker.PBgrow.sfs import sfs_forward_pass
 

@@ -1,0 +1,3 @@
+source: parquet
+# Asterisk imports all parquet files in the directory
+path_data: /some/directory/with/parquet/files/*.parquet

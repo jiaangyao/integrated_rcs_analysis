@@ -1,5 +1,3 @@
-from typing import Optional
-
 import numpy as np
 import numpy.typing as npt
 
