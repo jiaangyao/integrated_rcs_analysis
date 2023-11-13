@@ -10,13 +10,6 @@ from scipy import stats, signal
 from sklearn.linear_model import LinearRegression
 
 
-def identity(X):
-    """
-    Identity function. Returns input.
-    Helpful if no feature engineering is desired.
-    """
-    return X
-
 # TODO: split this function into two and move some of them to the transform?
 def single_variate_feature_extraction(
     vec: np.ndarray,
