@@ -22,8 +22,9 @@ class MLData(DanticBaseModel):
     one_hot_encoded: bool = False
     
     # Note: X_val is separate from the validation folds
-    X_val: npt.NDArray | None = None
-    y_val: npt.NDArray | None = None
+    # ! TODO: Deprecate all X_val in favor of folds (where vanilla validation is just single fold of specified train-val split)
+    # X_val: npt.NDArray | None = None
+    # y_val: npt.NDArray | None = None
     
     X_test: npt.NDArray | None = None
     y_test: npt.NDArray | None = None
@@ -63,6 +64,7 @@ class MLData(DanticBaseModel):
         Returns:
             None
         """
+        print('Splitting data into training and testing sets...')
         self.X_train = self.X[train_inds]
         self.y_train = self.y[train_inds]
         self.X_test = self.X[test_inds]
@@ -75,8 +77,8 @@ class MLData(DanticBaseModel):
     def get_testing_data(self):
         return self.X_test, self.y_test
 
-    def get_validation_data(self):
-        return self.X_val, self.y_val
+    # def get_validation_data(self):
+    #     return self.X_val, self.y_val
     
     def get_fold(self, fold_num):
         """
@@ -105,52 +107,52 @@ class MLData(DanticBaseModel):
         self.train_val_test_indicies = (train_inds, val_inds, test_inds)
         
     
-    def train_val_test_split(self, train_inds, val_inds, test_inds):
-        """
-        Splits the data into training, validation, and testing sets based on the indices provided.
+    # def train_val_test_split(self, train_inds, val_inds, test_inds):
+    #     """
+    #     Splits the data into training, validation, and testing sets based on the indices provided.
 
-        Args:
-            train_inds (list): A list of indices to use for the training set.
-            val_inds (list): A list of indices to use for the validation set.
-            test_inds (list): A list of indices to use for the testing set.
+    #     Args:
+    #         train_inds (list): A list of indices to use for the training set.
+    #         val_inds (list): A list of indices to use for the validation set.
+    #         test_inds (list): A list of indices to use for the testing set.
 
-        Returns:
-            None
-        """
-        self.X_train = self.X[train_inds]
-        self.y_train = self.y[train_inds]
-        self.X_val = self.X[val_inds]
-        self.y_val = self.y[val_inds]
-        self.X_test = self.X[test_inds]
-        self.y_test = self.y[test_inds]
+    #     Returns:
+    #         None
+    #     """
+    #     self.X_train = self.X[train_inds]
+    #     self.y_train = self.y[train_inds]
+    #     self.X_val = self.X[val_inds]
+    #     self.y_val = self.y[val_inds]
+    #     self.X_test = self.X[test_inds]
+    #     self.y_test = self.y[test_inds]
 
 
-    # ! Deprecated
-    def get_fold_deprecated(self, fold_num, fold_on='X'):
-        """
-        Returns the training and testing data for the fold specified by fold_ind.
+    # # ! Deprecated
+    # def get_fold_deprecated(self, fold_num, fold_on='X'):
+    #     """
+    #     Returns the training and testing data for the fold specified by fold_ind.
 
-        Args:
-            fold_ind (int): The index of the fold to return.
-            fold_on (str): The data to fold on. Either 'X' or 'X_train'. Defaults to 'X'.
-                Folds are either performed on the entire dataset (X) or the training set (X_train).
+    #     Args:
+    #         fold_ind (int): The index of the fold to return.
+    #         fold_on (str): The data to fold on. Either 'X' or 'X_train'. Defaults to 'X'.
+    #             Folds are either performed on the entire dataset (X) or the training set (X_train).
 
-        Returns:
-            X_train (numpy.ndarray): The training data for the specified fold.
-            y_train (numpy.ndarray): The training labels for the specified fold.
-            X_test (numpy.ndarray): The testing data for the specified fold.
-            y_test (numpy.ndarray): The testing labels for the specified fold.
-        """
-        if self.folds is None:
-            raise ValueError('No folds have been defined. Please pass fold indicies to field "folds" to define folds.')
+    #     Returns:
+    #         X_train (numpy.ndarray): The training data for the specified fold.
+    #         y_train (numpy.ndarray): The training labels for the specified fold.
+    #         X_test (numpy.ndarray): The testing data for the specified fold.
+    #         y_test (numpy.ndarray): The testing labels for the specified fold.
+    #     """
+    #     if self.folds is None:
+    #         raise ValueError('No folds have been defined. Please pass fold indicies to field "folds" to define folds.')
         
-        fold_train_inds = self.folds[fold_num]
-        if fold_on == 'X':
-            fold_test_inds = np.setdiff1d(np.arange(len(self.X)), fold_train_inds)
-            return self.X[fold_train_inds], self.y[fold_train_inds], self.X[fold_test_inds], self.y[fold_test_inds]
-        elif fold_on == 'X_train':
-            fold_test_inds = np.setdiff1d(np.arange(len(self.X_train)), fold_train_inds)
-            return self.X[fold_train_inds], self.y[fold_train_inds], self.X[fold_test_inds], self.y[fold_test_inds]
-        else:
-            raise ValueError(f"Argument fold_on must be either 'X' or 'X_train'. {fold_on} is not recognized")
+    #     fold_train_inds = self.folds[fold_num]
+    #     if fold_on == 'X':
+    #         fold_test_inds = np.setdiff1d(np.arange(len(self.X)), fold_train_inds)
+    #         return self.X[fold_train_inds], self.y[fold_train_inds], self.X[fold_test_inds], self.y[fold_test_inds]
+    #     elif fold_on == 'X_train':
+    #         fold_test_inds = np.setdiff1d(np.arange(len(self.X_train)), fold_train_inds)
+    #         return self.X[fold_train_inds], self.y[fold_train_inds], self.X[fold_test_inds], self.y[fold_test_inds]
+    #     else:
+    #         raise ValueError(f"Argument fold_on must be either 'X' or 'X_train'. {fold_on} is not recognized")
     

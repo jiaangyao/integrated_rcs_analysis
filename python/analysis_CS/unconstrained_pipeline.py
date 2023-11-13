@@ -4,9 +4,11 @@ from omegaconf import OmegaConf, DictConfig
 import wandb
 from loguru import logger
 import numpy as np
-import polars as pl
+import polars as pl # All preprocessing is done with polars
+import pandas as pd # This is for logging dataframes to wandb
 from collections import OrderedDict
 from utils.file_utils import create_zip, get_git_info, add_config_to_csv
+from analysis_CS.process_classification_results import process_and_log_eval_results_sklearn, process_and_log_eval_results_torch
 
 # TODO: Remove sys.append once I figure out why VSCode hates this working directory
 import sys
@@ -65,9 +67,9 @@ def setup(cfg: DictConfig):
         format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {module}:{function}:{line} - {message}",
         level="INFO",
     )
-    logger.info("Local Directory Path: {}".format(config["run_dir"]))
+    # logger.info("Local Directory Path: {}".format(config["run_dir"]))
     # TODO: Parameterize this...
-    create_zip(f'{os.getcwd()}/python', f'{config["run_dir"]}/code.zip', exclude=['analysis_*'])
+    create_zip(f'{os.getcwd()}/python', f'{config["run_dir"]}/code.zip', exclude=config["code_snapshot_exlude"])
     git_info = get_git_info()
     logger.info("Git info: {}".format(git_info))
     config |= git_info
@@ -92,6 +94,8 @@ def setup(cfg: DictConfig):
         logger.info("WandB entity: {}".format(run.entity))
         logger.info("WandB run name: {}".format(run.name))
         logger.info("WandB run id: {}".format(run.id))
+        logger.info("Local Directory Path: {}".format(config["run_dir"]))
+        wandb.log({'metadata/local_dir': config["run_dir"]})
 
     return config, logger
 
@@ -128,19 +132,34 @@ def main(cfg: DictConfig):
         data_df = data_df.pipe(pipe_step[0], **pipe_step[1])
 
     channel_options = preproc["channel_options"]
-    # Convert to numpy
-    if channel_options["stack_channels"]:
+    # Convert to numpy, with desired dimensionality
+    # m is num channels (i.e. num columns extracted from dataframe), 
+    # n is num rows (i.e. individual data measurements), 
+    # f is num features per row
+    if channel_options["stack_channels"]: # Stack channels into m x n x f tensor
         logger.info(f"Stacking Channels")
+        X = np.stack(
+            [data_df.get_column(col).to_numpy() for col in preproc["feature_columns"]],
+            axis=0,
+        )
+    elif channel_options["group_channel_rows"]: # Group channels into n x m x f tensor
+        logger.info(f"Grouping Channel Rows")
         X = np.stack(
             [data_df.get_column(col).to_numpy() for col in preproc["feature_columns"]],
             axis=1,
         )
-    else:
+    elif channel_options["concatenate_channel_rows"]: # Concatenate channels into n x (m * f) tensor
+        logger.info(f"Concatenating Channel Rows")
         X = np.concatenate(
             [data_df.get_column(col).to_numpy() for col in preproc["feature_columns"]],
-            axis=1,
+            axis=-1,
         )
-
+    else:
+        raise NotImplementedError(
+            "Only stacking, grouping, or concatenating channels is currently supported"
+        )
+    logger.info(f"Feature matrix shape after preprocessing: {X.shape}")
+    
     # Manage labels
     label_config = preproc["label_options"]
     if label_config["label_remapping"]:
@@ -187,25 +206,56 @@ def main(cfg: DictConfig):
 
     # Apply feature extraction pipeline on data
     logger.info(f"Transforming data into features with pipeline: \n {pipe_string}")
-    if channel_options["pipe_by_channel"] & channel_options["concat_channel_features"]:
-        X = np.concatenate(
-            [feature_pipe.fit_transform(X[:, i] for i in range(X.shape[1]))], axis=1
-        )
-    elif (
-        channel_options["pipe_by_channel"] & channel_options["average_channel_features"]
-    ):
-        X = np.mean(
-            np.stack(
-                [feature_pipe.fit_transform(X[:, i] for i in range(X.shape[1]))], axis=1
-            ),
-            axis=1,
-        )
-    elif channel_options["pipe_by_channel"] & channel_options["stack_channel_features"]:
+    # Check if user wants to apply feature pipeline by channel, or specified dimension
+    if channel_options["pipe_on_dim_0"]:
         X = np.stack(
-            [feature_pipe.fit_transform(X[:, i] for i in range(X.shape[1]))], axis=1
-        )
+                [feature_pipe.fit_transform(X[i]) for i in range(X.shape[0])], axis=0
+            )
+        # transform_vectorized = np.vectorize(feature_pipe.fit_transform)
+        # X = transform_vectorized(X, axis=pipe_dim)
     else:
         X = feature_pipe.fit_transform(X)
+    
+    # Check if user wants to aggregate features across channels (which is likely dim=0)
+    if channel_options["concat_channel_features"]:
+        X = np.reshape(X, (X.shape[0], -1))
+    elif channel_options["average_channel_features"]:
+        X = np.mean(X, axis=0)
+    elif channel_options["group_channel_features_by_row_after_pipe"]:
+        X = np.transpose(X, (1, 0, 2))
+        
+    # elif channel_options["stack_channel_features"]:
+    # if channel_options["pipe_by_channel"] & channel_options["concat_channel_features"]:
+    #     X = np.concatenate(
+    #         [feature_pipe.fit_transform(X[:, i] for i in range(X.shape[1]))], axis=1
+    #     )
+    # elif (
+    #     channel_options["pipe_by_channel"] & channel_options["average_channel_features"]
+    # ):
+    #     X = np.mean(
+    #         np.stack(
+    #             [feature_pipe.fit_transform(X[:, i] for i in range(X.shape[1]))], axis=1
+    #         ),
+    #         axis=1,
+    #     )
+    # elif channel_options["pipe_by_channel"] & channel_options["stack_channel_features"]:
+    #     X = np.stack(
+    #         [feature_pipe.fit_transform(X[:, i] for i in range(X.shape[1]))], axis=1
+    #     )
+    # elif channel_options["pipe_by_channel"] & channel_options["group_channel_features_by_row_after_pipe"]:
+    #     X = np.stack(
+    #         [feature_pipe.fit_transform(X[:, i] for i in range(X.shape[1]))], axis=1
+    #     )
+    #     X = np.transpose(X, (1, 0, 2))
+    # elif channel_options["pipe_by_channel"] & channel_options["group_channel_features_by_row_before_pipe"]:
+    #     X = np.transpose(X, (1, 0, 2))
+    #     X = np.stack(
+    #         [feature_pipe.fit_transform(X[:, i] for i in range(X.shape[1]))], axis=1
+    #     )
+    # else:
+    #     X = feature_pipe.fit_transform(X)
+        
+    
 
     logger.info(f"Feature matrix shape after feature engineering: {X.shape}")
     logger.info(f"Label vector shape: {y.shape}")
@@ -267,6 +317,7 @@ def main(cfg: DictConfig):
         logger.info(
             f"WandB sweep url: {wandb_url}"
         )
+        logger.info("Local Directory Path: {}".format(config["run_dir"]))
         logger.info(f"WandB sweep config: {sweep_config}")
         ho.initialize_wandb_params(
             config["run_dir"], config["wandb"]["group"], config["wandb"]["tags"]
@@ -295,27 +346,63 @@ def main(cfg: DictConfig):
         # TODO: Emmulate following from https://docs.wandb.ai/guides/integrations/lightgbm, especially call-back functionality
         # from wandb.lightgbm import wandb_callback, log_summary
         # import lightgbm as lgb
-        
         # Evaluate predictions
-        results = eval.evaluate_model(
+        results, epoch_losses, epoch_val_losses = eval.evaluate_model(
             model_class, data
         )
+        
+        if eval.model_type == 'torch':
+            if epoch_val_losses: raise NotImplementedError("Epoch Validation processing and logging not yet implemented for torch models")
+            process_and_log_eval_results_torch(results, config["run_dir"], epoch_losses, epoch_val_losses)
+        elif eval.model_type == 'sklearn':
+            process_and_log_eval_results_sklearn(results, config["run_dir"])
+        
+        
+        # # Drop prefixes for logging
+        # mean_results = {
+        #     (f'{k.split("_", 1)[-1]}_mean' if 'test_' in k else f'{k}_mean'): np.mean(v, axis=0) 
+        #     for k, v in results.items()
+        # }
+        # std_results = {
+        #     (f'{k.split("_", 1)[-1]}_std' if 'test_' in k else f'{k}_std'): np.std(v, axis=0) 
+        #     for k, v in results.items()
+        # }
 
-        # Drop prefixes for logging
-        mean_results = {
-            (f'{k.split("_", 1)[-1]}_mean' if 'test_' in k else f'{k}_mean'): np.mean(v) 
-            for k, v in results.items()
-        }
-        std_results = {
-            (f'{k.split("_", 1)[-1]}_std' if 'test_' in k else f'{k}_std'): np.std(v) 
-            for k, v in results.items()
-        }
+        # # Log model performance metrics to W&B
+        # wandb.log(std_results)
+        # wandb.log(mean_results)
+        
+        # if epoch_val_losses:
+        #     loss_df = pd.DataFrame(
+        #         {f'Fold_{i}': epoch_losses[i] for i in range(len(epoch_losses))}
+        #         | {f'Fold_{i}_Val': epoch_val_losses[i] for i in range(len(epoch_val_losses))}
+        #         | {'Epoch': np.arange(len(epoch_losses[0]))}
+        #     )
+        #     # data = [[x, y] for (x, y) in zip(np.arange(len(epoch_losses)), epoch_losses)]
+        #     table = wandb.Table(data=loss_df)
+        #     wandb.log({"Epoch_Loss": table})
+        #     #loss_plot = {"Epoch Loss" : wandb.plot.line(table, "Epoch", "Average Loss", title="Epoch Loss")}
+            
+            
+        #     # data_val = [[x, y] for (x, y) in zip(np.arange(len(epoch_val_losses)), epoch_val_losses)]
+        #     # table_val = wandb.Table(data=data_val, columns = ["Epoch", "Average Val Loss"])
+        #     # loss_val_plot = {"Epoch Val Loss" : wandb.plot.line(table_val, "Epoch", "Average Val Loss", title="Epoch Val Loss")}
+            
+        #     # wandb.log(loss_plot | loss_val_plot)
+        # else:
+        #     loss_df = pd.DataFrame(
+        #         {f'Fold_{i}': epoch_losses[i] for i in range(len(epoch_losses))}
+        #         | {'Epoch': np.arange(len(epoch_losses[0]))}
+        #     )
+        #     # data = [[x, y] for (x, y) in zip(np.arange(len(epoch_losses)), epoch_losses)]
+        #     table = wandb.Table(data=loss_df)
+        #     wandb.log({"Epoch_Loss": table})
+        #     # data = [[x, y] for (x, y) in zip(np.arange(len(epoch_losses)), epoch_losses)]
+        #     # table = wandb.Table(data=data, columns = ["Epoch", "Average Loss"])
+        #     wandb.log({"Epoch Loss" : wandb.plot.line_series(xs=np.arange(len(epoch_losses)), 
+        #                 ys=epoch_losses, keys=[f'Fold {i}' for i in range(len(epoch_losses))], title="Epoch Loss")})
 
-        # Log model performance metrics to W&B
-        wandb.log(std_results)
-        wandb.log(mean_results)
-
-        add_config_to_csv(config | {"WandB_url": wandb.run.url, "WandB_id": wandb.run.id}, config["run_tracking_csv"])
+        # add_config_to_csv(config | {"WandB_url": wandb.run.url, "WandB_id": wandb.run.id}, config["run_tracking_csv"])
         # # Log metrics to W&B
         # gbm = lgb.train(..., callbacks=[wandb_callback()])
 
