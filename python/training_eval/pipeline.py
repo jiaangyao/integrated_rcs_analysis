@@ -7,7 +7,7 @@ from omegaconf import DictConfig
 
 from dataset.struct_dataset import create_output_struct, append_output_struct, arrayize_output_struct, \
     append_pred_output_struct, comp_summary_output_struct
-from preproc.base import create_hashmap
+from preproc.label_base import create_hashmap
 from model.pipeline import init_model
 from .base import correct_data_dim, get_valid_data
 from .train_eval_model import step_model

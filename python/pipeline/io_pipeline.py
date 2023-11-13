@@ -6,12 +6,13 @@ import pathlib
 import pandas as pd
 import polars as pl
 
+from io_module.io_base import load_amp_gain_mat
 from io_module.pandas_io import load_csv_df, clean_dt_df
 from io_module.polars_io import load_database_pl, load_parquet_pl
 
 
 def load_df(
-    data_params: dict,
+    data_source_params: dict,
 ) -> pd.DataFrame | pl.DataFrame:
     """Load a datafile into a pandas or polars dataframe
 
@@ -23,21 +24,23 @@ def load_df(
     """
     # right now does simple testing of whether file is csv or no
     # if csv then use pandas to load
-    if data_params["file_data"].endswith(".csv"):
-        df = load_csv_df(data_params["path_data"], data_params["file_data"])
+    if data_source_params["file_data"].endswith(".csv"):
+        df = load_csv_df(
+            data_source_params["path_data"], data_source_params["file_data"]
+        )
 
     # otherwise use polars to load
     else:
         # importing a database
-        if data_params["source"] == "database":
+        if data_source_params["source"] == "database":
             df = load_database_pl(
-                data_params["database_module"],
-                data_params["database_path"],
-                data_params["query"],
+                data_source_params["database_module"],
+                data_source_params["database_path"],
+                data_source_params["query"],
             )
         # importing a parquet file
         else:
-            df = load_parquet_pl(data_params["data_path"])
+            df = load_parquet_pl(data_source_params["data_path"])
 
     return df
 
@@ -85,3 +88,30 @@ def load_data(
     df = correct_df_time(df)
 
     return df
+
+
+def load_amp_gain(
+    data_source_params: dict,
+    mode: str = "mat",
+) -> dict:
+    """Load the amplifier gain file
+
+    Args:
+        data_source_params (dict): list of parameters for loading data, loaded from yaml file
+        mode (str, optional): type of file provided. Defaults to "mat".
+
+    Returns:
+        dict: amplifier gain dictionary
+    """
+
+    # load the amplifier gain file
+    if mode == "mat":
+        amp_gain = load_amp_gain_mat(
+            data_source_params["path_data"], data_source_params["file_gain"]
+        )
+    elif mode == "null":
+        amp_gain = None
+    else:
+        raise NotImplementedError
+
+    return amp_gain

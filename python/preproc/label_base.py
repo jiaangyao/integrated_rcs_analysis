@@ -1,5 +1,5 @@
 """
-This function contains base functionalities for preprocessing data.
+This function contains base functionalities for preprocessing data labels. (Previously preproc/base)
 """
 from itertools import product
 

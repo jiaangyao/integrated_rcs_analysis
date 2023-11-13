@@ -11,7 +11,7 @@ from omegaconf import DictConfig, OmegaConf
 import hydra
 import wandb
 
-from pipeline.io_pipeline import load_data
+from pipeline.io_pipeline import load_data, load_amp_gain
 from preproc.rcs_feature import extract_rcs_feature
 from model.pipeline import get_model_params
 from pipeline.biomakrer_pipeline import run_pb_pipeline
@@ -168,11 +168,17 @@ class SFSTrainer(DefaultModelTrainer):
         #     self.n_rep = 1
 
     def load_data(self):
+        # load the dataframe
         data_td = load_data(
             self.cfg["data_source"],
         )
 
-        return data_td
+        # load the amplifier gain file
+        amp_gain = load_amp_gain(
+            self.cfg["data_source"],
+        )
+
+        return data_td, amp_gain
 
     def initialize_ray(self):
         # initialize ray
@@ -231,16 +237,19 @@ class SFSTrainer(DefaultModelTrainer):
         self,
         data_td,
         n_dynamics=0,
+        amp_gain=None,
     ):
+        
+        str_side = self.cfg["patient"]["str_side"]
+        stim_level = self.cfg["patient"]["stim_settings"][str_side]["amp_in_mA"]
+            
         # obtain the features
         features, y_class, y_stim, labels_cell, _ = extract_rcs_feature(
             data_td,
-            stim_level=self.stim_level,
-            interval=self.interval,
-            update_rate=self.update_rate,
-            low_lim=self.freq_low_lim,
-            high_lim=self.freq_high_lim,
-            bool_use_dyna=self.bool_use_dyna,
+            str_side = self.cfg["preproc_settings"],
+            stim_level=stim_level,
+            bool_use_dyna=False,
+            amp_gain=amp_gain,
             n_dynamics=n_dynamics,
         )
 
@@ -369,8 +378,8 @@ class SFSTrainer(DefaultModelTrainer):
         # # initialize wandb logger
         # self.initialize_wandb()
 
-        # load the data
-        data_td = self.load_data()
+        # load the data and the amplifier gain
+        data_td, amp_gain = self.load_data()
 
         # # initialize ray
         # self.initialize_ray()
@@ -388,6 +397,7 @@ class SFSTrainer(DefaultModelTrainer):
         features, y_class, y_stim, labels_cell = self.extract_features(
             data_td,
             n_dynamics=0,
+            amp_gain=amp_gain,
         )
 
         # # perform SFS inner loop and iterate through the repetitions

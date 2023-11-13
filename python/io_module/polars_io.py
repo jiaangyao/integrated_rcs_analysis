@@ -1,3 +1,7 @@
+"""
+This file contains functions for input/output of database/parquet data files using polars.
+"""
+
 import pathlib
 import importlib
 

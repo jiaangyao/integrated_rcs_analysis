@@ -1,3 +1,8 @@
+"""
+This function contains base functionalities for preprocessing data in time domain. (Previously preproc/time_domain_processing)
+"""
+from typing import List
+
 import polars as pl
 import polars.selectors as cs
 import pandas as pd

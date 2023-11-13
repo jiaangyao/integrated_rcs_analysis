@@ -12,7 +12,7 @@ from sklearn.metrics import (
 from omegaconf import DictConfig, OmegaConf
 from torch.nn.functional import normalize
 
-from preproc.base import combine_labels
+from preproc.label_base import combine_labels
 
 
 def step_model(
