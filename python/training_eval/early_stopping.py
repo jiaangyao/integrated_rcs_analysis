@@ -14,14 +14,15 @@ class EarlyStopping:
             verbose=False,
             delta=0.0,
             validation_split=0.2,
-            monitor='val_loss',
+            metrics=["loss", "accuracy"],
+            es_metric="loss",
             mode='min',
             path="~/Documents/temp",
             filename="checkpoint.pt",
             trace_func=print,
             bool_save_checkpoint=False,
             random_seed=None,
-            val_obj=None
+            # val_obj=None
     ):
         """
         Args:
@@ -38,6 +39,9 @@ class EarlyStopping:
         """
         self.patience = patience
         self.verbose = verbose
+        self.metrics = metrics
+        self.scorers = self._get_scorers()
+        self.es_metric = es_metric
         self.counter = 0
         self.best_score = None
         self.early_stop = False
@@ -46,15 +50,27 @@ class EarlyStopping:
         self.path = pathlib.Path(path)
         self.filename = filename
         self.trace_func = trace_func
-        self.monitor = monitor
         self.mode = mode
         self.random_seed = random_seed
-        self.val_obj = val_obj
+        # self.val_obj = val_obj
         self.validation_split = validation_split
 
         # initialize internal list of models
         self.bool_save_checkpoint = bool_save_checkpoint
         self.best_model_weights = None
+    
+    def reset(self):
+        self.counter = 0
+        self.best_score = None
+        self.early_stop = False
+        self.val_loss_min = np.Inf
+        self.best_model_weights = None
+    
+    def _get_scorers(self):
+        scorers = self.metrics
+        if "loss" in scorers:
+            scorers.remove("loss")
+        return scorers
 
     def __call__(
             self,

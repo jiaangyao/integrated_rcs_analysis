@@ -4,7 +4,6 @@ import sklearn.model_selection as skms
 from sklearn.model_selection import train_test_split
 from utils.pipeline_utils import convert_string_to_callable
 from sklearn.model_selection import train_test_split
-from training_eval.early_stopping import EarlyStopping
 from utils.wandb_utils import wandb_log
 import wandb
 
@@ -30,6 +29,7 @@ import sklearn.model_selection as skms
 VALIDATION_LIBRARIES = [skms]
 
 import torch
+# TODO: Probably should switch to torchmetrics.functional.<metric> ... these functions keep past states in memory...
 from torchmetrics import (
     Accuracy,
     Precision,
@@ -252,11 +252,6 @@ def set_up_cross_validation(config_dict, libs):
 
 
 def create_eval_class_from_config(config, data_class):
-    # Partition data into relevant sets if necessary
-    if early_stopping_conf := config.get("early_stopping"):
-        early_stopping = EarlyStopping(**early_stopping_conf | {"val_obj": VanillaValidation()})
-    else:
-        early_stopping = None
         
     if config["data_split"]["name"] == "TrainTestSplit":
         train_inds, test_inds = train_test_split_inds(
@@ -299,7 +294,7 @@ def create_eval_class_from_config(config, data_class):
         data_class.folds = [{"train": train_fold, "val": test_fold}]
         val_object = None
 
-    return ModelEvaluation(validation_name, val_object, config["scoring"], config["model_type"], config["random_seed"]), early_stopping
+    return ModelEvaluation(validation_name, val_object, config["scoring"], config["model_type"], config["random_seed"])
 
 class VanillaValidation:
     """
@@ -341,7 +336,7 @@ class VanillaValidation:
     #     return scores
             
             
-    def get_scores_torch(self, model_class, X_train, y_train, X_val, y_val, scoring, one_hot_encoded, random_seed):
+    def get_scores_torch(self, model_class, X_train, y_train, X_val, y_val, scoring, one_hot_encoded):
         """
         Trains a model and computes validation scores.
 
@@ -352,20 +347,25 @@ class VanillaValidation:
             X_val (array-like): The validation input data.
             y_val (array-like): The validation target data.
             scoring (list): A list of scoring metrics to compute.
-            early_stopping (bool): Whether to use early stopping during training.
             one_hot_encoded (bool): Whether the target data is one-hot encoded.
-            random_seed (int): The random seed for splitting the data for early stopping.
-
         Returns:
             dict: A dictionary of scoring metrics and their corresponding scores.
         """
-        epoch_avg_loss, epoch_avg_valid_loss = model_class.trainer.train(X_train, y_train)
+        epoch_avg_loss, epoch_scores, epoch_avg_valid_loss, epoch_val_scores = model_class.trainer.train(X_train, y_train, one_hot_encoded)
+        metrics_by_epoch = ({"Epoch Train Loss": epoch_avg_loss} |
+                            {"Epoch Train " + key: epoch_scores[key] for key in epoch_scores.keys()} 
+        )
+        
+        if epoch_avg_valid_loss is not None:                                                                                                                                                            
+            metrics_by_epoch |= {"Epoch Val Loss": epoch_avg_valid_loss}
+        if epoch_val_scores is not None:
+            metrics_by_epoch |= {"Epoch Val " + key: epoch_val_scores[key] for key in epoch_val_scores.keys()}
         
         model_class.model.eval()
         y_pred = model_class.predict(X_val)
         
         #return self.validation_scoring_torch(model_class, X_val, y_val, scoring), epoch_avg_loss, epoch_avg_valid_loss
-        return custom_scorer_torch(y_val, y_pred, scoring, one_hot_encoded), epoch_avg_loss, epoch_avg_valid_loss
+        return custom_scorer_torch(y_val, y_pred, scoring, one_hot_encoded), metrics_by_epoch
         
 # This model can be used as a base model, if people want a more specific evaluation class, they can create a new one
 class ModelEvaluation:
@@ -374,7 +374,7 @@ class ModelEvaluation:
         self.val_object = val_object
         self.scoring = scoring
         self.model_type = model_type
-        self.random_seed = random_seed
+        self.random_seed = random_seed # Likely to be deprecated
         # TODO: IMPLEMENT EARLY STOPPING. On second thought, early stopping should not exist here... keep entirely in model and just call necessary functions
         # self.eary_stopping = False
         self.determine_evaluation_method()
@@ -447,13 +447,12 @@ class ModelEvaluation:
             results = self.val_object.get_scores_sklearn(model, X_train, y_train, X_val, y_val, self.scoring)
         else:
             raise ValueError(f"Validation object {self.val_object} is not recognized.")
-        return results, [], [] # Empty lists for epoch losses and validation losses
+        return results, {} # Empty lists for epoch losses and validation losses
 
     # TODO: Figure out parallization for torch
     def evaluate_model_torch(self, model_class, data_class):
         scores = {}
-        epoch_losses = []
-        epoch_val_losses = []
+        metrics_by_epoch = {}
         vanilla_validation = VanillaValidation()
         
         for key in self.scoring: scores[key] = []
@@ -464,15 +463,16 @@ class ModelEvaluation:
 
             model_class.reset_model()
             
-            fold_scores, epoch_avg_loss, epoch_avg_valid_loss = vanilla_validation.get_scores_torch(model_class, X_train, y_train, X_val, y_val, self.scoring, data_class.one_hot_encoded, self.random_seed)
+            fold_scores, fold_metrics_by_epoch = vanilla_validation.get_scores_torch(model_class, X_train, y_train, X_val, y_val, self.scoring, data_class.one_hot_encoded)
             
             # Collect scores
             [scores[key].append(score) for key, score in fold_scores.items()]
-            epoch_losses.append(epoch_avg_loss)
-            if epoch_avg_valid_loss: epoch_val_losses.append(epoch_avg_valid_loss)
+            
+            [metrics_by_epoch.setdefault(key, []) for key in fold_metrics_by_epoch.keys()]
+            [metrics_by_epoch[key].append(score) for key, score in fold_metrics_by_epoch.items()]
 
         # scores = {f"{key}_mean": np.mean(scores[key]) for key in scores} | {f"{key}_std": np.std(scores[key]) for key in scores}
-        return scores, epoch_losses, epoch_val_losses
+        return scores, metrics_by_epoch
     
     # NOT DEBUGGED
     def get_scores(self, model, X, y, one_hot_encoded=False):

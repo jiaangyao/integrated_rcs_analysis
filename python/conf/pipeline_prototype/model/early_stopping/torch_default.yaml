@@ -7,7 +7,7 @@ metrics:
 # es_metric is the metric to monitor for early stopping, should be one of the strings included in 'metrics'
 es_metric: loss
 mode: min
-verbose: True
+verbose: False
 bool_save_checkpoint: False
 # baseline: None
 # restore_best_weights: True

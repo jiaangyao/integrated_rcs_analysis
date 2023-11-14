@@ -15,11 +15,11 @@ import sys
 
 sys.path.append("/home/claysmyth/code/integrated_rcs_analysis/python/")
 
-from io_module.base import load_data
+from io_module.io_base import load_data
 
 # Stand-in variable for custom time domain processing functions
-import preproc.time_domain_processing as tdp
-import preproc.time_domain_features as tdf
+import preproc.time_domain_base as tdb
+import preproc.spectral_base as sb
 
 # Libraries for preprocessing and feature selection
 import sklearn.preprocessing as skpp
@@ -43,8 +43,8 @@ from training_eval.hyperparameter_optimization import HyperparameterOptimization
 
 # Global Variables
 POTENTIAL_FEATURE_LIBRARIES = [
-    tdp,
-    tdf,
+    tdb,
+    sb,
     np,
     skpp,
     skd,
@@ -211,8 +211,6 @@ def main(cfg: DictConfig):
         X = np.stack(
                 [feature_pipe.fit_transform(X[i]) for i in range(X.shape[0])], axis=0
             )
-        # transform_vectorized = np.vectorize(feature_pipe.fit_transform)
-        # X = transform_vectorized(X, axis=pipe_dim)
     else:
         X = feature_pipe.fit_transform(X)
     
@@ -223,39 +221,9 @@ def main(cfg: DictConfig):
         X = np.mean(X, axis=0)
     elif channel_options["group_channel_features_by_row_after_pipe"]:
         X = np.transpose(X, (1, 0, 2))
-        
-    # elif channel_options["stack_channel_features"]:
-    # if channel_options["pipe_by_channel"] & channel_options["concat_channel_features"]:
-    #     X = np.concatenate(
-    #         [feature_pipe.fit_transform(X[:, i] for i in range(X.shape[1]))], axis=1
-    #     )
-    # elif (
-    #     channel_options["pipe_by_channel"] & channel_options["average_channel_features"]
-    # ):
-    #     X = np.mean(
-    #         np.stack(
-    #             [feature_pipe.fit_transform(X[:, i] for i in range(X.shape[1]))], axis=1
-    #         ),
-    #         axis=1,
-    #     )
-    # elif channel_options["pipe_by_channel"] & channel_options["stack_channel_features"]:
-    #     X = np.stack(
-    #         [feature_pipe.fit_transform(X[:, i] for i in range(X.shape[1]))], axis=1
-    #     )
-    # elif channel_options["pipe_by_channel"] & channel_options["group_channel_features_by_row_after_pipe"]:
-    #     X = np.stack(
-    #         [feature_pipe.fit_transform(X[:, i] for i in range(X.shape[1]))], axis=1
-    #     )
-    #     X = np.transpose(X, (1, 0, 2))
-    # elif channel_options["pipe_by_channel"] & channel_options["group_channel_features_by_row_before_pipe"]:
-    #     X = np.transpose(X, (1, 0, 2))
-    #     X = np.stack(
-    #         [feature_pipe.fit_transform(X[:, i] for i in range(X.shape[1]))], axis=1
-    #     )
-    # else:
-    #     X = feature_pipe.fit_transform(X)
-        
-    
+    elif channel_options["stack_channel_features"]:
+        # ! NOTE: THIS IS NOT DEBUGGED YET, should not be used right now...        
+        X = np.reshape(X, (len(preproc['feature_columns']), data_df.height, -1))
 
     logger.info(f"Feature matrix shape after feature engineering: {X.shape}")
     logger.info(f"Label vector shape: {y.shape}")
@@ -271,14 +239,14 @@ def main(cfg: DictConfig):
     # 6. Train / test split (K-fold cross validation, Stratified K-fold cross validation, Group K-fold cross validation)
     # Set up model evaluation object
     evaluation_config = config["evaluation"]
-    eval, early_stopping = create_eval_class_from_config(evaluation_config, data)
+    eval = create_eval_class_from_config(evaluation_config, data)
 
     # 7. Select model
     # Note: Can use ArbitraryModel class to wrap any model and compare in pipeline with other models
     model_config = config["model"]
     model_name = model_config["model_name"]
     model_kwargs = model_config["parameters"] if model_config["parameters"] else {}
-    if early_stopping: model_kwargs["early_stopping"] = early_stopping
+    if early_stopping := model_config.get("early_stopping"): model_kwargs["early_stopping"] = early_stopping
     
     model_class = find_and_load_class("model", model_name, kwargs=model_kwargs)
     if evaluation_config["model_type"] == "skorch":
@@ -347,61 +315,15 @@ def main(cfg: DictConfig):
         # from wandb.lightgbm import wandb_callback, log_summary
         # import lightgbm as lgb
         # Evaluate predictions
-        results, epoch_losses, epoch_val_losses = eval.evaluate_model(
+        results, epoch_metrics = eval.evaluate_model(
             model_class, data
         )
         
         if eval.model_type == 'torch':
-            if epoch_val_losses: raise NotImplementedError("Epoch Validation processing and logging not yet implemented for torch models")
-            process_and_log_eval_results_torch(results, config["run_dir"], epoch_losses, epoch_val_losses)
+            process_and_log_eval_results_torch(results, config["run_dir"], epoch_metrics)
         elif eval.model_type == 'sklearn':
             process_and_log_eval_results_sklearn(results, config["run_dir"])
         
-        
-        # # Drop prefixes for logging
-        # mean_results = {
-        #     (f'{k.split("_", 1)[-1]}_mean' if 'test_' in k else f'{k}_mean'): np.mean(v, axis=0) 
-        #     for k, v in results.items()
-        # }
-        # std_results = {
-        #     (f'{k.split("_", 1)[-1]}_std' if 'test_' in k else f'{k}_std'): np.std(v, axis=0) 
-        #     for k, v in results.items()
-        # }
-
-        # # Log model performance metrics to W&B
-        # wandb.log(std_results)
-        # wandb.log(mean_results)
-        
-        # if epoch_val_losses:
-        #     loss_df = pd.DataFrame(
-        #         {f'Fold_{i}': epoch_losses[i] for i in range(len(epoch_losses))}
-        #         | {f'Fold_{i}_Val': epoch_val_losses[i] for i in range(len(epoch_val_losses))}
-        #         | {'Epoch': np.arange(len(epoch_losses[0]))}
-        #     )
-        #     # data = [[x, y] for (x, y) in zip(np.arange(len(epoch_losses)), epoch_losses)]
-        #     table = wandb.Table(data=loss_df)
-        #     wandb.log({"Epoch_Loss": table})
-        #     #loss_plot = {"Epoch Loss" : wandb.plot.line(table, "Epoch", "Average Loss", title="Epoch Loss")}
-            
-            
-        #     # data_val = [[x, y] for (x, y) in zip(np.arange(len(epoch_val_losses)), epoch_val_losses)]
-        #     # table_val = wandb.Table(data=data_val, columns = ["Epoch", "Average Val Loss"])
-        #     # loss_val_plot = {"Epoch Val Loss" : wandb.plot.line(table_val, "Epoch", "Average Val Loss", title="Epoch Val Loss")}
-            
-        #     # wandb.log(loss_plot | loss_val_plot)
-        # else:
-        #     loss_df = pd.DataFrame(
-        #         {f'Fold_{i}': epoch_losses[i] for i in range(len(epoch_losses))}
-        #         | {'Epoch': np.arange(len(epoch_losses[0]))}
-        #     )
-        #     # data = [[x, y] for (x, y) in zip(np.arange(len(epoch_losses)), epoch_losses)]
-        #     table = wandb.Table(data=loss_df)
-        #     wandb.log({"Epoch_Loss": table})
-        #     # data = [[x, y] for (x, y) in zip(np.arange(len(epoch_losses)), epoch_losses)]
-        #     # table = wandb.Table(data=data, columns = ["Epoch", "Average Loss"])
-        #     wandb.log({"Epoch Loss" : wandb.plot.line_series(xs=np.arange(len(epoch_losses)), 
-        #                 ys=epoch_losses, keys=[f'Fold {i}' for i in range(len(epoch_losses))], title="Epoch Loss")})
-
         # add_config_to_csv(config | {"WandB_url": wandb.run.url, "WandB_id": wandb.run.id}, config["run_tracking_csv"])
         # # Log metrics to W&B
         # gbm = lgb.train(..., callbacks=[wandb_callback()])

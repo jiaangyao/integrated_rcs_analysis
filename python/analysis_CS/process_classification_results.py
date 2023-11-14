@@ -58,7 +58,7 @@ def process_and_plot_confusion_matrices(conf_mat):
 
 def process_and_log_scalar_scores(scores_df, run_dir):
     wandb.log({'Scores': wandb.Table(dataframe=scores_df.to_pandas())})
-    scores_df.write_parquet(Path(f'{run_dir}/scores_by_fold.parquet'))
+    scores_df.write_parquet(Path(f'{run_dir}/scalar_scores_by_fold.parquet'))
     
     # Process scores individually for logging.
     # First, log all scalar scores across folds as mean and std
@@ -67,7 +67,7 @@ def process_and_log_scalar_scores(scores_df, run_dir):
         cs.numeric().std().suffix('_std')
     ])
     wandb.log(scores_agg.to_dict(as_series=False))
-    scores_agg.write_parquet(Path(f'{run_dir}/scores_agg.parquet'))
+    scores_agg.write_parquet(Path(f'{run_dir}/scalar_scores_agg.parquet'))
     return None
 
 
@@ -81,7 +81,6 @@ def WandB_log_plot_html(plot_html, plot_title):
 
 
 def process_and_plot_losses(scores_df, run_dir):
-    # TODO: Implement Epoch Validation for early stopping...
     folds = [f'Fold {i}' for i in range(scores_df.shape[0])]
     # Average losses of each Epoch across folds
     loss_df = scores_df.select('Epoch_Losses').transpose(column_names=folds).explode(folds).with_row_count(name='Epoch')
@@ -107,11 +106,39 @@ def process_and_plot_losses(scores_df, run_dir):
     return None
 
 
+def process_and_plot_epoch_metrics(scores_df, run_dir):
+    folds = [f'Fold {i}' for i in range(scores_df.shape[0])]
+    # Average losses of each Epoch metric across folds
+    for col in scores_df.columns:
+        name = col[col.find("Epoch") + len("Epoch") + 1:] if "Epoch" in col else col
+        metric_df = scores_df.select(col).transpose(column_names=folds).explode(folds).with_row_count(name='Epoch')
+        metric_df_agg = metric_df.select([pl.col('Epoch'),
+                                        pl.concat_list(*folds).list.drop_nulls().list.mean().alias(f'Average {name}') 
+                                ])
+        # Log averages to WandB
+        WandB_line_plots(metric_df_agg, x_axis='Epoch', lines=[f'Average {name}'], title=f'Average Epoch {name} Across Folds')
+        
+        # Create plot of each individual fold, save locally then log to WandB
+        metric_df = metric_df.melt(id_vars=['Epoch'], value_vars=folds, value_name=name, variable_name='Fold') # Data needs to be in long format for Plotly
+        metric = px.line(metric_df, x='Epoch', y=name, color='Fold')
+        wandb.log({f'Epoch {name}': metric})
+    
+    # TODO: Below code does not work, logging HTML throws error.
+    # TODO: Need to figure that out if we want to Altair plots.
+    # # Write Plotly figure to HTML
+    # # Set auto_play to False prevents animated Plotly charts 
+    # # from playing in the table automatically
+    # loss_html_path = Path(f'{run_dir}/loss_figure.html')
+    # loss_plot.write_html(loss_html_path, auto_play = False)
+    # WandB_log_plot(loss_html_path, 'Epoch Losses')
+    return None
+
+
 def process_and_plot_pr_curve(scores_df, run_dir):
     raise NotImplementedError
     
 
-def process_and_log_eval_results_torch(scores, run_dir, losses=[], epoch_val=[]):
+def process_and_log_eval_results_torch(scores, run_dir, epoch_metrics):
     
     # Drop prefixes (if necessary)
     scores = {
@@ -128,19 +155,25 @@ def process_and_log_eval_results_torch(scores, run_dir, losses=[], epoch_val=[])
     else:
         conf_mat = None
     
-    # Save all scores as a table, save locally and on wandb
     scores_df = pl.DataFrame(scores).with_row_count(name='Fold')
-    if losses:
-        scores_df = scores_df.with_columns(pl.Series('Epoch_Losses', losses))
-        
+    
     # First, log all scalar scores across folds
     process_and_log_scalar_scores(scores_df, run_dir)
+    
+    # Save all scores as a table, save locally and on wandb
+    if epoch_metrics:
+        max_length = max(len(arr) for arr in list(epoch_metrics.values())[0])
+        # Pad arrays to max length
+        scores_df = scores_df.with_columns([pl.Series(k, np.vstack([np.pad(arr, (0, max_length - len(arr)), constant_values=np.nan) for arr in v]))
+                                        for k, v in epoch_metrics.items()])
+    # Save scores to local file
+    scores_df.write_parquet(Path(f'{run_dir}/scores_by_fold.parquet'))
     
     # Second, log results that are not scalar scores
     # Line series visualizations: Precision-Recall, Losses
     # Log averages to WandB, and then plot all folds individually
-    if losses:
-        process_and_plot_losses(scores_df, run_dir)
+    if epoch_metrics:
+        process_and_plot_epoch_metrics(scores_df.select(pl.col("^Epoch.*$")), run_dir)
     
     # Precision-Recall
     if 'precision_recall_curve' in scores_df.columns:

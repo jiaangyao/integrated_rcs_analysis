@@ -129,7 +129,7 @@ channel_options:
 
   # If stack_channel_features is True, then channels will be stacked into multivariate feature matrix, after feature engineering steps are applied.
   # Resulting feature vector will be m x n x f, m is the number of channel columns, where n is the number of rows (i.e. data points), and f is the number of features (i.e. elements) per channel column row.
-  #stack_channel_features: False
+  stack_channel_features: False
 
   # If group_channel_features_by_row_after_pipe is True, then channels will be grouped by row, i.e. the first row of the first channel will be grouped with the first row of the second channel, and so on.
   # Resulting feature vector will be n x m x f

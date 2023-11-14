@@ -18,7 +18,8 @@ from scipy.special import softmax  # type: ignore
 import model.torch_model.torch_utils as ptu
 from dataset.torch_dataset import NeuralDataset, NeuralDatasetTest
 from ..base import BaseModel
-#from .callbacks import EarlyStopping
+# from .callbacks import EarlyStopping
+from training_eval.early_stopping import EarlyStopping
 #from .mlp_model import MLPModelWrapper
 from .rnn_model import RNNModelWrapper
 from sklearn.model_selection import train_test_split
@@ -183,6 +184,7 @@ class BaseTorchTrainer():
         self,
         train_data,
         train_label,
+        one_hot_encoded: bool = False,
         # Removing validation data for now, as it is not used if early stopping is not enabled. Split occurs if ealry stopping is enabled
         # valid_data: npt.NDArray | None,
         # valid_label: npt.NDArray | None,
@@ -222,13 +224,12 @@ class BaseTorchTrainer():
         )
 
         # define task for accuracy metric
-        if self.n_class == 2:
-            str_task = "binary"
-        else:
-            str_task = "multiclass"
+        # if self.n_class == 2:
+        #     str_task = "binary"
+        # else:
+        #     str_task = "multiclass"
 
         # initialize the dataset and dataloader for validation set
-        # TODO: Fix bool_run_validation
         bool_run_validation = valid_data is not None and valid_label is not None
         # bool_run_validation = False
 
@@ -236,10 +237,12 @@ class BaseTorchTrainer():
         assert self.model is not None, "Make sure you have initialized the model"
         vec_avg_loss = []
         vec_avg_valid_loss = []
+        train_scores = {k: [] for k in self.early_stopping.scorers}
+        valid_scores = {k: [] for k in self.early_stopping.scorers}
         for epoch in range(self.n_epoch):
             # initialize the loss and the model
             vec_loss = []
-            vec_acc = []
+            vec_scores = {k: [] for k in self.early_stopping.scorers}
             self.model.train()
 
             # iterate through the dataset
@@ -265,25 +268,25 @@ class BaseTorchTrainer():
                 # compute the accuracy
                 # noinspection PyTypeChecker
                 # TODO: Call custom_scorer_torch() with metrics list
-                acc = torchmetrics.functional.accuracy(
-                    torch.argmax(y_pred, dim=1), torch.argmax(y, dim=1), task=str_task, num_classes=self.n_class
-                )
-                vec_acc.append(acc.item())
+                # acc = torchmetrics.functional.accuracy(
+                #     torch.argmax(y_pred, dim=1), torch.argmax(y, dim=1), task=str_task, num_classes=self.n_class
+                # )
+                [vec_scores[k].append(v) for k, v in custom_scorer_torch(y, y_pred, self.early_stopping.scorers, one_hot_encoded).items()]
 
             # obtain the average loss
             loss = np.mean(np.stack(vec_loss, axis=0))
-            acc = np.mean(np.stack(vec_acc, axis=0))
             vec_avg_loss.append(loss)
+            {train_scores[k].append(np.mean(np.stack(v, axis=0))) for k, v in vec_scores.items()}
 
             # now perform validation
             # TODO: Consider consolidating validation with early stopping
             # TODO: Consider moving early stopping check to evaluation class (e.g. early_stopping_check() or early_stopping_criteria_met() )
             str_valid_loss = None
             valid_loss = 0
-            if bool_run_validation and self.early_stopping:
+            if self.early_stopping:
                 # initialize the loss and set model to eval mode
                 vec_valid_loss = []
-                vec_valid_metric = []
+                vec_valid_scores = {k: [] for k in self.early_stopping.scorers}
                 self.model.eval()  # type: ignore
                 with torch.no_grad():
                     for _, (x_valid, y_valid) in enumerate(valid_dataloader):
@@ -295,55 +298,67 @@ class BaseTorchTrainer():
                         y_valid_pred = self.model(x_valid)
 
                         # compute the loss
-                        valid_loss = self.loss_fn(y_valid_pred, y_valid)
+                        valid_loss = self.loss_fn(y_valid_pred, y_valid.float())
                         vec_valid_loss.append(valid_loss.item())
 
                         # compute the accuracy
                         # noinspection PyTypeChecker
                         # TODO: Just call custom_scorer_torch() with metrics list
-                        valid_metric = torchmetrics.functional.accuracy(
-                            torch.argmax(y_valid_pred, dim=1), torch.argmax(y_valid, dim=1), task=str_task, num_classes=self.n_class
-                        )
-                        vec_valid_metric.append(valid_acc.item())
+                        # valid_metric = torchmetrics.functional.accuracy(
+                        #     torch.argmax(y_valid_pred, dim=1), torch.argmax(y_valid, dim=1), task=str_task, num_classes=self.n_class
+                        # )
+                        # vec_valid_metric.append(valid_acc.item())
+                        [vec_valid_scores[k].append(v) for k, v in custom_scorer_torch(y, y_pred, self.early_stopping.scorers, one_hot_encoded).items()]
 
                     # obtain the average loss
                     valid_loss = np.mean(np.stack(vec_valid_loss, axis=0))
-                    valid_acc = np.mean(np.stack(vec_valid_metric, axis=0))
                     vec_avg_valid_loss.append(valid_loss)
-                    str_valid_loss = ", Valid Loss: {:.4f}".format(valid_loss)
-                    str_valid_acc = ", Valid Acc: {:.4f}".format(valid_acc)
+                    {valid_scores[k].append(np.mean(np.stack(v, axis=0))) for k, v in vec_valid_scores.items()}
 
                 # print the loss
                 if self.bool_verbose:
                     print(
-                        "Epoch: {}, Loss: {:.4f}{}".format(epoch + 1, loss, str_valid_loss)
+                        f"Epoch: {epoch}, Train Loss: {loss}, Valid Loss: {valid_loss}"
                     )
-                    print("Epoch: {}, Acc: {:.4f}{}".format(epoch + 1, acc, str_valid_acc))
+                    epoch_train = {k: v[-1] for k, v in train_scores.items()}
+                    epoch_valid = {k: v[-1] for k, v in valid_scores.items()}
+                    print(f"Epoch: {epoch}, Train Scores: {epoch_train}, Valid Scores: {epoch_valid}")
 
             # call early stopping
-            if bool_run_validation and self.early_stopping:
-                if self.es_metric == "val_loss":
-                    self.early_stopping(valid_loss, self.model)
-                elif self.es_metric == "val_acc":
-                    self.early_stopping(valid_acc, self.model, mode="max")
-                else:
-                    raise ValueError("es_metric must be either 'val_loss' or 'val_acc'")
+            if self.early_stopping:
+                # if self.es_metric == "val_loss":
+                #     self.early_stopping(valid_loss, self.model)
+                # elif self.es_metric == "val_acc":
+                #     self.early_stopping(valid_acc, self.model, mode="max")
+                # else:
+                #     raise ValueError("es_metric must be either 'val_loss' or 'val_acc'")
+                self.early_stopping(
+                    (valid_scores | {"loss": vec_avg_valid_loss}).get(self.early_stopping.es_metric)[-1],
+                    self.model
+                )
 
                 if self.early_stopping.early_stop:
                     if self.bool_verbose:
                         print("Early stopping")
+                    # load the last checkpoint with the best model
+                    self.model = self.early_stopping.load_model(self.model)
                     break
 
                 # load the last checkpoint with the best model
-                self.model = self.early_stopping.load_model(self.model)
-                
+                # self.model = self.early_stopping.load_model(self.model)
+        
+        
+        # Convert scores to numpy arrays        
         vec_avg_loss = np.stack(vec_avg_loss, axis=0)
+        train_scores = {k: np.stack(v, axis=0) for k, v in train_scores.items()}
         if bool_run_validation:
             vec_avg_valid_loss = np.stack(vec_avg_valid_loss, axis=0)
+            valid_scores = {k: np.stack(v, axis=0) for k, v in valid_scores.items()}
         else:
             vec_avg_valid_loss = np.array([])
-
-        return vec_avg_loss, vec_avg_valid_loss
+            valid_scores = {}
+        
+        return vec_avg_loss, train_scores, vec_avg_valid_loss, valid_scores
 
 
     def get_loss(self):
@@ -402,15 +417,28 @@ class BaseTorchModel(BaseModel):
         "batch_size", "n_epoch", "bool_shuffle", "bool_verbose", "bool_use_ray", "bool_use_gpu", "n_gpu_per_process", "criterion", "optimizer",
         "learning_rate"
     ]
-    EARLYSTOPPING_KEYS = ["bool_early_stopping", "es_patience", "es_delta",
+    EARLYSTOPPING_KEYS = ["bool_early_stopping", "patience", "delta", "metrics", "validation_split", "random_seed", "mode", "path",
         "es_metric", "bool_verbose"]
     
     def __init__(self, model, trainer, early_stopping=None, model_kwargs=None, trainer_kwargs=None):
         super().__init__(model)
         self.trainer = trainer
-        self.early_stopping = early_stopping
+        self.early_stopping = early_stopping # self.get_early_stopper(early_stopping)
         self.model_kwargs = model_kwargs
         self.trainer_kwargs = trainer_kwargs
+        
+    def get_early_stopper(self, early_stopping):
+        # Check if already initialized
+        if isinstance(early_stopping, EarlyStopping):
+            return early_stopping
+        
+        # Check if early stopping is enabled and a config dictionary
+        elif isinstance(early_stopping, dict):
+            return EarlyStopping(**early_stopping)
+            
+        # Else, return None, meaning no early stopping
+        else:
+            return None
     
     def split_kwargs_into_model_and_trainer(self, kwargs):
         model_kwargs = {key: value for key, value in kwargs.items() if key in self.MODEL_ARCHITECURE_KEYS}

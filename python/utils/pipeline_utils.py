@@ -192,7 +192,11 @@ def create_transform_pipeline(steps):
         if kwargs is None:
             kwargs = {}
         # Retrieve the module path of the function for logging
-        module_name = inspect.getmodule(func).__name__.rsplit(".", 1)[0]
+        try:
+            module_name = inspect.getmodule(func).__name__.rsplit(".", 1)[0]
+        except Exception as e:
+            print(f"Exception: {e}")
+            print(f"Could not retrieve module name for function {func}. Function could be mispelled or in different module.")
         if module_name in name:
             pipe_step_paths.append((name, kwargs))
         else:
