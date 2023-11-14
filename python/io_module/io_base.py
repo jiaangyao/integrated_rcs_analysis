@@ -10,8 +10,34 @@ import numpy.typing as npt
 import polars as pl
 import duckdb
 import mat73
+from .polars_io import load_database_pl, load_parquet_pl
 
 import importlib
+
+def load_data(config):
+    """Load data into a polars dataframe
+
+    Args:
+        config (dict): dictionary containing the configuration parameters
+
+    Returns:
+        pl.DataFrame: output dataframe
+    """
+    # load the data
+    if config["source"] == "database":
+        df = load_database_pl(
+            str_module=config["database_module"],
+            path_database=config["database_path"],
+            query=config["query"],
+        )
+    elif config["source"] == "parquet":
+        df = load_parquet_pl(
+            path_data=config["data_path"],
+        )
+    else:
+        raise ValueError("Data type not recognized or not implemented.")
+
+    return df
 
 
 def parse_dir_rcs_sess(

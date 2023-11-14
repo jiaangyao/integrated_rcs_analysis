@@ -4,9 +4,9 @@
 # Organization and Logging info
 project: Sleep_Classification_Trials
 device: 02L
-experiment: EEGNet_bandpassed
-run_name: EEGNet_bandpassed
-info: EEGNet debug run. Passing in bandpassed data. Fixing data input shape
+experiment: EEGNet_debug
+run_name: EEGNet_debug_earlyStop
+info: EEGNet debug run. Debugging early stopping
 time_stamp: ${now:%Y-%m-%d}_${now:%H-%M-%S}
 BASE_PATH: /media/shortterm_ssd/Clay
 SUBBASE_PATH: ${BASE_PATH}/${project}/${experiment}
@@ -34,7 +34,7 @@ random_seed: 42
 defaults:
   - _self_
   - data_source: database
-  - preprocessing: example_bandpassed
+  - preprocessing: example
   - feature_engineering: example
   - feature_selection: 
   - class_imbalance_correction: 

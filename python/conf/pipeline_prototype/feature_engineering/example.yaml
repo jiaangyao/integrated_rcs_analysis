@@ -12,4 +12,4 @@ functions:
   #   log: True
   # zscore:
   #   axis: 0
-  preproc.time_domain_features.identity:
+  preproc.time_domain_base.identity:

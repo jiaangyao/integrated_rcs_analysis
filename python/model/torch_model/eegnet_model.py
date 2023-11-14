@@ -254,13 +254,13 @@ class EEGNetModel(BaseTorchModel):
         self.model.to(self.device)
         
         # Initialize early stopping
-        self.early_stopping = early_stopping
+        self.early_stopping = self.get_early_stopper(early_stopping)
         
         # Initialize Trainer
         self.trainer = EEGNetTrainer(
             self.model, self.early_stopping, **self.trainer_kwargs
         )
-        super().__init__(self.model, self.trainer, early_stopping, self.model_kwargs, self.trainer_kwargs)
+        super().__init__(self.model, self.trainer, self.early_stopping, self.model_kwargs, self.trainer_kwargs)
     
     
     def override_model(self, kwargs: dict) -> None:
@@ -268,11 +268,13 @@ class EEGNetModel(BaseTorchModel):
         self.model_kwargs = model_kwargs
         self.trainer_kwargs = trainer_kwargs
         self.model = EEGNet(**model_kwargs)
+        self.early_stopping.reset()
         self.trainer = EEGNetTrainer(self.model, self.early_stopping, **trainer_kwargs)
         self.model.to(self.device)
     
     def reset_model(self) -> None:
         #self.override_model(self.model_kwargs | self.trainer_kwargs)
         self.model = EEGNet(**self.model_kwargs)
+        self.early_stopping.reset()
         self.trainer = EEGNetTrainer(self.model, self.early_stopping, **self.trainer_kwargs)
         self.model.to(self.device)

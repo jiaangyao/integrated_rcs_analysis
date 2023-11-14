@@ -9,6 +9,9 @@
             "type": "python",
             "request": "launch",
             "program": "${file}",
+            "autoReload": {
+                "enable": true
+            },
             "console": "integratedTerminal",
             "justMyCode": false,
             "cwd": "${workspaceFolder}",
