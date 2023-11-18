@@ -105,9 +105,6 @@ class BaseTorchClassifier:
         # return act
         return ptu.get_act_func(str_act)
 
-# TODO: Reduce complexity in train() call
-# TODO: This could be achieved by handling early stopping and GPU utilization in separate classes or locations
-# TODO: Probably shouldn't calculate accuracy in train() call, move to evaluation class
 class BaseTorchTrainer():
     def __init__(
         self,

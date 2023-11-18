@@ -10,11 +10,11 @@ model_type: torch #sklearn # Options: torch, skorch, sklearn
 # validation method options: Kfold, StratifiedKFold, LeaveOneGroupOut, VanillaValidation
 random_seed: ${random_seed}
 validation_method:
-  StratifiedKFold:
-    n_splits: 5
-    shuffle: True
-    random_state: ${random_seed}
+  # StratifiedKFold:
+  #   n_splits: 5
+  #   shuffle: True
+  #   random_state: ${random_seed}
   # LeaveOneGroupOut:
   #   groups: SessionIdentity
-  # VanillaValidation:
-  #  validation_size: 0.2
+  VanillaValidation:
+    validation_size: 0.2

@@ -1,0 +1,38 @@
+defaults:
+  - _self_
+  - early_stopping: torch_default # Can be Null (i.e. None-type)
+
+model_name: GatedTransformerModel
+parameters:
+  positional_encoding: 'embedding' # 'sinusoid' or 'embedding
+  n_class: 5  # Default for binary classification 
+  input_token_dim: 15 # Forces user to specify input sample. Number of samples (feature vecs) in the time series
+  sequence_length: 5000
+  desired_embedding_dim: 256 # Only for embedding positional encoding. Length of encoding vector
+  hidden_dim: 512  # Commonly used size in transformer models
+  hidden_unit_dim: 64  # A smaller dimension for the hidden units
+  hidden_unit_dim_time: 64  # Same as above, assuming similar scale
+  num_heads_time: 4  # Multi-head attention typically uses 4 or 8 heads
+  num_heads: 4  # Same as above
+  kernel_size: 3  # Typical value for convolutions
+  stride: 1  # Stride of 1 is more common than 3 for fine-grained processing
+  num_layers: 6  # A balance between complexity and performance
+  num_layers_time: 6  # Same as above
+  dropout: 0.1  # Standard dropout rate in transformer models
+  conv_dropout: 0.1  # Usually the same as 'dropout'
+  output_dropout: 0.1  # Same as above
+  lam: 1e-5  # Regularization term, small value to avoid over-regularization
+  n_epoch: 20  # A reasonable default for many tasks
+  batch_size: 32  # Common batch size, balancing memory and performance
+  act_func: "relu"  # ReLU is a standard choice for activation
+  str_reg: "L2"  # L2 regularization is typical
+  str_loss: "CrossEntropy"  # Standard loss for classification tasks
+  str_opt: "Adam"  # Adam optimizer is a common choice
+  lr: 1e-4  # A learning rate that works well in many scenarios
+  early_stopping: None  # Early stopping can be optional
+  bool_verbose: False  # Verbose off by default
+  transform: None  # Default as None, user can specify if needed
+  target_transform: None  # Same as 'transform'
+  bool_use_ray: False  # Default off for Ray usage
+  bool_use_gpu: False  # Default off for GPU usage
+  n_gpu_per_process: 0  # Default to 0, no GPU used

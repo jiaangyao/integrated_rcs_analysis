@@ -290,7 +290,8 @@ def create_eval_class_from_config(config, data_class):
                                 in val_object.split(data_class.X_train, data_class.y_train, groups=data_class.groups)]
     # Treating VanillaValidation as special case of 1 fold cross validation
     elif "vanilla" in validation_name.lower():
-        train_fold, test_fold = train_test_split_inds(data_class.X_train, config["validation_method"]["validation_size"], random_seed=config["random_seed"])
+        vanilla_val_config = config["validation_method"].get(validation_name)
+        train_fold, test_fold = train_test_split_inds(data_class.X_train, vanilla_val_config["validation_size"], random_seed=config["random_seed"])
         data_class.folds = [{"train": train_fold, "val": test_fold}]
         val_object = None
 
@@ -351,6 +352,7 @@ class VanillaValidation:
         Returns:
             dict: A dictionary of scoring metrics and their corresponding scores.
         """
+        print("Training model...")
         epoch_avg_loss, epoch_scores, epoch_avg_valid_loss, epoch_val_scores = model_class.trainer.train(X_train, y_train, one_hot_encoded)
         metrics_by_epoch = ({"Epoch Train Loss": epoch_avg_loss} |
                             {"Epoch Train " + key: epoch_scores[key] for key in epoch_scores.keys()} 

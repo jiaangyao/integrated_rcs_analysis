@@ -4,53 +4,13 @@ functions:
   standardize_df_columns:
     cols_to_standardize: ['TD_BG', 'TD_key2', 'TD_key3']
     by_cols: ['SessionIdentity']
-  bandpass_filter:
-    columns:
-      - TD_BG
-      - TD_key2
-      - TD_key3
-    filt_args:
-      Delta:
-        - 4
-        - [0.5, 4]
-        - 500
-      Theta:
-        - 4
-        - [4, 8]
-        - 500
-      Alpha:
-        - 4
-        - [8, 12]
-        - 500
-      Beta:
-        - 4
-        - [12, 30]
-        - 500
-      Gamma:
-        - 4
-        - [30, 60]
-        - 500
-    group_by:
-      - SessionIdentity
   epoch_df_by_timesegment:
     interval: '30s'
     period: '30s'
     td_columns:
-      - TD_BG_Delta
-      - TD_BG_Theta
-      - TD_BG_Alpha
-      - TD_BG_Beta
-      - TD_BG_Gamma
-      - TD_key2_Delta
-      - TD_key2_Theta
-      - TD_key2_Alpha
-      - TD_key2_Beta
-      - TD_key2_Gamma      
-      - TD_key3_Delta
-      - TD_key3_Theta
-      - TD_key3_Alpha
-      - TD_key3_Beta
-      - TD_key3_Gamma
+      - TD_BG
+      - TD_key2
+      - TD_key3
     group_by_cols:
       - SleepStage
       - SessionIdentity
@@ -60,21 +20,9 @@ functions:
 # Columns to extract from the polars.Dataframe to numpy.ndarray. 
 # The resulting array will be pipelined through the feature engineering steps.
 feature_columns:
-  - TD_BG_Delta
-  - TD_BG_Theta
-  - TD_BG_Alpha
-  - TD_BG_Beta
-  - TD_BG_Gamma
-  - TD_key2_Delta
-  - TD_key2_Theta
-  - TD_key2_Alpha
-  - TD_key2_Beta
-  - TD_key2_Gamma      
-  - TD_key3_Delta
-  - TD_key3_Theta
-  - TD_key3_Alpha
-  - TD_key3_Beta
-  - TD_key3_Gamma
+  - TD_BG
+  - TD_key2
+  - TD_key3
 
 label_options:
   label_column: SleepStage
@@ -82,16 +30,15 @@ label_options:
 
   # Leave empty if no remapping is desired
   label_remapping:
-    # 1: 0
-    2: 0
-    3: 1
-    4: 2
-    5: 3
-    6: 4
+    1: 0
+    2: 1
+    3: 3
+    4: 4
+    5: 5
 
   OneHotEncode: True
 
-# If the feature columns are TD sensor channels, then the following allows for handling the channels individually
+# If the feature columns are TD sensor channels (3 dimensional maximum), then the following allows for handling the channels individually
 channel_options:
   # If stack channels is True, then the feature columns will be stacked into an m x n x f array, where m is the number of channel columns, n is the number of rows (i.e. data points), and f is the number of features (i.e. elements) per channel column row.
   # Stacking channels is useful for feature engineering steps that operate on individual channels, e.g. FFT
