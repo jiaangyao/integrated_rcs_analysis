@@ -83,3 +83,18 @@ def add_config_to_csv(config, csv):
     
     # Add the config to the CSV
     dict_to_csv(config_dict, csv)
+    
+
+def save_conda_package_versions(run_dir):
+    """
+    Print the list of conda packages and their versions to the console.
+    """
+    # Command to get the list of packages and their versions
+    command = ["conda", "list"]
+
+    # Execute the command and capture the output
+    result = subprocess.run(command, stdout=subprocess.PIPE, text=True)
+
+    # Write the output to a text file
+    with open(os.path.join(run_dir, "conda_packages.txt"), "w") as file:
+        file.write(result.stdout)

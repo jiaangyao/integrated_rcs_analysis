@@ -1,6 +1,6 @@
 defaults:
   - _self_
-  - early_stopping: torch_default # Can be Null (i.e. None-type)
+  - early_stopping: Null # torch_default # Can be Null (i.e. None-type)
 
 model_name: EEGNetModel
 parameters:
@@ -14,6 +14,7 @@ parameters:
     kernel_1: 64
     kernel_2: 16
     dropout: 0.25
-    linear_input_size: 2808
-    n_epoch: 45
+    linear_input_size: 702 # 2808 # Determined empirically.. not a good solution
+    n_epoch: 35
     batch_size: 64
+    bool_use_gpu: True

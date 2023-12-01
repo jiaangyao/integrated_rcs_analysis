@@ -2,8 +2,6 @@ defaults:
   - _self_
   - data_split: TrainTestSplit # Options: TrainTestSplit, TrainValidationTestSplit, Empty
   - scoring: torch # Options: binary, multiclass, torch
-  # TODO: Move this to somewhere torch specific?
-  - early_stopping: # torch_default # Options: torch_default, or leave empty (i.e. no early stopping)
 
 model_type: torch #sklearn # Options: torch, skorch, sklearn
 # validation_method should be a single key corresponding to the method with values as parameters for the validation method

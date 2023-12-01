@@ -39,6 +39,7 @@ parameters:
         - 2
         - 3
         - 4
+        - 5
     hidden_size:
       values:
         - 16
@@ -46,6 +47,8 @@ parameters:
         - 64
         - 96
         - 128
+        - 256
+        - 384
     activation:
       value: 'leaky_relu'
     regularization: 

@@ -21,8 +21,8 @@ functions:
 # The resulting array will be pipelined through the feature engineering steps.
 feature_columns:
   - TD_BG
-  - TD_key2
-  - TD_key3
+  # - TD_key2
+  # - TD_key3
 
 label_options:
   label_column: SleepStage
@@ -30,11 +30,11 @@ label_options:
 
   # Leave empty if no remapping is desired
   label_remapping:
-    1: 0
-    2: 1
-    3: 3
-    4: 4
-    5: 5
+    2: 0 # N3
+    3: 1 # N2
+    4: 2 # N1
+    5: 3 # REM
+    6: 4 # Wake
 
   OneHotEncode: True
 
@@ -43,11 +43,11 @@ channel_options:
   # If stack channels is True, then the feature columns will be stacked into an m x n x f array, where m is the number of channel columns, n is the number of rows (i.e. data points), and f is the number of features (i.e. elements) per channel column row.
   # Stacking channels is useful for feature engineering steps that operate on individual channels, e.g. FFT
   # If stack channels is False, then the feature columns will be concatenated n x (m*f), i.e. the features in each row will be concatenated, across columns, into a single feature vector.
-  stack_channels: False
+  stack_channels: True
 
   # If group_channel_rows is True, then the feature columns will be stacked into an n x m x f array, where n is the number of rows (i.e. data points), m is the number of channel columns, and f is the number of features (i.e. elements) per channel column row.
   # Group_channel_rows is useful for feature engineering steps that group channels together in time
-  group_channel_rows: True
+  group_channel_rows: False
 
   # If concatenate_channel_rows is True, then the feature columns will be stacked into an n x (m * f) array, where n is the number of rows (i.e. data points), m is the number of channel columns, and f is the number of features (i.e. elements) per channel column row.
   # Concatenating channels is useful if the feature engineering steps operate on the entire feature vector, e.g. PCA
@@ -69,7 +69,7 @@ channel_options:
   # Only one of the following options should be True, and will only execute if pipe_by_channel is True
   # If concat_channel_features is True, then channels will be concatenated into a single feature vector after feature engineering steps are applied.
   # Resulting feature vector will be n x (m*f), i.e. the features in each row will be concatenated, across columns, into a single feature vector.
-  concat_channel_features: False
+  concat_channel_features: True
 
   # If average_channel_features is True, then channels will be averaged into a single feature vector after feature engineering steps are applied.
   # Resulting feature vector will me n x f, i.e. the features in each row will be averaged, across columns, into a single feature vector.

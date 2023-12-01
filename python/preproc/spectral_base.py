@@ -230,7 +230,7 @@ def broadcast_feature_extraction_on_matrix(
 
 def get_psd(
     X,
-    freq_range=[0.5, 100],
+    freq_ranges=[[0.5, 100]],
     sampling_frequency=500,
     window_size=1024,
     noverlap=512,
@@ -240,11 +240,18 @@ def get_psd(
     Calculate the power spectral density of a matrix of time series data.
     Each row should be an array of time series observations.
     """
+    # Handle frequency ranges edge cases. Ensure freq_ranges is a 2D array where each row is a frequency range band to keep.
+    if ~isinstance(freq_ranges, np.ndarray): freq_ranges = np.array(freq_ranges)
+    if freq_ranges.ndim == 1: freq_ranges = freq_ranges.reshape(1, -1)
+    
     f, pxx = signal.welch(
         X, fs=sampling_frequency, nperseg=window_size, noverlap=noverlap, axis=-1
     )
-    inds = np.where((f >= freq_range[0]) & (f <= freq_range[1]))[0]
-    pxx = pxx[:, inds]
+    
+    # Concatenate PSDs for each desired frequency range into single matrix    
+    pxx = np.concatenate([pxx[:, np.where((f >= freq_range[0]) & (f <= freq_range[1]))[0]] for freq_range in freq_ranges], axis=-1)
+    
     if log:
         pxx = np.log(pxx)
+        
     return pxx

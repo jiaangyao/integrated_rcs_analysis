@@ -208,6 +208,14 @@ class BaseTorchTrainer():
             valid_dataloader = DataLoader(
                 valid_dataset, batch_size=len(valid_dataset), shuffle=False
             )
+            train_scores = {k: [] for k in self.early_stopping.scorers}
+            valid_scores = {k: [] for k in self.early_stopping.scorers}
+        else:
+            valid_data = None
+            valid_label = None
+            valid_dataloader = None
+            train_scores = {}
+            valid_scores = {}
         
         # initialize dataset and dataloader for training set
         train_dataset = NeuralDataset(
@@ -234,12 +242,11 @@ class BaseTorchTrainer():
         assert self.model is not None, "Make sure you have initialized the model"
         vec_avg_loss = []
         vec_avg_valid_loss = []
-        train_scores = {k: [] for k in self.early_stopping.scorers}
-        valid_scores = {k: [] for k in self.early_stopping.scorers}
         for epoch in range(self.n_epoch):
             # initialize the loss and the model
             vec_loss = []
-            vec_scores = {k: [] for k in self.early_stopping.scorers}
+            if self.early_stopping:
+                vec_scores = {k: [] for k in self.early_stopping.scorers}
             self.model.train()
 
             # iterate through the dataset
@@ -268,12 +275,14 @@ class BaseTorchTrainer():
                 # acc = torchmetrics.functional.accuracy(
                 #     torch.argmax(y_pred, dim=1), torch.argmax(y, dim=1), task=str_task, num_classes=self.n_class
                 # )
-                [vec_scores[k].append(v) for k, v in custom_scorer_torch(y, y_pred, self.early_stopping.scorers, one_hot_encoded).items()]
+                if self.early_stopping:
+                    [vec_scores[k].append(v) for k, v in custom_scorer_torch(y, y_pred, self.early_stopping.scorers, one_hot_encoded).items()]
 
             # obtain the average loss
             loss = np.mean(np.stack(vec_loss, axis=0))
             vec_avg_loss.append(loss)
-            {train_scores[k].append(np.mean(np.stack(v, axis=0))) for k, v in vec_scores.items()}
+            if self.early_stopping:
+                {train_scores[k].append(np.mean(np.stack(v, axis=0))) for k, v in vec_scores.items()}
 
             # now perform validation
             # TODO: Consider consolidating validation with early stopping
@@ -347,10 +356,12 @@ class BaseTorchTrainer():
         
         # Convert scores to numpy arrays        
         vec_avg_loss = np.stack(vec_avg_loss, axis=0)
-        train_scores = {k: np.stack(v, axis=0) for k, v in train_scores.items()}
+        if self.early_stopping:
+            train_scores = {k: np.stack(v, axis=0) for k, v in train_scores.items()}
         if bool_run_validation:
             vec_avg_valid_loss = np.stack(vec_avg_valid_loss, axis=0)
-            valid_scores = {k: np.stack(v, axis=0) for k, v in valid_scores.items()}
+            if self.early_stopping:
+                valid_scores = {k: np.stack(v, axis=0) for k, v in valid_scores.items()}
         else:
             vec_avg_valid_loss = np.array([])
             valid_scores = {}
@@ -410,7 +421,7 @@ class BaseTorchModel(BaseModel):
     
     MODEL_ARCHITECURE_KEYS = ["n_input", "n_class", "act_func", "n_layer", "hidden_size", "act_func", "dropout"]
     TRAINER_KEYS = [
-        "n_class", "str_loss", "str_reg", "lam", "str_opt", "lr", "transform", "target_transform",
+        "n_class", "str_loss", "str_reg", "lam", "str_opt", "lr", "transform", "target_transform", "epochs",
         "batch_size", "n_epoch", "bool_shuffle", "bool_verbose", "bool_use_ray", "bool_use_gpu", "n_gpu_per_process", "criterion", "optimizer",
         "learning_rate"
     ]
@@ -447,6 +458,8 @@ class BaseTorchModel(BaseModel):
             trainer_kwargs["str_opt"] = trainer_kwargs.pop("optimizer")
         if "learning_rate" in trainer_kwargs and "lr" not in trainer_kwargs:
             trainer_kwargs["lr"] = trainer_kwargs.pop("learning_rate")
+        if "epochs" in trainer_kwargs and "n_epoch" not in trainer_kwargs:
+            trainer_kwargs["n_epoch"] = trainer_kwargs.pop("epochs")
         
         return model_kwargs, trainer_kwargs
     

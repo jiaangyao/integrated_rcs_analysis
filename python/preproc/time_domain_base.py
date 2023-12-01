@@ -87,6 +87,7 @@ def epoch_df_by_timesegment(
     sample_rate: int = 500,
     align_with_PB_outputs: bool = False,
     td_columns: List[str] = ["TD_BG", "TD_key2", "TD_key3"],
+    drop_nulls_in_td_columns_before_epoching: bool = True,
     sort_by_col="localTime",
     group_by_cols: List[str] = ["SessionIdentity"],
     scalar_cols: List[str] = [],
@@ -102,6 +103,7 @@ def epoch_df_by_timesegment(
     - sample_rate (int): The sampling rate of the data. Used to calculate the number of samples in each time segment. Default is 500.
     - align_with_PB_outputs (bool): If True, the time segments will be aligned with the Power Band outputs. Default is False.
     - td_columns (List[str]): A list of raw time domain columns to include in the resulting DataFrame. Default is ['TD_BG', 'TD_key2', 'TD_key3'].
+    - drop_nulls_in_td_columns_before_epoching (bool): If True, rows where any of the specified time domain columns are null will be dropped before epoching. Default is True.
     - sort_by_cols (str): Column by which windowing is performed. Default is 'localTime'. Needs to be a datetime column.
     - group_by_cols (List[str]): A list of columns to group by. Default is ['SessionIdentity'].
     - scalar_cols (List[str]): A list of columns to include in the resulting DataFrame, where a single scalar value, the last value in the aggregation, is extracted after epoching. Default is [].
@@ -113,11 +115,20 @@ def epoch_df_by_timesegment(
     """
 
     # TODO: Consider 'streaming' option to save on RAM
-
+    
+    td_cols = cs.by_name(*td_columns)
+    if drop_nulls_in_td_columns_before_epoching:
+        df_filtered = df.filter(
+            pl.all_horizontal(td_cols.is_not_null())
+            & pl.all_horizontal(td_cols.is_not_nan())
+        )
+    else:
+        df_filtered = df
+    
     if align_with_PB_outputs:
         df_pb_count = (
-            df.join(
-                df.filter(pl.col("Power_Band8").is_not_null())
+            df_filtered.join(
+                df_filtered.filter(pl.col("Power_Band8").is_not_null())
                 .select("DerivedTime")
                 .with_row_count(),
                 on="DerivedTime",
@@ -162,7 +173,7 @@ def epoch_df_by_timesegment(
     else:
         epoch_length = int(period[:-1]) * sample_rate
         df_epoched = (
-            df.sort(sort_by_col)
+            df_filtered.sort(sort_by_col)
             .group_by_dynamic(
                 sort_by_col, every=interval, period=period, by=group_by_cols
             )
@@ -187,6 +198,7 @@ def epoch_df_by_timesegment(
                 # Remove rows where the TD data is null, or where the TD data is not the correct length
             )
             .filter(
+                # Remove rows where the TD data is null or not the correct length
                 (pl.all_horizontal(pl.col("^.*_TD_count$") == epoch_length))
                 & (pl.all_horizontal("^.*_contains_null$"))
             )
@@ -199,7 +211,10 @@ def epoch_df_by_timesegment(
             .select(pl.all().exclude("^.*TD_count$"))
             .select(pl.all().exclude("^.*_contains_null$"))
         )
-
+    
+    if df_epoched.height == 0:
+        raise ValueError("Epoched DataFrame is empty. Check that the specified columns are present in the DataFrame, and that the specified interval, period, and sample rate are valid.") 
+    
     return df_epoched
 
 # @polarify_input

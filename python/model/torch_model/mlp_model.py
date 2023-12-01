@@ -207,7 +207,7 @@ class TorchMLPModel(BaseTorchModel):
             self.model, self.early_stopping, **self.trainer_kwargs
         )
         
-        super().__init__(self.model, self.trainer, self.early_stopping)
+        super().__init__(self.model, self.trainer, self.early_stopping, self.model_kwargs, self.trainer_kwargs)
 
     # def predict(self, data: npt.NDArray) -> npt.NDArray:
     #     # ensure that data is in the right format
@@ -219,16 +219,18 @@ class TorchMLPModel(BaseTorchModel):
     def override_model(self, kwargs: dict) -> None:
         model_kwargs, trainer_kwargs = self.split_kwargs_into_model_and_trainer(kwargs)
         self.model_kwargs = model_kwargs
-        self.trainer_kwargs = trainer_kwargs | {"early_stopping": self.early_stopping}
+        self.trainer_kwargs = trainer_kwargs
         self.model = TorchMLPClassifier(**model_kwargs)
-        self.early_stopping.reset()
+        self.model.to(self.device)
+        if self.early_stopping is not None: self.early_stopping.reset()
         self.trainer = TorchMLPTrainer(self.model, self.early_stopping, **trainer_kwargs)
         self.model.to(self.device)
     
     def reset_model(self) -> None:
         #self.override_model(self.model_kwargs | self.trainer_kwargs)
         self.model = TorchMLPClassifier(**self.model_kwargs)
-        self.early_stopping.reset()
+        self.model.to(self.device)
+        if self.early_stopping is not None: self.early_stopping.reset()
         self.trainer = TorchMLPTrainer(self.model, self.early_stopping, **self.trainer_kwargs)
         self.model.to(self.device)
         

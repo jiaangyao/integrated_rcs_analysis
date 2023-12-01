@@ -7,14 +7,15 @@ import numpy as np
 import polars as pl # All preprocessing is done with polars
 import pandas as pd # This is for logging dataframes to wandb
 from collections import OrderedDict
-from utils.file_utils import create_zip, get_git_info, add_config_to_csv
-from analysis_CS.process_classification_results import process_and_log_eval_results_sklearn, process_and_log_eval_results_torch
 
 # TODO: Remove sys.append once I figure out why VSCode hates this working directory
 import sys
 
 sys.path.append("/home/claysmyth/code/integrated_rcs_analysis/python/")
 
+from utils.file_utils import create_zip, get_git_info, add_config_to_csv, save_conda_package_versions
+from utils.save_data import save_data_check
+from analysis_CS.process_classification_results import process_and_log_eval_results_sklearn, process_and_log_eval_results_torch
 from io_module.io_base import load_data
 
 # Stand-in variable for custom time domain processing functions
@@ -30,6 +31,7 @@ import imblearn.under_sampling as imus
 import scipy.signal as scisig
 import scipy.stats as scistats
 from utils.pipeline_utils import *
+from utils.polars_utils import extract_polars_column_as_ndarray
 from dataset.data_class import MLData
 
 # Libraries for model evaluation
@@ -67,9 +69,9 @@ def setup(cfg: DictConfig):
         format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {module}:{function}:{line} - {message}",
         level="INFO",
     )
-    # logger.info("Local Directory Path: {}".format(config["run_dir"]))
-    # TODO: Parameterize this...
+    # Save code, git info, and config file to run directory
     create_zip(f'{os.getcwd()}/python', f'{config["run_dir"]}/code.zip', exclude=config["code_snapshot_exlude"])
+    save_conda_package_versions(config["run_dir"])
     git_info = get_git_info()
     logger.info("Git info: {}".format(git_info))
     config |= git_info
@@ -87,6 +89,7 @@ def setup(cfg: DictConfig):
             project=cfg.wandb.project,
             group=cfg.wandb.group,
             tags=cfg.wandb.tags,
+            notes=cfg.wandb.notes,
             dir=config["run_dir"],
         )
         logger.info("WandB run url: {}".format(run.url))
@@ -129,7 +132,8 @@ def main(cfg: DictConfig):
         logger.info(
             f"Running preprocessing step {pipe_step[0]} with args {pipe_step[1]}"
         )
-        data_df = data_df.pipe(pipe_step[0], **pipe_step[1])
+        kwargs = pipe_step[1] if pipe_step[1] else {}
+        data_df = data_df.pipe(pipe_step[0], **kwargs)
 
     channel_options = preproc["channel_options"]
     # Convert to numpy, with desired dimensionality
@@ -139,25 +143,25 @@ def main(cfg: DictConfig):
     if channel_options["stack_channels"]: # Stack channels into m x n x f tensor
         logger.info(f"Stacking Channels")
         X = np.stack(
-            [data_df.get_column(col).to_numpy() for col in preproc["feature_columns"]],
+            [extract_polars_column_as_ndarray(data_df, col) for col in preproc["feature_columns"]],
             axis=0,
         )
     elif channel_options["group_channel_rows"]: # Group channels into n x m x f tensor
         logger.info(f"Grouping Channel Rows")
         X = np.stack(
-            [data_df.get_column(col).to_numpy() for col in preproc["feature_columns"]],
+            [extract_polars_column_as_ndarray(data_df, col) for col in preproc["feature_columns"]],
             axis=1,
         )
     elif channel_options["concatenate_channel_rows"]: # Concatenate channels into n x (m * f) tensor
         logger.info(f"Concatenating Channel Rows")
         X = np.concatenate(
-            [data_df.get_column(col).to_numpy() for col in preproc["feature_columns"]],
+            [extract_polars_column_as_ndarray(data_df, col) for col in preproc["feature_columns"]],
             axis=-1,
         )
     else:
-        raise NotImplementedError(
-            "Only stacking, grouping, or concatenating channels is currently supported"
-        )
+        logger.info(f"Using default column selection")
+        X = data_df.select(preproc["feature_columns"]).to_numpy()
+        
     logger.info(f"Feature matrix shape after preprocessing: {X.shape}")
     
     # Manage labels
@@ -216,6 +220,9 @@ def main(cfg: DictConfig):
     
     # Check if user wants to aggregate features across channels (which is likely dim=0)
     if channel_options["concat_channel_features"]:
+        if channel_options["stack_channels"]:
+            # If channels are stacked, then we need to transpose and reshape to concatenate features across channels
+            X = np.transpose(X, (1, 0, 2))
         X = np.reshape(X, (X.shape[0], -1))
     elif channel_options["average_channel_features"]:
         X = np.mean(X, axis=0)
@@ -235,6 +242,8 @@ def main(cfg: DictConfig):
     
     # Set up data object once all preprocessing and feature engineering is complete
     data = MLData(X=X, y=y, groups=groups, one_hot_encoded=one_hot_encoded)
+    # Save data, if desired
+    save_data_check(data_df, data, config.get("save_dataframe_or_features"), logger)
     
     # 6. Train / test split (K-fold cross validation, Stratified K-fold cross validation, Group K-fold cross validation)
     # Set up model evaluation object

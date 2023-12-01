@@ -48,10 +48,10 @@ def try_filter(sos, x):
     try:
         filtered = sosfiltfilt(sos, x)
     except ValueError as e:
-        print(f'Error: {e}')
-        print(f'Length of x: {len(x)}')
-        print('Returning Null')
-        np.array(np.nan)
+        # print(f'Error: {e}')
+        # print(f'Length of x: {len(x)}')
+        # print('Returning Null')
+        filtered = np.array(np.nan)
     return filtered
 
 def butterworth_bandpass_np(x: npt.NDArray , N, Wn, fs) -> pl.Series:
