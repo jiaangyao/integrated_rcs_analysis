@@ -11,10 +11,10 @@ from omegaconf import DictConfig, OmegaConf
 import hydra
 import wandb
 
-from pipeline.io_pipeline import load_data, load_amp_gain
+from pipeline.sub_pipelines.io_pipeline import load_data, load_amp_gain
 from preproc.rcs_feature import extract_rcs_feature
 from model.pipeline import get_model_params
-from pipeline.biomarker_pipeline import run_pb_pipeline
+from pipeline.sub_pipelines.biomarker_pipeline import run_pb_pipeline
 
 from utils.wandb_utils import wandb_logging_sfs_outer
 

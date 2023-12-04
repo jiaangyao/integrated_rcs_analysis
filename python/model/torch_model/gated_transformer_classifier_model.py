@@ -30,7 +30,6 @@ class SinusoidPositionalEncoding(nn.Module):
         """
         return self.pe[: seq_len]
     
-# ! TODO: Not Fully debugged...
 
 class GatedTransformerClassifier(torch.nn.Module, BaseTorchClassifier):
     def __init__(
@@ -58,7 +57,7 @@ class GatedTransformerClassifier(torch.nn.Module, BaseTorchClassifier):
         self.input_token_dim = input_token_dim
         self.hidden_dim = hidden_dim
         self.hidden_sample = (self.input_token_dim - kernel_size) // stride + 1
-        # self.idx_sample = torch.arange(0, sequence_length, 1, dtype=torch.int).cuda()
+        self.idx_sample = torch.arange(0, sequence_length, 1, dtype=torch.int).cuda()
 
         # positional encoding for the time encoder
         # Pick either sinusoid, if you have your own tokenization, or embedding, if you don't (e.g. categorical or word data)
@@ -148,7 +147,7 @@ class GatedTransformerClassifier(torch.nn.Module, BaseTorchClassifier):
         if 'positional_encoding' == 'embedding':
             x_pos = torch.unsqueeze(self.pos_encoder(x_channel.shape[-1]), dim=1)
         else:
-            x_pos = self.pos_encoder(x_channel.shape[-1]).permute(2,1,0)
+            x_pos = self.pos_encoder(input.shape[-1]).permute(2,1,0)
         x_channel = self.dropout_input(x_channel + x_pos)
         x_channel = self.channel_encoder(x_channel.permute(1, 2, 0))
 
@@ -333,6 +332,7 @@ class GatedTransformerModel(BaseTorchModel):
         self.model_kwargs = model_kwargs
         self.trainer_kwargs = trainer_kwargs
         self.model = GatedTransformerClassifier(**model_kwargs)
+        self.model.to(self.device)
         self.early_stopping.reset()
         self.trainer = GateTransformerTrainer(
             self.model, self.early_stopping, **trainer_kwargs
@@ -342,6 +342,7 @@ class GatedTransformerModel(BaseTorchModel):
     def reset_model(self) -> None:
         # self.override_model(self.model_kwargs | self.trainer_kwargs)
         self.model = GatedTransformerClassifier(**self.model_kwargs)
+        self.model.to(self.device)
         self.early_stopping.reset()
         self.trainer = GateTransformerTrainer(
             self.model, self.early_stopping, **self.trainer_kwargs

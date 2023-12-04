@@ -5,9 +5,39 @@ from utils.pipeline_utils import *
 import numpy as np
 import numpy as np
 import polars as pl
-import sklearn.preprocessing as skpp
 
-def preprocess_dataframe(data_df, config_preprocessing, logger, POTENTIAL_FEATURE_LIBRARIES):
+
+# Stand-in variable for custom time domain processing functions
+import preproc.time_domain_base as tdb
+import preproc.spectral_base as sb
+from utils.polars_utils import extract_polars_column_as_ndarray
+
+# Libraries for preprocessing and feature selection
+import sklearn.preprocessing as skpp
+import sklearn.decomposition as skd
+import sklearn.feature_selection as skfs
+import imblearn.over_sampling as imos
+import imblearn.under_sampling as imus
+import scipy.signal as scisig
+import scipy.stats as scistats
+
+# Global Variables
+POTENTIAL_FEATURE_LIBRARIES = [
+    tdb,
+    sb,
+    np,
+    skpp,
+    skd,
+    skfs,
+    imos,
+    imus,
+    scisig,
+    scistats,
+]
+
+# TODO: Update with most recent preprocessing subpipeline
+
+def preprocess_dataframe(data_df, preproc_funcs, logger):
     """
     Preprocesses the given DataFrame using the specified preprocessing configuration.
 
@@ -20,8 +50,6 @@ def preprocess_dataframe(data_df, config_preprocessing, logger, POTENTIAL_FEATUR
     Returns:
     DataFrame: The preprocessed data frame.
     """
-
-    preproc_funcs = config_preprocessing["functions"]
     preproc_pipe = zip(
         [
             convert_string_to_callable(POTENTIAL_FEATURE_LIBRARIES, func)
@@ -52,29 +80,31 @@ def dataframe_to_matrix_export(data_df, channel_options, feature_columns, logger
     """
 
     # Convert to numpy, with desired dimensionality
-    if channel_options["stack_channels"]:  # Stack channels into m x n x f tensor
-        logger.info("Stacking Channels")
+    # m is num channels (i.e. num columns extracted from dataframe), 
+    # n is num rows (i.e. individual data measurements), 
+    # f is num features per row
+    if channel_options["stack_channels"]: # Stack channels into m x n x f tensor
+        logger.info(f"Stacking Channels")
         X = np.stack(
-            [data_df.get_column(col).to_numpy() for col in feature_columns],
+            [extract_polars_column_as_ndarray(data_df, col) for col in feature_columns],
             axis=0,
         )
-    elif channel_options["group_channel_rows"]:  # Group channels into n x m x f tensor
-        logger.info("Grouping Channel Rows")
+    elif channel_options["group_channel_rows"]: # Group channels into n x m x f tensor
+        logger.info(f"Grouping Channel Rows")
         X = np.stack(
-            [data_df.get_column(col).to_numpy() for col in feature_columns],
+            [extract_polars_column_as_ndarray(data_df, col) for col in feature_columns],
             axis=1,
         )
-    elif channel_options["concatenate_channel_rows"]:  # Concatenate channels into n x (m * f) tensor
-        logger.info("Concatenating Channel Rows")
+    elif channel_options["concatenate_channel_rows"]: # Concatenate channels into n x (m * f) tensor
+        logger.info(f"Concatenating Channel Rows")
         X = np.concatenate(
-            [data_df.get_column(col).to_numpy() for col in feature_columns],
+            [extract_polars_column_as_ndarray(data_df, col) for col in feature_columns],
             axis=-1,
         )
     else:
-        raise NotImplementedError(
-            "Only stacking, grouping, or concatenating channels is currently supported"
-        )
-    
+        logger.info(f"Using default column selection")
+        X = data_df.select(feature_columns).to_numpy()
+        
     logger.info(f"Feature matrix shape after preprocessing: {X.shape}")
     return X
 
@@ -94,6 +124,7 @@ def process_labels(data_df, label_config, logger):
     """
 
     # Manage labels
+    label_config = preproc["label_options"]
     if label_config["label_remapping"]:
         logger.info(f"Remapping labels with {label_config['label_remapping']}")
         data_df = data_df.with_columns(
@@ -103,22 +134,25 @@ def process_labels(data_df, label_config, logger):
         )
     y = data_df.get_column(label_config["label_column"]).to_numpy().squeeze()
 
-    one_hot_encoded = False
     if label_config["OneHotEncode"]:
-        logger.info("Applying OneHotEncoding to labels")
+        # TODO: Save y before one-hot encoding for later, save both to data object ?
         y = skpp.OneHotEncoder().fit_transform(y.reshape(-1, 1)).toarray()
         one_hot_encoded = True
+    else:
+        one_hot_encoded = False
 
-    groups = None
-    if label_config.get("group_column"):
-        logger.info("Using group labels for cross validation")
+    # Extract group labels for LeaveOneGroupOut cross validation (if desired)
+    if label_config["group_column"]:
+        logger.info(f"Using group labels for cross validation")
         groups = data_df.get_column(label_config["group_column"]).to_numpy().squeeze()
         logger.info(f"Unique groups: {np.unique(groups)}")
+    else:
+        groups = None
 
     return y, one_hot_encoded, groups
 
 
-def get_features_and_labels():
+def get_features_and_labels(data_df, channel_options, feature_columns, label_config, logger):
     """
     Gets the features and labels from the data frame.
 
@@ -133,7 +167,7 @@ def get_features_and_labels():
     """
 
     # Get features and labels
-    X = dataframe_to_matrix_export()
+    X = dataframe_to_matrix_export(data_df, channel_options, feature_columns, logger)
     y, one_hot_encoded, groups = process_labels(data_df, label_config, logger)
 
     return X, y, one_hot_encoded, groups
