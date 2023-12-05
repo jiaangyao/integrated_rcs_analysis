@@ -1,0 +1,7 @@
+input_type: dataframe
+
+output_type: database
+database_module: duckdb
+database_path: /media/shortterm_ssd/Clay/databases/duckdb/rcs-db.duckdb
+to_arrow: True # For old versions of DuckDB, it's necessary to convert to arrow format before saving to database.
+query: "CREATE OR REPLACE TABLE overnight.r${device}_epoched_enveloped AS SELECT * FROM X" # Assumes variable name for input_type is 'data'

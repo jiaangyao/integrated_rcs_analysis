@@ -1,0 +1,15 @@
+  # Can include just the function call, or the full path to the function, e.g.: scipy.stats.zscore or zscore | numpy.sum or sum (note that np.sum will not work because of custom import name)
+  # broadcast_feature_extraction_on_matrix:
+  #   sampling_frequency: 500
+  #   window_size: 1000
+  #   noverlap: 500
+functions:
+  # get_psd:
+  #   freq_range: [0.5, 60]
+  #   sampling_frequency: 500
+  #   window_size: 1000
+  #   noverlap: 500
+  #   log: True
+  # zscore:
+  #   axis: 0
+  preproc.time_domain_base.identity:

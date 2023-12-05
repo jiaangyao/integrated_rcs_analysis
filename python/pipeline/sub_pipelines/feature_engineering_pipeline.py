@@ -3,6 +3,7 @@ from utils.pipeline_utils import *
 import numpy as np
 from .preproc_pipeline import POTENTIAL_FEATURE_LIBRARIES
 
+
 def create_feature_pipe_object(feature_eng_funcs):
     """
     Creates a feature transformation pipeline object based on the given feature engineering configuration.
@@ -30,7 +31,9 @@ def create_feature_pipe_object(feature_eng_funcs):
     return feature_pipe, pipe_string
 
 
-def process_features(X, feature_pipe, pipe_string, channel_options, num_channels, num_rows, logger):
+def process_features(
+    X, feature_pipe, pipe_string, channel_options, num_channels, num_rows, logger
+):
     """
     Applies a feature extraction pipeline to the data and transforms it based on channel options.
 
@@ -46,14 +49,15 @@ def process_features(X, feature_pipe, pipe_string, channel_options, num_channels
     """
     # Apply feature extraction pipeline on data
     logger.info(f"Transforming data into features with pipeline: \n {pipe_string}")
+    
     # Check if user wants to apply feature pipeline by channel, or specified dimension
     if channel_options["pipe_on_dim_0"]:
         X = np.stack(
-                [feature_pipe.fit_transform(X[i]) for i in range(X.shape[0])], axis=0
-            )
+            [feature_pipe.fit_transform(X[i]) for i in range(X.shape[0])], axis=0
+        )
     else:
         X = feature_pipe.fit_transform(X)
-    
+
     # Check if user wants to aggregate features across channels (which is likely dim=0)
     if channel_options["concat_channel_features"]:
         if channel_options["stack_channels"]:
@@ -65,7 +69,7 @@ def process_features(X, feature_pipe, pipe_string, channel_options, num_channels
     elif channel_options["group_channel_features_by_row_after_pipe"]:
         X = np.transpose(X, (1, 0, 2))
     elif channel_options["stack_channel_features"]:
-        # ! NOTE: THIS IS NOT DEBUGGED YET, should not be used right now...        
+        # ! NOTE: THIS IS NOT DEBUGGED YET, should not be used right now...
         X = np.reshape(X, (len(num_channels), num_rows, -1))
 
     return X

@@ -1,0 +1,34 @@
+# Main config for unconstrained pipeline. Holds parameters on PB identification pipeline.
+
+# High level pipeline parameters
+random_seed: 42
+
+# Define steps in pipeline
+defaults:
+  - _self_
+  - setup: sleep
+  - data_source: database
+  - preprocessing: example_bd_preprocessed
+  - feature_engineering: example
+  - feature_selection: Null
+  - class_imbalance: Null
+  - save_dataframe_or_features: Null # to_database # Leave empty or Null if not saving preprocessed or feature engineered data.
+  - model: GatedTransformerModel
+  - evaluation: classification_default
+  - hyperparameter_optimization: Null # E.g. WandB
+  - sweep: Null # ${hyperparameter_optimization}/${model} # Set to Empty or Null if no hyperparameter_optimization is Null
+
+# Hydra overrides 
+hydra:
+  run:
+    dir: ${run_dir}
+  sweep:
+    #dir: ${SUBBASE_PATH}/multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    #dir: ${run_dir}/sweep
+    dir: ${run_dir}
+    subdir: ${hydra.job.num}
+  runtime:
+    output_dir: ${run_dir}
+  job:
+    name: ${run_name}
+  output_subdir: configs

@@ -37,6 +37,7 @@ POTENTIAL_FEATURE_LIBRARIES = [
 
 # TODO: Update with most recent preprocessing subpipeline
 
+
 def preprocess_dataframe(data_df, preproc_funcs, logger):
     """
     Preprocesses the given DataFrame using the specified preprocessing configuration.
@@ -57,9 +58,11 @@ def preprocess_dataframe(data_df, preproc_funcs, logger):
         ],
         [(values) for values in preproc_funcs.values()],
     )
-    
+
     for pipe_step in preproc_pipe:
-        logger.info(f"Running preprocessing step {pipe_step[0]} with args {pipe_step[1]}")
+        logger.info(
+            f"Running preprocessing step {pipe_step[0]} with args {pipe_step[1]}"
+        )
         data_df = data_df.pipe(pipe_step[0], **pipe_step[1])
 
     return data_df
@@ -80,22 +83,24 @@ def dataframe_to_matrix_export(data_df, channel_options, feature_columns, logger
     """
 
     # Convert to numpy, with desired dimensionality
-    # m is num channels (i.e. num columns extracted from dataframe), 
-    # n is num rows (i.e. individual data measurements), 
+    # m is num channels (i.e. num columns extracted from dataframe),
+    # n is num rows (i.e. individual data measurements),
     # f is num features per row
-    if channel_options["stack_channels"]: # Stack channels into m x n x f tensor
+    if channel_options["stack_channels"]:  # Stack channels into m x n x f tensor
         logger.info(f"Stacking Channels")
         X = np.stack(
             [extract_polars_column_as_ndarray(data_df, col) for col in feature_columns],
             axis=0,
         )
-    elif channel_options["group_channel_rows"]: # Group channels into n x m x f tensor
+    elif channel_options["group_channel_rows"]:  # Group channels into n x m x f tensor
         logger.info(f"Grouping Channel Rows")
         X = np.stack(
             [extract_polars_column_as_ndarray(data_df, col) for col in feature_columns],
             axis=1,
         )
-    elif channel_options["concatenate_channel_rows"]: # Concatenate channels into n x (m * f) tensor
+    elif channel_options[
+        "concatenate_channel_rows"
+    ]:  # Concatenate channels into n x (m * f) tensor
         logger.info(f"Concatenating Channel Rows")
         X = np.concatenate(
             [extract_polars_column_as_ndarray(data_df, col) for col in feature_columns],
@@ -104,7 +109,7 @@ def dataframe_to_matrix_export(data_df, channel_options, feature_columns, logger
     else:
         logger.info(f"Using default column selection")
         X = data_df.select(feature_columns).to_numpy()
-        
+
     logger.info(f"Feature matrix shape after preprocessing: {X.shape}")
     return X
 
@@ -152,7 +157,9 @@ def process_labels(data_df, label_config, logger):
     return y, one_hot_encoded, groups
 
 
-def get_features_and_labels(data_df, channel_options, feature_columns, label_config, logger):
+def get_features_and_labels(
+    data_df, channel_options, feature_columns, label_config, logger
+):
     """
     Gets the features and labels from the data frame.
 
