@@ -16,8 +16,6 @@ from utils.polars_utils import extract_polars_column_as_ndarray
 import sklearn.preprocessing as skpp
 import sklearn.decomposition as skd
 import sklearn.feature_selection as skfs
-import imblearn.over_sampling as imos
-import imblearn.under_sampling as imus
 import scipy.signal as scisig
 import scipy.stats as scistats
 
@@ -29,8 +27,6 @@ POTENTIAL_FEATURE_LIBRARIES = [
     skpp,
     skd,
     skfs,
-    imos,
-    imus,
     scisig,
     scistats,
 ]

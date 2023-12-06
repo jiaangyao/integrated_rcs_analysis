@@ -1,0 +1,4 @@
+strategy:
+  imblearn.over_sampling.RandomOverSampler:
+    sampling_strategy: 'auto'
+    random_state: ${random_seed}

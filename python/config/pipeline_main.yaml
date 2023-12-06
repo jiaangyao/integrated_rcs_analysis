@@ -11,7 +11,7 @@ defaults:
   - preprocessing: example_bd_preprocessed
   - feature_engineering: example
   - feature_selection: Null
-  - class_imbalance: Null
+  - class_imbalance: Null # SMOTE_oversample
   - save_dataframe_or_features: Null # to_database # Leave empty or Null if not saving preprocessed or feature engineered data.
   - model: GatedTransformerModel
   - evaluation: classification_default

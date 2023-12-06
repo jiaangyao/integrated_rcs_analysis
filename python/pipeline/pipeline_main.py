@@ -12,6 +12,7 @@ from sub_pipelines import (
     logging_setup,
     biomarker_pipeline,
     feature_engineering_pipeline,
+    class_imbalance_pipeline,
     io_pipeline,
     preproc_pipeline,
     hyperparam_opt_pipeline,
@@ -30,7 +31,7 @@ from model.torch_model.skorch_model import SkorchModel
 from training_eval.hyperparameter_optimization import HyperparameterOptimization
 
 # Variables
-CONFIG_PATH = "/home/claysmyth/code/configs/lightgbm_sleep"
+CONFIG_PATH = "/home/claysmyth/code/configs/psd_mlp_sleep"
 CONFIG_NAME = "pipeline_main"
 
 
@@ -85,8 +86,9 @@ def main(cfg: DictConfig):
     # Feature Selection
         # Not implemented yet
 
-    # Class Imbalance
-        # Not implemented yet
+    # Class Imbalance Correction
+    if imb_config := config.get("class_imbalance"):
+        X, y = class_imbalance_pipeline.run_class_imbalance_correction(X, y, imb_config, logger)
 
     # Set up data object once all preprocessing and feature engineering is complete
     data = MLData(X=X, y=y, groups=groups, one_hot_encoded=one_hot_encoded)

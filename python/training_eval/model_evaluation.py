@@ -232,6 +232,7 @@ class ModelEvaluation:
             # Collect scores
             [scores[key].append(score) for key, score in fold_scores.items()]
 
+        # Deprecated code for cross_validate... to be removed unless needed
         # if isinstance(self.val_object, _BaseKFold):
         #     results = cross_validate(
         #         model,
