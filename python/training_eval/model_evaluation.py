@@ -1,4 +1,4 @@
-from sklearn.model_selection import cross_validate, LeaveOneGroupOut, cross_val_score
+from sklearn.model_selection import cross_validate, LeaveOneGroupOut, cross_val_score, cross_val_predict
 from sklearn.model_selection._split import _BaseKFold
 import sklearn.model_selection as skms
 from sklearn.model_selection import train_test_split
@@ -210,38 +210,60 @@ class ModelEvaluation:
         # TODO: Parameterize n_jobs
         # Evaluate predictions
         X_train, y_train = data_class.get_training_data()
-        groups = data_class.groups
-        model = model_class.model
+        # groups = data_class.groups
+        # model = model_class.model
+        
+        scores = {}
+        
+        for key in self.scoring: scores[key] = []
+        
+        # TODO: Figure out how to parallelize this for loop
+        for i in range(len(data_class.folds)):
+            
+            X_train, y_train, X_val, y_val = data_class.get_fold(i)
 
-        if isinstance(self.val_object, _BaseKFold):
-            results = cross_validate(
-                model,
-                X_train,
-                y_train,
-                cv=self.val_object,
-                scoring=lambda clf, X, y: custom_scorer_sklearn(clf, X, y, self.scoring),
-                n_jobs=self.val_object.get_n_splits() + 1,
-            )
-        elif isinstance(self.val_object, LeaveOneGroupOut):
-            # May need to pass groups as param
-            results = cross_val_score(
-                model,
-                X_train,
-                y_train,
-                cv=self.val_object,
-                groups=groups,
-                scoring=self.scoring,
-                n_jobs=self.val_object.get_n_splits() + 1,
-            )
-        elif isinstance(self.val_object, VanillaValidation):
-            # For vanilla prediction on y_train
-            X_val, y_val = data_class.get_validation_data()
-            results = self.val_object.get_scores_sklearn(model, X_train, y_train, X_val, y_val, self.scoring)
-        else:
-            raise ValueError(f"Validation object {self.val_object} is not recognized.")
-        return results, {} # Empty lists for epoch losses and validation losses
+            model_class.reset_model()
+            
+            
+            model_class.model.fit(X_train, y_train)
+            
+            fold_scores = custom_scorer_sklearn(model_class.model, X_val, y_val, self.scoring)
+            
+            # Collect scores
+            [scores[key].append(score) for key, score in fold_scores.items()]
 
-    # TODO: Figure out parallization for torch
+        # if isinstance(self.val_object, _BaseKFold):
+        #     results = cross_validate(
+        #         model,
+        #         X_train,
+        #         y_train,
+        #         cv=self.val_object,
+        #         scoring=lambda clf, X, y: custom_scorer_sklearn(clf, X, y, self.scoring),
+        #         n_jobs=self.val_object.get_n_splits() + 1,
+        #     )
+        # elif isinstance(self.val_object, LeaveOneGroupOut):
+        #     # May need to pass groups as param
+        #     results = cross_val_score(
+        #         model,
+        #         X_train,
+        #         y_train,
+        #         cv=self.val_object,
+        #         groups=groups,
+        #         scoring=self.scoring,
+        #         n_jobs=self.val_object.get_n_splits() + 1,
+        #     )
+        # elif isinstance(self.val_object, VanillaValidation):
+        #     # For vanilla prediction on y_train
+        #     X_val, y_val = data_class.get_validation_data()
+        #     results = self.val_object.get_scores_sklearn(model, X_train, y_train, X_val, y_val, self.scoring)
+        # else:
+        #     raise ValueError(f"Validation object {self.val_object} is not recognized.")
+        # return results, {} # Empty lists for epoch losses and validation losses
+        return scores, {} # Empty lists for epoch losses and validation losses
+
+
+    # TODO: Figure out parallization for torch. Potentially consolidate with sklearn, then parallelization only need to be solved once?
+    # TODO: Alternatively, use Ray for Torch and Joblib for sklearn
     def evaluate_model_torch(self, model_class, data_class):
         scores = {}
         metrics_by_epoch = {}

@@ -28,6 +28,9 @@ from torchmetrics import (
     PrecisionRecallCurve,
 )
 
+def check_fitted(clf): 
+    return hasattr(clf, "classes_")
+
 def get_num_classes(y_true, y_pred, one_hot_encoded):
     """
     Determines the number of classes based on the true and predicted labels.
@@ -141,9 +144,14 @@ def custom_scorer_torch(y_true, y_pred, scoring, one_hot_encoded=False):
     return scores
 
 # Define function to calculate desired scores
-def custom_scorer_sklearn(classifier, X, y_true, scoring):
-    y_pred = classifier.predict(X)
+def custom_scorer_sklearn(clf, X_val, y_true, scoring):
+    assert check_fitted(clf) # Ensure that the model is fitted
+    
+    y_pred = clf.predict(X_val)
+    y_pred_proba = clf.predict_proba(X_val)
     scores = {}
+    
+    # Prediction based metrics
     if "accuracy" in scoring or "acc" in scoring or "ACC" in scoring:
         scores["accuracy"] = accuracy_score(y_true, y_pred)
     if "precision" in scoring:
@@ -152,22 +160,35 @@ def custom_scorer_sklearn(classifier, X, y_true, scoring):
         scores["recall"] = recall_score(y_true, y_pred, average="weighted")
     if "f1" in scoring:
         scores["f1"] = f1_score(y_true, y_pred, average="weighted")
-    if "roc_auc" in scoring or "auc" in scoring or "AUC" in scoring:
-        scores["roc_auc"] = roc_auc_score(
-            y_true, y_pred, average="weighted", multi_class="ovr"
-        )
-    if "average_precision" in scoring:
-        scores["average_precision"] = average_precision_score(
-            y_true, y_pred, average="weighted", multi_class="ovr"
-        )
     if "balanced_accuracy" in scoring:
         scores["balanced_accuracy"] = balanced_accuracy_score(y_true, y_pred)
     if "cohen_kappa" in scoring:
+        # ! Not debugged yet
         scores["cohen_kappa"] = cohen_kappa_score(y_true, y_pred)
     if "matthews_corrcoef" in scoring:
         scores["matthews_corrcoef"] = matthews_corrcoef(y_true, y_pred)
     if "confusion_matrix" in scoring:
         scores["confusion_matrix"] = confusion_matrix(y_true, y_pred)
+    
+    # Confidence/Probability based metrics
+    if "roc_auc" in scoring or "auc" in scoring or "AUC" in scoring:
+        scores["roc_auc"] = roc_auc_score(
+            y_true, y_pred_proba,
+        )
+    if "roc_auc_ovr" in scoring or "auc_ovr" in scoring or "AUC_OVR" in scoring or "AUC_ovr" in scoring:
+        scores["roc_auc_ovr"] = roc_auc_score(
+            y_true, y_pred_proba, average="weighted", multi_class="ovr"
+        )
+    if "roc_auc_ovo" in scoring or "auc_ovo" in scoring or "AUC_OVO" in scoring or "AUC_ovo" in scoring:
+        scores["roc_auc_ovo"] = roc_auc_score(
+            y_true, y_pred_proba, average="weighted", multi_class="ovo"
+        )
+    if "average_precision" in scoring:
+        scores["average_precision"] = average_precision_score(
+            y_true, y_pred_proba, average="weighted", multi_class="ovr"
+        )
+        
     if "classification_report" in scoring:
+        # ! NOT DEBUGGED YET
         scores["classification_report"] = classification_report(y_true, y_pred)
     return scores
