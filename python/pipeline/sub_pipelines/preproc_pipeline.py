@@ -63,7 +63,8 @@ def preprocess_dataframe(data_df, preproc_funcs, logger):
         logger.info(
             f"Running preprocessing step {pipe_step[0]} with args {pipe_step[1]}"
         )
-        data_df = data_df.pipe(pipe_step[0], **pipe_step[1])
+        kwargs = pipe_step[1] if pipe_step[1] else {}
+        data_df = data_df.pipe(pipe_step[0], **kwargs)
 
     return data_df
 
@@ -129,7 +130,6 @@ def process_labels(data_df, label_config, logger):
     """
 
     # Manage labels
-    label_config = preproc["label_options"]
     if label_config["label_remapping"]:
         logger.info(f"Remapping labels with {label_config['label_remapping']}")
         data_df = data_df.with_columns(

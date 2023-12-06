@@ -25,10 +25,10 @@ class HyperparameterOptimization:
         # TODO: Create a logging class to handle this, so that users can pick different logging options/dashboards outside of W&B
         if self.evaluation.model_type == "torch":
             process_and_log_eval_results_torch(
-                results, config["run_dir"], epoch_metrics
+                results, config['setup']['path_run'], epoch_metrics
             )
         elif self.evaluation.model_type == "sklearn":
-            process_and_log_eval_results_sklearn(results, config["run_dir"])
+            process_and_log_eval_results_sklearn(results, config['setup']['path_run'])
             
 
     def initialize_ray(self):

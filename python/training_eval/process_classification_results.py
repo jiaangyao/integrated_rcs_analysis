@@ -1,6 +1,5 @@
 import wandb
 import polars as pl
-from viz_funcs import *
 import altair as alt
 import polars.selectors as cs
 import numpy as np
@@ -188,5 +187,28 @@ def process_and_log_eval_results_torch(scores, run_dir, epoch_metrics):
         process_and_plot_confusion_matrices(conf_mat)
 
 
-def process_and_log_eval_results_sklearn(scores, run_dir, losses=[]):
-    pass
+def process_and_log_eval_results_sklearn(scores, run_dir):
+    # Drop prefixes (if necessary)
+    scores = {k:v for k, v in scores.items() if 'time' not in k}
+    scores = {
+            (k.removeprefix('test_') if 'test_' in k else k): v
+            for k, v in scores.items()
+    }
+    
+    # Polars doesn't like multi-dimensional arrays as row elements,
+    # Handle confusion matrices separately
+    if 'confusion_matrix' in scores.keys():
+        conf_mat = scores.pop('confusion_matrix')
+        if isinstance(conf_mat, list):
+            conf_mat = np.stack(conf_mat, axis=0)
+    else:
+        conf_mat = None
+    
+    scores_df = pl.DataFrame(scores).with_row_count(name='Fold')
+    
+    # First, log all scalar scores across folds
+    process_and_log_scalar_scores(scores_df, run_dir)
+    
+    # Last, log confusion matrices
+    if conf_mat is not None:
+        process_and_plot_confusion_matrices(conf_mat)

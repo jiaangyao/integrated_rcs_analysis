@@ -29,21 +29,29 @@ from model.torch_model.skorch_model import SkorchModel
 # Libraries for hyperparameter tuning
 from training_eval.hyperparameter_optimization import HyperparameterOptimization
 
-# Logging Imports
+# Variables
+CONFIG_PATH = "/home/claysmyth/code/configs/lightgbm_sleep"
+CONFIG_NAME = "pipeline_main"
 
 
 # Main pipeline function
 @hydra.main(
     version_base=None,
-    config_path="../config",
-    config_name="pipeline_main",
+    config_path=CONFIG_PATH,
+    config_name=CONFIG_NAME,
 )
 def main(cfg: DictConfig):
     # Logging Setup
     config = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
-    logger = logging_setup.setup(config["setup"])
+    # Check if hyperparameter optimization is desired... needs to be passed to setup
+    if hyperopt_conf := config.get("hyperparameter_optimization"):
+        if hyperopt_conf.get("search_library").lower() == "wandb":
+            WandB_hyperopt = True
+    else:
+        WandB_hyperopt = False
+    logger = logging_setup.setup(config["setup"], WandB_hyperopt=WandB_hyperopt)
 
-    # 3. Load data (save data versioning somewhere)
+    # Load data (save data versioning somewhere)
     logger.info(f"Loading data with data params {config['data_source']}")
     data_df = io_pipeline.load_data(config["data_source"])
 
@@ -64,11 +72,12 @@ def main(cfg: DictConfig):
     # Feature Engineering
     feature_eng_config = config["feature_engineering"]
     feature_pipe, pipe_string = feature_engineering_pipeline.create_feature_pipe_object(
-        feature_eng_config["functions"], logger
+        feature_eng_config["functions"]
     )
     num_channels, num_rows = len(feature_columns), data_df.height
+    stacked_channels = channel_options["stack_channels"]
     X = feature_engineering_pipeline.process_features(
-        X, feature_pipe, pipe_string, feature_eng_config['channel_options'], num_channels, num_rows, logger
+        X, feature_pipe, pipe_string, feature_eng_config['channel_options'], stacked_channels, num_channels, num_rows, logger
     )
     logger.info(f"Feature matrix shape after feature engineering: {X.shape}")
     logger.info(f"Label vector shape: {y.shape}")
@@ -83,6 +92,9 @@ def main(cfg: DictConfig):
     data = MLData(X=X, y=y, groups=groups, one_hot_encoded=one_hot_encoded)
     # Save data, if desired
     save_data_check(data_df, data, config.get("save_dataframe_or_features"), logger)
+    
+    # Visualize data, if desired
+        # Not implemented yet
 
     # Evaluation Setup (i.e. CV, scoring metrics, etc...)
     evaluation_config = config["evaluation"]
@@ -114,14 +126,14 @@ def main(cfg: DictConfig):
     if config.get("run_tracking_csv") is not None:
         
         # Check if sweep_url and sweep_id are defined
-        if "sweep_url" in locals():
+        if "sweep_url" in locals() and sweep_url is not None:
             wandb_url = sweep_url
         elif wandb.run.url:
             wandb_url = wandb.run.url
         else:
             wandb_url = None
         
-        if "sweep_id" in locals():
+        if "sweep_id" in locals() and sweep_id is not None:
             wandb_id = sweep_id
         elif wandb.run.id:
             wandb_id = wandb.run.id

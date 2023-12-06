@@ -32,14 +32,14 @@ def create_feature_pipe_object(feature_eng_funcs):
 
 
 def process_features(
-    X, feature_pipe, pipe_string, channel_options, num_channels, num_rows, logger
+    X, feature_pipe, pipe_string, channel_options, stacked_channels, num_channels, num_rows, logger
 ):
     """
     Applies a feature extraction pipeline to the data and transforms it based on channel options.
 
     Parameters:
     X (np.ndarray): The input data on which feature extraction is to be applied.
-    channel_options (dict): Options for channel manipulation.
+    channel_options (dict): Options for channel manipulation in final data matrix. Note, these are different from the channel options in the preprocessing pipeline.
     feature_pipe (Pipeline): The feature extraction pipeline.
     pipe_string (str): A string representation of the pipeline steps.
     logger (Logger): Logger for logging information.
@@ -60,8 +60,8 @@ def process_features(
 
     # Check if user wants to aggregate features across channels (which is likely dim=0)
     if channel_options["concat_channel_features"]:
-        if channel_options["stack_channels"]:
-            # If channels are stacked, then we need to transpose and reshape to concatenate features across channels
+        if stacked_channels:
+            # If channels are stacked, then we need to transpose the channel and row dimensions, then reshape to concatenate features across channels
             X = np.transpose(X, (1, 0, 2))
         X = np.reshape(X, (X.shape[0], -1))
     elif channel_options["average_channel_features"]:

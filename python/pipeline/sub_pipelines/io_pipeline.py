@@ -9,9 +9,10 @@ import polars as pl
 from io_module.io_base import load_amp_gain_mat
 from io_module.pandas_io import load_csv_df, clean_dt_df
 from io_module.polars_io import load_database_pl, load_parquet_pl
+from utils.decorators import polarify_out
 
 
-def load_df(
+def load_df_from_file(
     data_source_params: dict,
 ) -> pd.DataFrame | pl.DataFrame:
     """Load a datafile into a pandas or polars dataframe
@@ -28,23 +29,17 @@ def load_df(
         df = load_csv_df(
             data_source_params["path_data"], data_source_params["file_data"]
         )
-
     # otherwise use polars to load
+    elif data_source_params["file_data"].endswith(".parquet"):
+        df = load_parquet_pl(data_source_params["data_path"])
     else:
-        # importing a database
-        if data_source_params["source"] == "database":
-            df = load_database_pl(
-                data_source_params["database_module"],
-                data_source_params["database_path"],
-                data_source_params["query"],
-            )
-        # importing a parquet file
-        else:
-            df = load_parquet_pl(data_source_params["data_path"])
+        print("File type not supported")
+        raise NotImplementedError
 
     return df
 
 
+@polarify_out
 def correct_df_time(df: pd.DataFrame | pl.DataFrame) -> pl.DataFrame:
     """Convert the time column in dataframe (might be string) to datetime data with timezone information
 
@@ -59,14 +54,14 @@ def correct_df_time(df: pd.DataFrame | pl.DataFrame) -> pl.DataFrame:
     # and corrected
     if isinstance(df, pd.DataFrame):
         df = clean_dt_df(df)
-        df_pl = pl.from_pandas(df)
+        #df_pl = pl.from_pandas(df)
 
     # otherwise don't do any datetime corection
     # TODO: @claysmyth implement this for polars
     else:
         pass
 
-    return df_pl
+    return df
 
 
 def load_data(
@@ -82,7 +77,14 @@ def load_data(
     """
 
     # load the data from the designated path
-    df = load_df(data_source_params)
+    if data_source_params["source"] == "database":
+        df = load_database_pl(
+            data_source_params["database_module"],
+            data_source_params["database_path"],
+            data_source_params["query"],
+        )
+    elif data_source_params["source"] == "file":
+        df = load_df_from_file(data_source_params)
 
     # quickly convert the time to datetime format
     df = correct_df_time(df)

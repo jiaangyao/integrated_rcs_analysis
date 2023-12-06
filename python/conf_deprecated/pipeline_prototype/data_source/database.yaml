@@ -8,6 +8,3 @@ query: select * from overnight.r${device}_epoched_enveloped; # select * from ove
 #   select * from 
 #   r${device}.overnight_simulated_FFTs_train
 # (Use > instead of | if you want line breaks to be interpreted as spaces by python script)
-
-
-#query: select * from overnight.r${device} where SessionIdentity='02L_04-30-22';

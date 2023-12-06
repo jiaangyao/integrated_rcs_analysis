@@ -7,7 +7,8 @@ from training_eval.hyperparameter_optimization import HyperparameterOptimization
 def wandb_sweep_setup(eval, hyperparam_obj, data_class, config, logger):
 
     sweep_config = config["sweep"]
-    wandb_config = config["wandb"]
+    setup_config = config["setup"]
+    wandb_config = setup_config["wandb"]
 
     if eval.model_type == "skorch" or eval.model_type == "torch":
         # Add input and output shape, which depends on data
@@ -16,14 +17,15 @@ def wandb_sweep_setup(eval, hyperparam_obj, data_class, config, logger):
         # TODO: Remove this assumption
         sweep_config["parameters"]["n_class"] = {"value": data_class.y_train.shape[-1]}
 
-    sweep_config[
-        "name"
-    ] = f"{config['run_name']}_{config['device']}_{config['time_stamp']}_sweep"
+    # TODO: Debug name... throws error
+    # sweep_config[
+    #     "name"
+    # ] = f"{setup_config['run_name']}_{setup_config['device']}_{setup_config['time_stamp']}_sweep"
 
     sweep_id = wandb.sweep(
         sweep_config,
-        project=config["wandb"]["project"],
-        entity=config["wandb"]["entity"],
+        project=wandb_config["project"],
+        entity=wandb_config["entity"],
     )
 
     # Log relevant info
@@ -32,19 +34,16 @@ def wandb_sweep_setup(eval, hyperparam_obj, data_class, config, logger):
     logger.info(f"WandB sweep id: {sweep_id}")
     wandb_url = f"https://wandb.ai/{wandb_config.get('entity')}/{wandb_config.get('project')}/sweeps/{sweep_id}"
     logger.info(f"WandB sweep url: {wandb_url}")
-    logger.info("Local Directory Path: {}".format(config["run_dir"]))
+    logger.info("Local Directory Path: {}".format(setup_config["path_run"]))
     logger.info(f"WandB sweep config: {sweep_config}")
     hyperparam_obj.initialize_wandb_params(
-        config["run_dir"], config["wandb"]["group"], config["wandb"]["tags"]
+        setup_config["path_run"], wandb_config["group"], wandb_config["tags"]
     )
 
     return sweep_id, sweep_config, wandb_url
 
 
 def run_wandb_sweep(hyperparam_obj, sweep_method, num_runs, sweep_id):
-
-    # Set-up agent
-    wandb.agent(sweep_id, hyperparam_obj.wandb_sweep)
 
     # Run sweep
     if sweep_method == "grid":
@@ -63,12 +62,13 @@ def run_hyperparameter_search(config, model_class, data, eval, logger):
     ho = HyperparameterOptimization(model_class, data, eval)
     
     # Check if hyperparameter search is desired
-    if hyperparam_config := config.get('hyperparameter_optimization') is None:
+    if (hyperparam_config := config.get('hyperparameter_optimization')) is None:
         # If not, train and evaluate model with default hyperparameters
         ho.train_and_eval_no_search(config)
+        return None, None
 
     # Run hyperparameter search using WandB sweeps
-    if hyperparam_config["search_library"].lower() == "wandb":
+    elif hyperparam_config["search_library"].lower() == "wandb":
         (
             sweep_id,
             sweep_config,
