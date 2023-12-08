@@ -3,6 +3,8 @@ import polars as pl
 import pickle
 import importlib
 import os
+from utils.file_utils import ensure_parent_directory_exists
+from polars import selectors as cs
 
 def save_data(X, config_dict):
     """
@@ -21,10 +23,11 @@ def save_data(X, config_dict):
     file_path = config_dict.get('file_path', '')
     # Save data according to the output type
     if file_path != '':
+        ensure_parent_directory_exists(file_path)
         if output_type == 'parquet' and isinstance(X, pd.DataFrame):
             X.to_parquet(file_path)
         elif output_type == 'parquet' and isinstance(X, pl.DataFrame):
-            X.write_parquet(file_path)
+            X.write_parquet(file_path, use_pyarrow=True)
         elif output_type == 'pickle':
             with open(file_path, 'wb') as f:
                 pickle.dump(X, f)

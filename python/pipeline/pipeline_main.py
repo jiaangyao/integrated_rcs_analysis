@@ -1,10 +1,15 @@
 # Full Pipeline for running unconstrained (i.e. not restricted to RC+S device capabilities) classification pipelines
 # TODO: Potentially helpful to use Kedro for pipeline management
 
+# Add python directory to path
+import sys,os
+sys.path.append(os.getcwd())
+
 # External Imports
 import hydra
 from omegaconf import DictConfig, OmegaConf
 import wandb
+from collections import OrderedDict
 
 # Local Imports
 from utils.pipeline_utils import *
@@ -31,7 +36,7 @@ from model.torch_model.skorch_model import SkorchModel
 from training_eval.hyperparameter_optimization import HyperparameterOptimization
 
 # Variables
-CONFIG_PATH = "/home/claysmyth/code/configs/psd_mlp_sleep"
+CONFIG_PATH = "/home/claysmyth/code/configs/convert_td_to_psd"
 CONFIG_NAME = "pipeline_main"
 
 
@@ -42,8 +47,11 @@ CONFIG_NAME = "pipeline_main"
     config_name=CONFIG_NAME,
 )
 def main(cfg: DictConfig):
+    # Convert config to ordered dict
+    config = OrderedDict(
+        OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
+    )
     # Logging Setup
-    config = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
     # Check if hyperparameter optimization is desired... needs to be passed to setup
     if hyperopt_conf := config.get("hyperparameter_optimization"):
         if hyperopt_conf.get("search_library").lower() == "wandb":
@@ -57,31 +65,35 @@ def main(cfg: DictConfig):
     data_df = io_pipeline.load_data(config["data_source"])
 
     # Preprocess data
-    preproc_config = config["preprocessing"]
-    data_df = preproc_pipeline.preprocess_dataframe(
-        data_df, preproc_config["functions"], logger
-    )
-    channel_options, feature_columns, label_options = (
-        preproc_config["feature_extraction_options"]["channel_options"],
-        preproc_config["feature_extraction_options"]["feature_columns"],
-        preproc_config["label_options"],
-    )
-    X, y, one_hot_encoded, groups = preproc_pipeline.get_features_and_labels(
-        data_df, channel_options, feature_columns, label_options, logger
-    )
+    if preproc_config := config.get("preprocessing"):
+        data_df = preproc_pipeline.preprocess_dataframe(
+            data_df, preproc_config["functions"], logger
+        )
+        if feature_extraction_config := preproc_config.get("feature_extraction"):
+            channel_options, feature_columns, label_options = (
+                feature_extraction_config["channel_options"],
+                feature_extraction_config["feature_columns"],
+                preproc_config["label_options"],
+            )
+            X, y, one_hot_encoded, groups = preproc_pipeline.get_features_and_labels(
+                data_df, channel_options, feature_columns, label_options, logger
+            )
+        else:
+            logger.info("No feature extraction from dataframe config used. Setting X (features) and y (labels) to None")
+            X, y, one_hot_encoded, groups = None, None, False, None
 
     # Feature Engineering
-    feature_eng_config = config["feature_engineering"]
-    feature_pipe, pipe_string = feature_engineering_pipeline.create_feature_pipe_object(
-        feature_eng_config["functions"]
-    )
-    num_channels, num_rows = len(feature_columns), data_df.height
-    stacked_channels = channel_options["stack_channels"]
-    X = feature_engineering_pipeline.process_features(
-        X, feature_pipe, pipe_string, feature_eng_config['channel_options'], stacked_channels, num_channels, num_rows, logger
-    )
-    logger.info(f"Feature matrix shape after feature engineering: {X.shape}")
-    logger.info(f"Label vector shape: {y.shape}")
+    if feature_eng_config := config.get("feature_engineering"):
+        feature_pipe, pipe_string = feature_engineering_pipeline.create_feature_pipe_object(
+            feature_eng_config["functions"]
+        )
+        num_channels, num_rows = len(feature_columns), data_df.height
+        stacked_channels = channel_options["stack_channels"]
+        X = feature_engineering_pipeline.process_features(
+            X, feature_pipe, pipe_string, feature_eng_config['channel_options'], stacked_channels, num_channels, num_rows, logger
+        )
+        logger.info(f"Feature matrix shape after feature engineering: {X.shape}")
+        logger.info(f"Label vector shape: {y.shape}")
 
     # Feature Selection
         # Not implemented yet
@@ -99,27 +111,28 @@ def main(cfg: DictConfig):
         # Not implemented yet
 
     # Evaluation Setup (i.e. CV, scoring metrics, etc...)
-    evaluation_config = config["evaluation"]
-    eval = create_eval_class_from_config(evaluation_config, data)
+    if evaluation_config := config.get("evaluation"):
+        eval = create_eval_class_from_config(evaluation_config, data)
 
     # Model Setup
-    model_config = config["model"]
-    model_name = model_config["model_name"]
-    model_kwargs = model_config["parameters"] if model_config["parameters"] else {}
-    if early_stopping := model_config.get("early_stopping"):
-        model_kwargs["early_stopping"] = early_stopping
+    if model_config := config.get("model"):
+        model_name = model_config["model_name"]
+        model_kwargs = model_config["parameters"] if model_config["parameters"] else {}
+        if early_stopping := model_config.get("early_stopping"):
+            model_kwargs["early_stopping"] = early_stopping
 
-    model_class = find_and_load_class("model", model_name, kwargs=model_kwargs)
-    if evaluation_config["model_type"] == "skorch":
-        model_class = SkorchModel(model_class)
+        model_class = find_and_load_class("model", model_name, kwargs=model_kwargs)
+        if evaluation_config["model_type"] == "skorch":
+            model_class = SkorchModel(model_class)
     
 
     # Hyperparameter Tuning and/or Model Training
     # Note: If hyperparameter_optimization is not specified, 
     # then the model will be trained and evaluated with default hyperparameters defined in model yaml file
-    sweep_url, sweep_id = hyperparam_opt_pipeline.run_hyperparameter_search(
-        config, model_class, data, eval, logger
-    )
+    if config.get("hyperparameter_optimization") is not None:
+        sweep_url, sweep_id = hyperparam_opt_pipeline.run_hyperparameter_search(
+            config, model_class, data, eval, logger
+        )
     
     # Test model on test set
         # Not implemented yet

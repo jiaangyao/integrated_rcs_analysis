@@ -225,6 +225,7 @@ def remove_null_sections(
     Label sections of null values and non-null in a DataFrame. Each contiguous section of null values, and non-null values, is assigned a unique identifier.
     Then, remove rows where any of the specified columns are null.
     Sections of continuity is labeled by new column named 'non_null_seg_nr'.
+    Assumes that the DataFrame is sorted by time, and not epoched.
     '''
     # First, label sections of non-null and null values,
     # to avoid introducing artifacts at the boundaries of null values.

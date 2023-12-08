@@ -8,6 +8,7 @@ import numpy as np
 import numpy.typing as npt
 from scipy import stats, signal
 from sklearn.linear_model import LinearRegression
+import polars as pl
 
 
 def multivariate_feature_embedding(matrix: npt.NDArray[np.float64], window_size: int, noverlap: int, sampling_frequency: int, band_range={
@@ -228,8 +229,65 @@ def broadcast_feature_extraction_on_matrix(
     return features
 
 
+def get_psd_polars(
+    df: pl.DataFrame,
+    td_columns=[],
+    freq_range=[0.5, 100],
+    sampling_frequency=500,
+    window_size=1024,
+    noverlap=512,
+):
+    """
+    Calculate the power spectral density (PSD) for each time domain column in the DataFrame.
+
+    Args:
+        df (pl.DataFrame): The DataFrame containing the time domain data.
+        td_columns (list): List of column names in the DataFrame that contain the time domain data.
+        freq_range (list, optional): The frequency range for calculating the PSD. Defaults to [0.5, 100].
+        sampling_frequency (int, optional): The sampling frequency of the time domain data. Defaults to 500.
+        window_size (int, optional): The size of the window used for calculating the PSD. Defaults to 1024.
+        noverlap (int, optional): The number of samples to overlap between windows. Defaults to 512.
+        log (bool, optional): Whether to apply logarithm to the PSD values. Defaults to True.
+
+    Returns:
+        pl.DataFrame: The DataFrame with additional columns for the PSD values and frequency values.
+    """
+    
+    # Assumes each time domain column is already epoched (e.g. time_domain_base.epoch_data was called)
+    for col in td_columns:
+        # Calculate PSD
+        f, pxx = signal.welch(
+            df.get_column(col).to_numpy(), fs=sampling_frequency, nperseg=window_size, noverlap=noverlap, axis=-1
+        )
+        
+        # Select PSD values within desired frequency range
+        pxx = pxx[:, np.where((f >= freq_range[0]) & (f <= freq_range[1]))[0]]
+        
+        # Add PSD values to DataFrame
+        df = df.with_columns(
+            pl.Series(
+                name=f"{col}_psd",
+                values= pxx,
+                dtype=pl.Array(inner=pl.Float32, width=pxx.shape[1])
+            )
+        )
+    
+    # Add frequency values to DataFrame. Entire column will be an identical vector of frequency values.
+    f_mat = np.tile(f[np.where((f >= freq_range[0]) & (f <= freq_range[1]))[0]], (df.height, 1))
+    df = df.with_columns(
+        pl.Series(
+            name=f"psd_freq",
+            values=f_mat,
+            dtype=pl.Array(inner=pl.Float32, width=f_mat.shape[1])
+        )
+    )
+    
+    return df
+    
+
+
 def get_psd(
-    X,
+    X: npt.NDArray[np.float64],
     freq_ranges=[[0.5, 100]],
     sampling_frequency=500,
     window_size=1024,

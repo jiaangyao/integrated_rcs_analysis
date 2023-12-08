@@ -14,8 +14,8 @@ class MLData(DanticBaseModel):
     All data fields are expected to be numpy ndarrays.
     Using Pydantic for data validation.
     """
-    X: npt.NDArray
-    y: npt.NDArray
+    X: npt.NDArray | None = None
+    y: npt.NDArray | None = None
     X_train: npt.NDArray | None = None
     y_train: npt.NDArray | None = None
     groups: npt.NDArray | list | tuple | None = None

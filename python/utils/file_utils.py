@@ -98,3 +98,22 @@ def save_conda_package_versions(run_dir):
     # Write the output to a text file
     with open(os.path.join(run_dir, "conda_packages.txt"), "w") as file:
         file.write(result.stdout)
+
+
+def ensure_parent_directory_exists(file_path):
+    """
+    This function checks if the parent directory of the given file path exists.
+    If it does not exist, it creates the parent directory.
+    """
+    import os
+
+    # Extract the parent directory from the file path
+    parent_dir = os.path.dirname(file_path)
+
+    # Check if the parent directory exists
+    if not os.path.exists(parent_dir):
+        # Create the parent directory if it does not exist
+        os.makedirs(parent_dir)
+        print(f"Created directory: {parent_dir}")
+    else:
+        print(f"Directory already exists: {parent_dir}")

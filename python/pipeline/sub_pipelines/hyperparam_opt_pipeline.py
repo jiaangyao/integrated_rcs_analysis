@@ -62,7 +62,8 @@ def run_hyperparameter_search(config, model_class, data, eval, logger):
     ho = HyperparameterOptimization(model_class, data, eval)
     
     # Check if hyperparameter search is desired
-    if (hyperparam_config := config.get('hyperparameter_optimization')) is None:
+    hyperparam_config = config.get('hyperparameter_optimization')
+    if hyperparam_config['search_library'] is None:
         # If not, train and evaluate model with default hyperparameters
         ho.train_and_eval_no_search(config)
         return None, None
