@@ -36,7 +36,7 @@ from model.torch_model.skorch_model import SkorchModel
 from training_eval.hyperparameter_optimization import HyperparameterOptimization
 
 # Variables
-CONFIG_PATH = "/home/claysmyth/code/configs/convert_td_to_psd"
+CONFIG_PATH = "/home/claysmyth/code/configs/AttnSleepModel"
 CONFIG_NAME = "pipeline_main"
 
 
@@ -54,8 +54,10 @@ def main(cfg: DictConfig):
     # Logging Setup
     # Check if hyperparameter optimization is desired... needs to be passed to setup
     if hyperopt_conf := config.get("hyperparameter_optimization"):
-        if hyperopt_conf.get("search_library").lower() == "wandb":
+        if hyperopt_conf.get("search_library") and hyperopt_conf.get("search_library").lower() == "wandb":
             WandB_hyperopt = True
+        else:
+            WandB_hyperopt = False
     else:
         WandB_hyperopt = False
     logger = logging_setup.setup(config["setup"], WandB_hyperopt=WandB_hyperopt)
@@ -69,7 +71,7 @@ def main(cfg: DictConfig):
         data_df = preproc_pipeline.preprocess_dataframe(
             data_df, preproc_config["functions"], logger
         )
-        if feature_extraction_config := preproc_config.get("feature_extraction"):
+        if feature_extraction_config := preproc_config.get("feature_extraction_options"):
             channel_options, feature_columns, label_options = (
                 feature_extraction_config["channel_options"],
                 feature_extraction_config["feature_columns"],

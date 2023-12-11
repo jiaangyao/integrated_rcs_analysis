@@ -3,12 +3,14 @@ import imblearn.under_sampling as imus
 
 from utils.pipeline_utils import *
 
+import numpy as np
+
 POTENTIAL_IMBALANCE_LIBRARIES = [
     imos,
     imus,
 ]
 
-def get_imbalance_strategy_as_object(imb_config):
+def get_imbalance_strategy_as_object(imb_strategy_conf):
     """
     Convert imbalance strategy configuration to an imbalance object.
 
@@ -22,9 +24,9 @@ def get_imbalance_strategy_as_object(imb_config):
     """
     
     # Get the name of the imbalance strategy
-    imb_name = list(imb_config["strategy"].keys())[0]
+    imb_name = list(imb_strategy_conf.keys())[0]
     # Get the kwargs for the imbalance strategy
-    imb_kwargs = imb_config["strategy"][imb_name]
+    imb_kwargs = imb_strategy_conf[imb_name]
     
     # Convert the name to a callable object
     imb_obj = convert_string_to_callable(POTENTIAL_IMBALANCE_LIBRARIES, imb_name)
@@ -46,11 +48,39 @@ def run_class_imbalance_correction(X, y, imb_config, logger):
     Returns:
         tuple: A tuple containing the corrected feature matrix and label vector.
     """
-    imb_strategy = get_imbalance_strategy_as_object(imb_config)
+    imb_strategy = get_imbalance_strategy_as_object(imb_config['strategy'])
     try:
         logger.info(f"Applying class imbalance strategy: {imb_strategy} with kwargs: {imb_strategy.get_params()}")
         # Note: Assuming that the class imbalance strategy uses fit_resample method, which is the case for imblearn
-        X, y = imb_strategy.fit_resample(X, y)
+        if imb_config.get('channel_options'):
+            # Run class imbalance correction on each channel
+            # If the channel dimension is 1, then transpose the feature matrix to be (num_channels, num_rows, num_cols)
+            channel_dim = imb_config['channel_options']['channel_dim']
+            logger.info(f"Channel dimension for class imbalance correction: {channel_dim}")
+            if channel_dim == 1:
+                X = X.transpose(1, 0, 2)
+            elif channel_dim >= 2:
+                raise ValueError(f"Channel dimension {channel_dim} is not supported for class imbalance correction. Max dimension is 1.")
+            
+            for i in range(X.shape[0]):
+                X_list = []
+                y_list = []
+                X_tmp, y_tmp = imb_strategy.fit_resample(X[i], y)
+                X_list.append(X_tmp)
+                y_list.append(y_tmp)
+                
+            X = np.stack(X_list, axis=0)
+            if len(y_list) > 1:
+                for i in range(0, len(y_list)-1):
+                    assert np.array_equal(y_list[i], y_list[i+1]), "Label vectors are not equal after class imbalance correction."
+            y = y_list[0]
+
+            # Transpose the feature matrix back to (num_rows, num_channels, num_cols), if channel dimension is 1
+            if channel_dim == 1:
+                X = X.transpose(1, 0, 2)
+            
+        else:
+            X, y = imb_strategy.fit_resample(X, y)
         logger.info(f"Feature matrix shape after class imbalance correction: {X.shape}")
         logger.info(f"Label vector shape: {y.shape}")
     except ValueError as e:

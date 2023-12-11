@@ -4,7 +4,7 @@ from typing import Any, Optional
 import torch
 import torch.nn as nn
 
-from .base import BaseTorchTrainer, BaseTorchModel, BaseTorchClassifier
+from ..base import BaseTorchTrainer, BaseTorchModel, BaseTorchClassifier
 
 class AlexNet(nn.Module):
     def __init__(self, num_classes: int = 1000, dropout: float = 0.5) -> None:
