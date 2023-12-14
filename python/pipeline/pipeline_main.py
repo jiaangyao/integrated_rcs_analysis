@@ -36,7 +36,7 @@ from model.torch_model.skorch_model import SkorchModel
 from training_eval.hyperparameter_optimization import HyperparameterOptimization
 
 # Variables
-CONFIG_PATH = "/home/claysmyth/code/configs/AttnSleepModel"
+CONFIG_PATH = "/home/claysmyth/code/configs/lightgbm_sleep"
 CONFIG_NAME = "pipeline_main"
 
 
@@ -115,6 +115,9 @@ def main(cfg: DictConfig):
     # Evaluation Setup (i.e. CV, scoring metrics, etc...)
     if evaluation_config := config.get("evaluation"):
         eval = create_eval_class_from_config(evaluation_config, data)
+    
+    # Save data, if desired. This occurs after evaluation setup because the data class (MLData) object may be modified during evaluation setup (e.g. training folds)
+    save_data_check(data_df, data, config.get("save_dataframe_or_features"), logger)
 
     # Model Setup
     if model_config := config.get("model"):
@@ -137,7 +140,14 @@ def main(cfg: DictConfig):
         )
     
     # Test model on test set
+        # 1. Train model on entire training set
+        # 2. Evaluate model on test set
         # Not implemented yet
+    
+    # Save Model
+    if save_model_config := config.get("save_model"):
+        save_model(save_model_config, model_class.model, logger)
+
 
     # Add run to pipeline runs tracking csv
     if config.get("run_tracking_csv") is not None:

@@ -192,7 +192,7 @@ def epoch_df_by_timesegment(
                     pl.col(td_col)
                     .list.eval(pl.element().is_not_null())
                     .list.all()
-                    .suffix("_contains_null")
+                    .suffix("_contains_no_null")
                     for td_col in td_columns
                 ]
                 # Remove rows where the TD data is null, or where the TD data is not the correct length
@@ -200,7 +200,7 @@ def epoch_df_by_timesegment(
             .filter(
                 # Remove rows where the TD data is null or not the correct length
                 (pl.all_horizontal(pl.col("^.*_TD_count$") == epoch_length))
-                & (pl.all_horizontal("^.*_contains_null$"))
+                & (pl.all_horizontal("^.*_contains_no_null$"))
             )
             .with_columns(
                 [
@@ -209,7 +209,7 @@ def epoch_df_by_timesegment(
                 ]
             )
             .select(pl.all().exclude("^.*TD_count$"))
-            .select(pl.all().exclude("^.*_contains_null$"))
+            .select(pl.all().exclude("^.*_contains_no_null$"))
         )
     
     if df_epoched.height == 0:

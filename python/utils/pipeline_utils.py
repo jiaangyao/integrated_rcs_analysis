@@ -7,6 +7,9 @@ from sklearn.base import BaseEstimator, TransformerMixin
 import inspect
 import types
 import pkgutil
+import torch
+import pickle
+import joblib
 
 
 def get_callable_function(func_name):
@@ -211,3 +214,30 @@ def create_transform_pipeline(steps):
 
     pipe = Pipeline(pipe_steps)
     return pipe, pipe_step_paths
+
+
+def save_model(save_model_config, model, logger):
+    """
+    Saves model as a pickle or torch file in the specified path.
+    """
+    model_path = save_model_config["model_path"]
+    if save_model_config["save_type"] == "pickle":
+        model_path = os.path.join(model_path, ".pkl")
+        with open(model_path, "wb") as f:
+            pickle.dump(model, f)
+        logger.info(f"Model saved as pickle file to {model_path}")
+        
+    elif save_model_config["save_type"] == "torch":
+        model_path = os.path.join(model_path, ".pt")
+        torch.save(model, model_path)
+        logger.info(f"Model saved as torch file to {model_path}")
+        
+    elif save_model_config["save_type"] == "joblib":
+        model_path = os.path.join(model_path, ".pkl")
+        joblib.dump(model, model_path)
+        logger.info(f"Model saved as pickle file to {model_path} using joblib")
+        
+    else:
+        raise ValueError(
+            f"Model type {save_model_config['save_type']} not supported. Must be 'pickle' or 'torch'."
+        )

@@ -17,18 +17,21 @@ defaults:
   - evaluation: classification_default
   - hyperparameter_optimization: Null # E.g. WandB
   - sweep: Null # ${hyperparameter_optimization}/${model} # Set to Empty or Null if no hyperparameter_optimization is Null
+  - test_model: Null # E.g. WandB
+  - save_model: save_model_default # Boolean True or False
 
+# Hydra overrides 
 # Hydra overrides 
 hydra:
   run:
-    dir: ${run_dir}
+    dir: ${setup.path_run}
   sweep:
     #dir: ${SUBBASE_PATH}/multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
-    #dir: ${run_dir}/sweep
-    dir: ${run_dir}
+    #dir: ${setup.path_run}/sweep
+    dir: ${setup.path_run}
     subdir: ${hydra.job.num}
   runtime:
-    output_dir: ${run_dir}
+    output_dir: ${setup.path_run}
   job:
-    name: ${run_name}
+    name: ${setup.run_name}
   output_subdir: configs

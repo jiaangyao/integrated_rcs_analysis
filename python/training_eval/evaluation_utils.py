@@ -89,8 +89,8 @@ def custom_scorer_torch(y_true, y_pred, scoring, one_hot_encoded=False):
     else:
         task = "multiclass"
     
-    # All metrics assume that y_true is not one-hot encoded
-    if one_hot_encoded:
+    # These metrics assume that y_true is not one-hot encoded
+    if one_hot_encoded: # Convert y_true to class labels
         y_true_tensor = torch.argmax(y_true_tensor, axis=-1)
         
     if ("roc_auc" in scoring or "auc" in scoring) and one_hot_encoded:
@@ -108,6 +108,13 @@ def custom_scorer_torch(y_true, y_pred, scoring, one_hot_encoded=False):
     # we need to convert from one-hot encoding of predictions to class labels
     if one_hot_encoded:
         y_pred_tensor = torch.argmax(y_pred_tensor, axis=-1)
+        
+        # TODO: Move this to a separate function...
+        # In case of ensemble models, we take the mode of the predictions  
+        if y_pred_tensor.squeeze().ndim > 1:
+            y_pred_tensor = torch.mode(y_pred_tensor, axis=0)[0]
+        else:
+            y_pred_tensor = y_pred_tensor.squeeze()
 
     if "accuracy" in scoring or "acc" in scoring:
         accuracy = Accuracy(num_classes=num_classes, task=task)

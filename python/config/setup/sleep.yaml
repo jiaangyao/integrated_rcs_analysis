@@ -15,12 +15,16 @@ run_tracking_csv: ${setup.path_base}/ml_run_tracking.csv
 
 # WandB info
 # TODO: Replace with default and options for various dashboard programs. Should be able to opt out of wandb...
+# WandB info
+# TODO: Replace with default and options for various dashboard programs. Should be able to opt out of wandb...
 wandb:
-  project: ${project}
+  project: ${setup.project}
   entity: cnsmyth
-  group: ${experiment}
+  group: ${setup.group}
   tags: 
     - sleep 
-    - ${device}
-    - ${run_name}
-  notes: ${info}
+    - ${setup.device}
+    - ${setup.run_name}
+    - oversample
+    - BG
+  notes: ${setup.info}

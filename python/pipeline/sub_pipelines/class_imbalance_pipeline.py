@@ -56,15 +56,15 @@ def run_class_imbalance_correction(X, y, imb_config, logger):
             # Run class imbalance correction on each channel
             # If the channel dimension is 1, then transpose the feature matrix to be (num_channels, num_rows, num_cols)
             channel_dim = imb_config['channel_options']['channel_dim']
-            logger.info(f"Channel dimension for class imbalance correction: {channel_dim}")
+            logger.info(f"Channel dimension for class imbalance correction: {channel_dim}, applying class imbalance along channels.")
             if channel_dim == 1:
                 X = X.transpose(1, 0, 2)
             elif channel_dim >= 2:
                 raise ValueError(f"Channel dimension {channel_dim} is not supported for class imbalance correction. Max dimension is 1.")
             
+            X_list = []
+            y_list = []
             for i in range(X.shape[0]):
-                X_list = []
-                y_list = []
                 X_tmp, y_tmp = imb_strategy.fit_resample(X[i], y)
                 X_list.append(X_tmp)
                 y_list.append(y_tmp)

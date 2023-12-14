@@ -3,6 +3,9 @@ import zipfile
 import fnmatch
 import subprocess
 import csv
+import shutil
+import shutil
+import glob
 
 # Variables
 CSV_COLUMNS = [
@@ -117,3 +120,34 @@ def ensure_parent_directory_exists(file_path):
         print(f"Created directory: {parent_dir}")
     else:
         print(f"Directory already exists: {parent_dir}")
+
+
+
+def copy_file_to_matching_subdirs(directory_path, file_name, pattern):
+    """
+    Copies a file into all subdirectories of a given directory that match a specified glob pattern.
+
+    :param directory_path: Path of the directory
+    :param file_name: Name of the file to copy
+    :param pattern: The glob pattern to match subdirectory names
+    """
+    # Full path of the file to be copied
+    if not directory_path in file_name:
+        file_path = os.path.join(directory_path, file_name)
+    else:
+        file_path = file_name
+
+    # Check if the file exists
+    if not os.path.isfile(file_path):
+        print(f"The file {file_name} does not exist in the directory {directory_path}")
+        return
+
+    # Construct the full pattern path
+    full_pattern = os.path.join(directory_path, pattern)
+
+    # Iterate over all directories matching the glob pattern
+    for dir_path in glob.glob(full_pattern):
+        if os.path.isdir(dir_path):
+            # Copy the file to this subdirectory
+            shutil.copy(file_path, dir_path)
+            print(f"Copied {file_name} to {dir_path}")

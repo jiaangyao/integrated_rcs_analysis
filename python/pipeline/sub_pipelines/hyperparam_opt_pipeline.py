@@ -2,6 +2,7 @@ import wandb
 
 # Libraries for hyperparameter tuning
 from training_eval.hyperparameter_optimization import HyperparameterOptimization
+from utils.file_utils import copy_file_to_matching_subdirs
 
 
 def wandb_sweep_setup(eval, hyperparam_obj, data_class, config, logger):
@@ -37,7 +38,7 @@ def wandb_sweep_setup(eval, hyperparam_obj, data_class, config, logger):
     logger.info("Local Directory Path: {}".format(setup_config["path_run"]))
     logger.info(f"WandB sweep config: {sweep_config}")
     hyperparam_obj.initialize_wandb_params(
-        setup_config["path_run"], wandb_config["group"], wandb_config["tags"]
+        setup_config["path_run"], wandb_config["group"], wandb_config["tags"], wandb_config["notes"]
     )
 
     return sweep_id, sweep_config, wandb_url
@@ -81,6 +82,7 @@ def run_hyperparameter_search(config, model_class, data, eval, logger):
         run_wandb_sweep(
             ho, sweep_config["method"], hyperparam_config["num_runs"], sweep_id
         )
+        
         
         return sweep_url, sweep_id
 
