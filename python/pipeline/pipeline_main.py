@@ -36,7 +36,7 @@ from model.torch_model.skorch_model import SkorchModel
 from training_eval.hyperparameter_optimization import HyperparameterOptimization
 
 # Variables
-CONFIG_PATH = "/home/claysmyth/code/configs/lightgbm_sleep"
+CONFIG_PATH = "/home/claysmyth/code/configs/lightgbm_test_LOGO_and_data_fold_consistency"
 CONFIG_NAME = "pipeline_main"
 
 
@@ -102,19 +102,20 @@ def main(cfg: DictConfig):
 
     # Class Imbalance Correction
     if imb_config := config.get("class_imbalance"):
-        X, y = class_imbalance_pipeline.run_class_imbalance_correction(X, y, imb_config, logger)
+        X, y, groups = class_imbalance_pipeline.run_class_imbalance_correction(X, y, groups, imb_config, logger)
 
     # Set up data object once all preprocessing and feature engineering is complete
     data = MLData(X=X, y=y, groups=groups, one_hot_encoded=one_hot_encoded)
-    # Save data, if desired
-    save_data_check(data_df, data, config.get("save_dataframe_or_features"), logger)
     
-    # Visualize data, if desired
-        # Not implemented yet
 
     # Evaluation Setup (i.e. CV, scoring metrics, etc...)
+    # TODO: Train/Val/Test split does not split groups... which leads to error using LOGO CV
     if evaluation_config := config.get("evaluation"):
         eval = create_eval_class_from_config(evaluation_config, data)
+        
+        
+    # Visualize data, if desired
+        # Not implemented yet
     
     # Save data, if desired. This occurs after evaluation setup because the data class (MLData) object may be modified during evaluation setup (e.g. training folds)
     save_data_check(data_df, data, config.get("save_dataframe_or_features"), logger)

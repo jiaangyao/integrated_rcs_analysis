@@ -16,9 +16,10 @@ class MLData(DanticBaseModel):
     """
     X: npt.NDArray | None = None
     y: npt.NDArray | None = None
+    groups: npt.NDArray | list | tuple | None = None
     X_train: npt.NDArray | None = None
     y_train: npt.NDArray | None = None
-    groups: npt.NDArray | list | tuple | None = None
+    groups_train: npt.NDArray | list | tuple | None = None
     one_hot_encoded: bool = False
     
     # Note: X_val is separate from the validation folds
@@ -28,6 +29,7 @@ class MLData(DanticBaseModel):
     
     X_test: npt.NDArray | None = None
     y_test: npt.NDArray | None = None
+    groups_test: npt.NDArray | list | tuple | None = None
     
     # Should be a tuple of the form (train_inds, val_inds, test_inds), where each of the three elements is a list of indices or empty list/array.
     train_val_test_indicies: tuple | None = None
@@ -69,6 +71,9 @@ class MLData(DanticBaseModel):
         self.y_train = self.y[train_inds]
         self.X_test = self.X[test_inds]
         self.y_test = self.y[test_inds]
+        if self.groups is not None:
+            self.groups_train = self.groups[train_inds]
+            self.groups_test = self.groups[test_inds]
 
     # TODO: Define the following 'get_...' funcs as @property methods?
     def get_training_data(self):
@@ -92,13 +97,13 @@ class MLData(DanticBaseModel):
         """
         Returns the training data for all folds.
         """
-        return [self.X_train[fold['train']] for fold in self.folds]
+        return [(self.X_train[fold['train']], self.y_train[fold['train']]) for fold in self.folds]
     
     def get_validation_folds(self):
         """
         Returns the testing data for all folds.
         """
-        return [self.X_train[fold['val']] for fold in self.folds]
+        return [(self.X_train[fold['val']], self.y_train[fold['val']]) for fold in self.folds]
     
     def assign_train_val_test_indices(self, train_inds=[], val_inds=[], test_inds=[]):
         """

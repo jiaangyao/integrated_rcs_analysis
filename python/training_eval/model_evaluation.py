@@ -1,7 +1,7 @@
 from sklearn.model_selection import cross_validate, LeaveOneGroupOut, cross_val_score, cross_val_predict
 from sklearn.model_selection._split import _BaseKFold
 import sklearn.model_selection as skms
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, LeavePGroupsOut
 from utils.pipeline_utils import convert_string_to_callable
 from sklearn.model_selection import train_test_split
 from utils.wandb_utils import wandb_log
@@ -17,7 +17,7 @@ from .evaluation_utils import custom_scorer_sklearn, custom_scorer_torch
 VALIDATION_LIBRARIES = [skms]
 
 
-def train_test_split_inds(X, test_size=0.2, random_seed=42, shuffle=True):
+def train_test_split_inds(X, test_size=0.2, random_seed=42, shuffle=True, stratify=None):
         """
         Split data into train, and test sets.
         - data (array-like): The data to be split.
@@ -28,14 +28,16 @@ def train_test_split_inds(X, test_size=0.2, random_seed=42, shuffle=True):
         - inds_X_train (array-like): The indices of the training set.
         - inds_X_test (array-like): The indices of the test set.
         """
+        if shuffle is None: shuffle = False
+        
         inds = np.arange(len(X))
         inds_train, inds_test = train_test_split(
-            inds, test_size=test_size, random_state=random_seed, shuffle=shuffle
+            inds, test_size=test_size, random_state=random_seed, shuffle=shuffle, stratify=stratify
         )
         return inds_train, inds_test
         
     
-def train_val_test_split_inds(X, val_size=0.2, test_size=0.2, random_seed=42, shuffle=True):
+def train_val_test_split_inds(X, val_size=0.2, test_size=0.2, random_seed=42, shuffle=True, stratify=False):
     """
     Split data into train, validation, and test sets using scikit-learn's train_test_split.
 
@@ -55,12 +57,13 @@ def train_val_test_split_inds(X, val_size=0.2, test_size=0.2, random_seed=42, sh
     assert 0 <= val_size < 1, "Validation ratio must be between 0 and 1"
     assert 0 <= test_size < 1, "Test ratio must be between 0 and 1"
     assert val_size + test_size < 1, "Validation and test ratios combined must be less than 1"
+    if shuffle is None: shuffle = False
 
     train_size = 1 - val_size - test_size
 
     # Split data into train and temp (temp will be split into val and test)
     inds_X_train, inds_tmp = train_test_split(
-        np.arange(len(X)), test_size=1-train_size, random_state=random_seed, shuffle=shuffle
+        np.arange(len(X)), test_size=1-train_size, random_state=random_seed, shuffle=shuffle, stratify=stratify
     )
 
     # Calculate validation split ratio from remaining data
@@ -81,17 +84,29 @@ def set_up_cross_validation(config_dict, libs):
         return func
     else:
         kwargs = list(config_dict.values())[0]
+        if kwargs is None: kwargs = {}
         return func(**kwargs)
 
 
 def create_eval_class_from_config(config, data_class):
         
     if config["data_split"]["name"] == "TrainTestSplit":
+        if config['data_split'].get('stratify') is True:
+            stratify = data_class.y
         train_inds, test_inds = train_test_split_inds(
             data_class.X,
             config['data_split']["test_size"], 
-            config["random_seed"]
+            config["random_seed"],
+            shuffle=config['data_split'].get('shuffle'),
+            stratify=stratify
         )
+        data_class.assign_train_val_test_indices(train_inds, [], test_inds)
+        data_class.train_test_split(train_inds, test_inds)
+    elif config["data_split"]["name"] == "LeavePGroupsOut":
+        lpgo = LeavePGroupsOut(n_groups=config["data_split"]["n_groups"])
+        # Assumes a random subset of groups are being held-out, so only take first fold
+        # Further grouping splits should be handled by LeaveOneGroupOut cross-validation object
+        train_inds, test_inds = next(lpgo.split(data_class.X, groups=data_class.groups))
         data_class.assign_train_val_test_indices(train_inds, [], test_inds)
         data_class.train_test_split(train_inds, test_inds)
     
@@ -103,13 +118,19 @@ def create_eval_class_from_config(config, data_class):
         val_object = set_up_cross_validation(config["validation_method"], VALIDATION_LIBRARIES)
 
         if data_class.one_hot_encoded:
-            data_class.folds = [{'train': train_fold, 'val': test_fold}
-                                for (train_fold, test_fold) 
-                                in val_object.split(data_class.X_train, data_class.y_train.argmax(axis=1), groups=data_class.groups)]
+            y_tmp = data_class.y_train.argmax(axis=1)
         else:
+            y_tmp = data_class.y_train
+            
+        if data_class.groups is None:
             data_class.folds = [{'train': train_fold, 'val': test_fold}
                                 for (train_fold, test_fold) 
-                                in val_object.split(data_class.X_train, data_class.y_train, groups=data_class.groups)]
+                                in val_object.split(data_class.X_train, y_tmp)]
+        else:
+            data_class.folds = [{'train': train_fold, 'val': test_fold,}
+                                for (train_fold, test_fold) 
+                                in val_object.split(data_class.X_train, y_tmp, groups=data_class.groups_train)]
+            
     # Treating VanillaValidation as special case of 1 fold cross validation
     elif "vanilla" in validation_name.lower():
         vanilla_val_config = config["validation_method"].get(validation_name)

@@ -1,18 +1,21 @@
 defaults:
   - _self_
   - data_split: TrainTestSplit # Options: TrainTestSplit, TrainValidationTestSplit, Empty
-  - scoring: torch # Options: binary, multiclass, torch
+  - scoring: multiclass # Options: binary, multiclass, torch
 
-model_type: torch #sklearn # Options: torch, skorch, sklearn
+model_type: sklearn #sklearn # Options: torch, skorch, sklearn
 # validation_method should be a single key corresponding to the method with values as parameters for the validation method
 # validation method options: Kfold, StratifiedKFold, LeaveOneGroupOut, VanillaValidation
 random_seed: ${random_seed}
 validation_method:
-  # StratifiedKFold:
-  #   n_splits: 5
-  #   shuffle: True
-  #   random_state: ${random_seed}
+  StratifiedKFold:
+    n_splits: 5
+    shuffle: True
+    random_state: ${random_seed}
   # LeaveOneGroupOut:
-  #   groups: SessionIdentity
-  VanillaValidation:
-    validation_size: 0.2
+    # shuffle: True
+    # random_state: ${random_seed}
+  # LeavePGroupsOut:
+  #   n_groups: 2
+  # VanillaValidation:
+  #   validation_size: 0.2

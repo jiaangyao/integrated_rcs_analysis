@@ -2,3 +2,6 @@
 - accuracy
 - roc_auc_ovr
 - balanced_accuracy
+- confusion_matrix
+- precision
+- recall

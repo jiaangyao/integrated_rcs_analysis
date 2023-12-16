@@ -119,7 +119,8 @@ def ensure_parent_directory_exists(file_path):
         os.makedirs(parent_dir)
         print(f"Created directory: {parent_dir}")
     else:
-        print(f"Directory already exists: {parent_dir}")
+        # print(f"Directory already exists: {parent_dir}")
+        return 
 
 
 

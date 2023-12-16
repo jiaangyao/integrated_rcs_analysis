@@ -143,10 +143,18 @@ def process_labels(data_df, label_config, logger):
         one_hot_encoded = False
 
     # Extract group labels for LeaveOneGroupOut cross validation (if desired)
-    if label_config["group_column"]:
-        logger.info(f"Using group labels for cross validation")
-        groups = data_df.get_column(label_config["group_column"]).to_numpy().squeeze()
-        logger.info(f"Unique groups: {np.unique(groups)}")
+    if group_col := label_config["group_column"]:
+        logger.info(f'Using Group column: {group_col}')
+        if label_config.get("numerically_map_groups") is True:
+            unique_groups = np.sort(data_df.get_column(group_col).unique().to_numpy().squeeze())
+            group_mapping = dict(zip(unique_groups, np.arange(unique_groups.size)))
+            logger.info(f"Mapping Groups with: {group_mapping}")
+            groups = (data_df.with_columns(pl.col(group_col).replace(group_mapping, default=None))
+                            .get_column(group_col).to_numpy().squeeze()
+            )
+        else:
+            groups = data_df.get_column(group_col).to_numpy().squeeze()
+            logger.info(f"Unique Groups: {np.unique(groups)}")
     else:
         groups = None
 
