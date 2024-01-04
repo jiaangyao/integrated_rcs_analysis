@@ -21,6 +21,7 @@ from sub_pipelines import (
     io_pipeline,
     preproc_pipeline,
     hyperparam_opt_pipeline,
+    test_model_pipeline,
 )
 from utils.save_data import save_data_check
 from dataset.data_class import MLData
@@ -33,7 +34,6 @@ from training_eval.model_evaluation import create_eval_class_from_config
 from model.torch_model.skorch_model import SkorchModel
 
 # Libraries for hyperparameter tuning
-from training_eval.hyperparameter_optimization import HyperparameterOptimization
 
 # Variables
 CONFIG_PATH = "/home/claysmyth/code/configs/lightgbm_test_LOGO_and_data_fold_consistency"
@@ -97,12 +97,13 @@ def main(cfg: DictConfig):
         logger.info(f"Feature matrix shape after feature engineering: {X.shape}")
         logger.info(f"Label vector shape: {y.shape}")
 
-    # Feature Selection
-        # Not implemented yet
 
     # Class Imbalance Correction
     if imb_config := config.get("class_imbalance"):
         X, y, groups = class_imbalance_pipeline.run_class_imbalance_correction(X, y, groups, imb_config, logger)
+        
+    # Feature Selection
+        # Not implemented yet
 
     # Set up data object once all preprocessing and feature engineering is complete
     data = MLData(X=X, y=y, groups=groups, one_hot_encoded=one_hot_encoded)
@@ -136,16 +137,24 @@ def main(cfg: DictConfig):
     # Note: If hyperparameter_optimization is not specified, 
     # then the model will be trained and evaluated with default hyperparameters defined in model yaml file
     if config.get("hyperparameter_optimization") is not None:
-        sweep_url, sweep_id = hyperparam_opt_pipeline.run_hyperparameter_search(
+        sweep_url, sweep_id, best_run_config = hyperparam_opt_pipeline.run_hyperparameter_search(
             config, model_class, data, eval, logger
         )
     
     # Test model on test set
+    if test_model_config := config.get("test_model") and best_run_config in locals():
+        
+        # Pass best_run_config to test_model_config, if desired
+        if test_model_config["model_options"]['model_instantiation'] == "from_WandB_sweep":
+            test_model_config['model_options']['best_run_config'] = best_run_config
+            
+        test_model_pipeline.test_model(model_class, eval, data, test_model_config, logger)
         # 1. Train model on entire training set
         # 2. Evaluate model on test set
         # Not implemented yet
     
     # Save Model
+    # TODO: Consider moving this elsewhere
     if save_model_config := config.get("save_model"):
         save_model(save_model_config, model_class.model, logger)
 

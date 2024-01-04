@@ -55,7 +55,7 @@ def get_num_classes(y_true, y_pred, one_hot_encoded):
 # Save confusion matrix as single number, for packing
 
 # Define function to calculate desired scores
-def custom_scorer_torch(y_true, y_pred, scoring, one_hot_encoded=False):
+def custom_scorer_torch(y_true, y_pred, y_pred_proba, scoring, one_hot_encoded=False):
     """
     Computes various scoring metrics for the true and predicted labels.
 
@@ -77,10 +77,19 @@ def custom_scorer_torch(y_true, y_pred, scoring, one_hot_encoded=False):
     else:
         y_true_tensor = y_true
     
+    # These metrics assume that y_true is not one-hot encoded
+    if one_hot_encoded: # Convert y_true to class labels
+        y_true_tensor = torch.argmax(y_true_tensor, axis=-1)
+    
     if not isinstance(y_pred, torch.Tensor):
         y_pred_tensor = torch.tensor(y_pred)
     else:
         y_pred_tensor = y_pred
+        
+    if not isinstance(y_pred_proba, torch.Tensor):
+        y_pred_proba_tensor = torch.tensor(y_pred_proba)
+    else:
+        y_pred_proba_tensor = y_pred_proba
     
     # Get number of classes   
     num_classes = get_num_classes(y_true, y_pred, one_hot_encoded)
@@ -89,33 +98,19 @@ def custom_scorer_torch(y_true, y_pred, scoring, one_hot_encoded=False):
     else:
         task = "multiclass"
     
-    # These metrics assume that y_true is not one-hot encoded
-    if one_hot_encoded: # Convert y_true to class labels
-        y_true_tensor = torch.argmax(y_true_tensor, axis=-1)
-        
+    # Probability based metrics
     if ("roc_auc" in scoring or "auc" in scoring) and one_hot_encoded:
         roc_auc = AUROC(num_classes=num_classes, average='weighted', task=task)
-        scores["roc_auc"] = roc_auc(y_pred_tensor, y_true_tensor).item()
+        scores["roc_auc"] = roc_auc(y_pred_proba_tensor, y_true_tensor).item()
     
     if ('precision_recall_curve' in scoring or 
             'prc' in scoring or 'pr_curve' in scoring or 
             'precisionrecallcurve' in scoring or 'prcurve' in scoring) and one_hot_encoded:
         raise NotImplementedError("Precision recall curve is not yet implemented for one-hot encoded data.")
         # precision_recall_curve = PrecisionRecallCurve(num_classes=num_classes, task=task)
-        # scores['precision_recall_curve'] = precision_recall_curve(y_pred_tensor, y_true_tensor).numpy()
-    
-    # For the rest of the metrics, 
-    # we need to convert from one-hot encoding of predictions to class labels
-    if one_hot_encoded:
-        y_pred_tensor = torch.argmax(y_pred_tensor, axis=-1)
-        
-        # TODO: Move this to a separate function...
-        # In case of ensemble models, we take the mode of the predictions  
-        if y_pred_tensor.squeeze().ndim > 1:
-            y_pred_tensor = torch.mode(y_pred_tensor, axis=0)[0]
-        else:
-            y_pred_tensor = y_pred_tensor.squeeze()
+        # scores['precision_recall_curve'] = precision_recall_curve(y_pred_proba_tensor, y_true_tensor).numpy()
 
+    # Prediction based metrics
     if "accuracy" in scoring or "acc" in scoring:
         accuracy = Accuracy(num_classes=num_classes, task=task)
         scores["accuracy"] = accuracy(y_pred_tensor, y_true_tensor).item()

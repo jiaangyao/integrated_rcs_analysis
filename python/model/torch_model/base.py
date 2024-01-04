@@ -13,7 +13,8 @@ import torchmetrics
 
 import numpy as np
 import numpy.typing as npt
-from scipy.special import softmax  # type: ignore
+# from scipy.special import softmax  # type: ignore
+from torch.nn.functional import softmax
 
 import model.torch_model.torch_utils as ptu
 from dataset.torch_dataset import NeuralDataset, NeuralDatasetTest
@@ -70,39 +71,8 @@ class BaseTorchClassifier:
         y_pred = torch.cat(vec_y_pred, dim=0)
 
         return ptu.to_numpy(y_pred)
-
-    # TODO: Move get_accuracy and get_auc to Evaluation class??
-    # def get_accuracy(
-    #     self,
-    #     data: npt.NDArray,
-    #     label: npt.NDArray,
-    # ):
-    #     # obtain the prediction
-    #     y_pred = np.argmax(self.predict(data), axis=1)
-    #     y_pred = self._check_input(y_pred)
-
-    #     # if label is one-hot encoded, convert it to integer
-    #     y_real = self._check_input(label)
-
-    #     return np.sum(y_pred == y_real) / y_real.shape[0]
-
-    def predict_proba(self, data):
-        class_prob = softmax(self.predict(data), axis=1)
-
-        # if class_prob.shape[1] == 2:
-        #     class_prob = class_prob[:, 1]
-
-        return class_prob
     
-
     def get_activation(self, str_act):
-        # act_hash_map = ptu.get_act_func()
-        # if str_act in act_hash_map.keys():
-        #     act = act_hash_map[str_act]
-        # else:
-        #     raise NotImplementedError
-
-        # return act
         return ptu.get_act_func(str_act)
 
 class BaseTorchTrainer():
@@ -474,7 +444,7 @@ class BaseTorchModel(BaseModel):
     def reset_model(self) -> None:
         self.override_model(self.model_args, self.model_kwargs)
     
-    # TODO: Move predict to Classifier class?? Or bump up to BaseTorchModel? Or Keep here? 
+    # Note: This assumes the output of the model is a tensor of shape (batch_size, n_class), ref
     def predict(self, data: npt.NDArray) -> npt.NDArray:
         # initialize the dataset and dataloader for testing set
         test_dataset = NeuralDatasetTest(data)
@@ -500,56 +470,13 @@ class BaseTorchModel(BaseModel):
         # stack the prediction
         y_pred = torch.cat(vec_y_pred, dim=0)
 
-        return ptu.to_numpy(y_pred)
-
-    # TODO: Move get_accuracy and get_auc to Evaluation class??
-    # def get_accuracy(
-    #     self,
-    #     data: npt.NDArray,
-    #     label: npt.NDArray,
-    # ):
-    #     # obtain the prediction
-    #     y_pred = np.argmax(self.predict(data), axis=1)
-    #     y_pred = self._check_input(y_pred)
-
-    #     # if label is one-hot encoded, convert it to integer
-    #     y_real = self._check_input(label)
-
-    #     return np.sum(y_pred == y_real) / y_real.shape[0]
+        # return ptu.to_numpy(y_pred)
+        return y_pred
+ 
     
-    # def get_auc(
-    #     self,
-    #     scores: npt.NDArray,
-    #     label: npt.NDArray,
-    # ) -> npt.NDArray:
-    #     auc = torchmetrics.AUROC(task="multiclass", num_classes=self.model.n_class)(
-    #         torch.Tensor(scores), torch.Tensor(label).to(torch.long)
-    #     )
-
-    #     return ptu.to_numpy(auc)
+    def predict_proba(self, data):
+        class_prob = softmax(self.predict(data), axis=1)
+        return class_prob
     
-
-def init_model_torch(
-    str_model: str,
-    model_args: list | tuple = tuple(),
-    model_kwargs: dict | MappingProxyType = MappingProxyType(dict()),
-):
-    # TODO: avoid importing all models via *
-
-    if str_model == "MLP":
-        # initialize the model
-        model = MLPModelWrapper(
-            *model_args,
-            **model_kwargs,
-        )
-
-    elif str_model == "RNN":
-        # initialize the model
-        model = RNNModelWrapper(
-            *model_args,
-            **model_kwargs,
-        )
-    else:
-        raise NotImplementedError
-
-    return model
+    def predict_class(self, data):
+        return torch.argmax(self.predict(data), axis=1)

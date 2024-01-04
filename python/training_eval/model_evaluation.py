@@ -102,11 +102,22 @@ def create_eval_class_from_config(config, data_class):
         )
         data_class.assign_train_val_test_indices(train_inds, [], test_inds)
         data_class.train_test_split(train_inds, test_inds)
+        
     elif config["data_split"]["name"] == "LeavePGroupsOut":
         lpgo = LeavePGroupsOut(n_groups=config["data_split"]["n_groups"])
         # Assumes a random subset of groups are being held-out, so only take first fold
         # Further grouping splits should be handled by LeaveOneGroupOut cross-validation object
-        train_inds, test_inds = next(lpgo.split(data_class.X, groups=data_class.groups))
+        if not config["data_split"]["select_random"]:
+            train_inds, test_inds = next(lpgo.split(data_class.X, groups=data_class.groups))
+        else: # Select random fold
+            # Generate a random index
+            random_index = np.random.RandomState(config['random_seed']).randint(0, lpgo.get_n_splits(groups=data_class.groups) - 1)
+
+            # Iterate over the generator until you reach the random index
+            for i, (train_tmp, test_tmp) in enumerate(lpgo.split(data_class.X, groups=data_class.groups)):
+                if i == random_index:
+                    train_inds, test_inds = train_tmp, test_tmp
+                    
         data_class.assign_train_val_test_indices(train_inds, [], test_inds)
         data_class.train_test_split(train_inds, test_inds)
     
@@ -180,9 +191,10 @@ class VanillaValidation:
             metrics_by_epoch |= {"Epoch Val " + key: epoch_val_scores[key] for key in epoch_val_scores.keys()}
         
         model_class.model.eval()
-        y_pred = model_class.predict(X_val)
+        y_pred_proba = model_class.predict_proba(X_val)
+        y_pred = model_class.predict_class(X_val)
         
-        return custom_scorer_torch(y_val, y_pred, scoring, one_hot_encoded), metrics_by_epoch
+        return custom_scorer_torch(y_val, y_pred, y_pred_proba, scoring, one_hot_encoded), metrics_by_epoch
         
 # This model can be used as a base model, if people want a more specific evaluation class, they can create a new one
 class ModelEvaluation:
@@ -253,34 +265,6 @@ class ModelEvaluation:
             # Collect scores
             [scores[key].append(score) for key, score in fold_scores.items()]
 
-        # Deprecated code for cross_validate... to be removed unless needed
-        # if isinstance(self.val_object, _BaseKFold):
-        #     results = cross_validate(
-        #         model,
-        #         X_train,
-        #         y_train,
-        #         cv=self.val_object,
-        #         scoring=lambda clf, X, y: custom_scorer_sklearn(clf, X, y, self.scoring),
-        #         n_jobs=self.val_object.get_n_splits() + 1,
-        #     )
-        # elif isinstance(self.val_object, LeaveOneGroupOut):
-        #     # May need to pass groups as param
-        #     results = cross_val_score(
-        #         model,
-        #         X_train,
-        #         y_train,
-        #         cv=self.val_object,
-        #         groups=groups,
-        #         scoring=self.scoring,
-        #         n_jobs=self.val_object.get_n_splits() + 1,
-        #     )
-        # elif isinstance(self.val_object, VanillaValidation):
-        #     # For vanilla prediction on y_train
-        #     X_val, y_val = data_class.get_validation_data()
-        #     results = self.val_object.get_scores_sklearn(model, X_train, y_train, X_val, y_val, self.scoring)
-        # else:
-        #     raise ValueError(f"Validation object {self.val_object} is not recognized.")
-        # return results, {} # Empty lists for epoch losses and validation losses
         return scores, {} # Empty lists for epoch losses and validation losses
 
 

@@ -297,7 +297,7 @@ def main(cfg: DictConfig):
         logger.info("Local Directory Path: {}".format(config["run_dir"]))
         logger.info(f"WandB sweep config: {sweep_config}")
         ho.initialize_wandb_params(
-            config["run_dir"], config["wandb"]["group"], config["wandb"]["tags"]
+            config["run_dir"], config["wandb"]["group"], config["wandb"]["tags"], config["wandb"]["notes"]
         )
         
         # Run sweep

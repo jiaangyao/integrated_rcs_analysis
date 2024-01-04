@@ -137,16 +137,25 @@ class AttnSleepEnsembleModel(BaseTorchModel):
         # stack the prediction
         y_pred = torch.cat(vec_y_pred, dim=0)
 
-        return ptu.to_numpy(y_pred)
+        # return ptu.to_numpy(y_pred)
+        return y_pred
     
     
     def predict(self, X):
         
         assert len(self.model.model_ensemble) == X.shape[1], "Number of models in ensemble does not match number of channels. Ensure channel dimension is dimension 1 (Can use channel_options: group channels)."
         # Return the stacked prediction probabilities for each model
-        return np.stack([
-            self._predict_single_model(np.expand_dims(X[:,i,:], 1), self.model.model_ensemble[i]) for i in range(self.num_models)
-        ], axis=0)
+        return torch.stack([
+            self._predict_single_model(torch.unsqueeze(X[:,i,:], 1), self.model.model_ensemble[i]) for i in range(self.num_models)
+        ], dim=0)
+    
+    
+    def predict_proba(self, X):
+        return torch.mean(self.predict(X), axis=0)
+    
+    
+    def predict_classes(self, X):
+        return torch.mode(self.predict(X), axis=0)[0]
     
     
     def reset_model(self) -> None:
