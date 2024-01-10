@@ -98,6 +98,7 @@ def main(cfg: DictConfig):
         logger.info(f"Label vector shape: {y.shape}")
 
 
+    # TODO: Ensure class imbalance is only run on training data
     # Class Imbalance Correction
     if imb_config := config.get("class_imbalance"):
         X, y, groups = class_imbalance_pipeline.run_class_imbalance_correction(X, y, groups, imb_config, logger)
@@ -110,7 +111,6 @@ def main(cfg: DictConfig):
     
 
     # Evaluation Setup (i.e. CV, scoring metrics, etc...)
-    # TODO: Train/Val/Test split does not split groups... which leads to error using LOGO CV
     if evaluation_config := config.get("evaluation"):
         eval = create_eval_class_from_config(evaluation_config, data)
         
@@ -129,12 +129,14 @@ def main(cfg: DictConfig):
             model_kwargs["early_stopping"] = early_stopping
 
         model_class = find_and_load_class("model", model_name, kwargs=model_kwargs)
+        # TODO: SkorchModel is not fully implemented yet
         if evaluation_config["model_type"] == "skorch":
-            model_class = SkorchModel(model_class)
+            raise NotImplementedError("SkorchModel is not fully implemented yet.")
+            # model_class = SkorchModel(model_class)
     
 
     # Hyperparameter Tuning and/or Model Training
-    # Note: If hyperparameter_optimization is not specified, 
+    # Note: If hyperparameter_optimization field 'search_library' is not specified, 
     # then the model will be trained and evaluated with default hyperparameters defined in model yaml file
     if config.get("hyperparameter_optimization") is not None:
         sweep_url, sweep_id, best_run_config = hyperparam_opt_pipeline.run_hyperparameter_search(
@@ -147,11 +149,10 @@ def main(cfg: DictConfig):
         # Pass best_run_config to test_model_config, if desired
         if test_model_config["model_options"]['model_instantiation'] == "from_WandB_sweep":
             test_model_config['model_options']['best_run_config'] = best_run_config
-            
+        
+        # Test model and log results
         test_model_pipeline.test_model(model_class, eval, data, test_model_config, logger)
-        # 1. Train model on entire training set
-        # 2. Evaluate model on test set
-        # Not implemented yet
+
     
     # Save Model
     # TODO: Consider moving this elsewhere

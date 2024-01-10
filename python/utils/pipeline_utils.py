@@ -221,6 +221,7 @@ def save_model(save_model_config, model, logger):
     Saves model as a pickle or torch file in the specified path.
     """
     model_path = save_model_config["model_path"]
+    
     if save_model_config["save_type"] == "pickle":
         model_path = os.path.join(model_path, ".pkl")
         with open(model_path, "wb") as f:

@@ -158,9 +158,9 @@ class VanillaValidation:
     def __init__(self) -> None:
         pass
     
-    def get_scores_sklearn(self, model, X_train, y_train, X_val, y_val, scoring):
-        model.fit(X_train, y_train)
-        return custom_scorer_sklearn(y_val, model.predict(X_val), scoring)
+    def get_scores_sklearn(self, model_class, X_train, y_train, X_val, y_val, scoring):
+        model_class.model.fit(X_train, y_train)
+        return custom_scorer_sklearn(model_class.model, X_val, y_val, scoring)
     
             
             
@@ -205,6 +205,7 @@ class ModelEvaluation:
         self.model_type = model_type
         self.random_seed = random_seed # Likely to be deprecated
         self.determine_evaluation_method()
+        self.determine_test_method()
 
     def determine_evaluation_method(self):
         if self.model_type == "torch":
@@ -217,14 +218,32 @@ class ModelEvaluation:
             raise ValueError(
                 f"Model {self.model_type} is not recognized for determining evaulation method."
             )
+            
 
     def evaluate_model(self, model_class, data_class):
         # Note: This function first fits then evaluates the model.
         # To just get scores on an already fit model, use get_scores()
         return self.evaluate_model_specific(model_class, data_class)
+    
+    
+    def determine_test_method(self):
+        if self.model_type == "torch":
+            self.test_model_specific = self.test_model_torch
+            self.is_torch = True
+        elif self.model_type == "sklearn" or self.model_type == "skorch":
+            self.test_model_specific = self.test_model_sklearn
+            self.is_torch = False
+        else:
+            raise ValueError(
+                f"Model {self.model_type} is not recognized for determining evaulation method."
+            )
+    
+    def test_model(self, model_class, data_class):
+        # Note: This function first fits then tests the model on test set.
+        # To just get scores on an already fit model, use get_scores()
+        return self.test_model_specific(model_class, data_class)
 
 
-    # TODO: Figure out if I need groups param if I set up LeaveOneGroupOut.split(X,y groups) in uncostrained_pipeline.py -> set_up_cross_validation
     def evaluate_model_sklearn(self, model_class, data_class):
         """
         Evaluate a machine learning model using cross-validation and return the results.
@@ -241,10 +260,6 @@ class ModelEvaluation:
         dict: A
         """
         # TODO: Parameterize n_jobs
-        # Evaluate predictions
-        X_train, y_train = data_class.get_training_data()
-        # groups = data_class.groups
-        # model = model_class.model
         
         scores = {}
         
@@ -293,6 +308,63 @@ class ModelEvaluation:
 
         # scores = {f"{key}_mean": np.mean(scores[key]) for key in scores} | {f"{key}_std": np.std(scores[key]) for key in scores}
         return scores, metrics_by_epoch
+    
+    
+    def test_model_sklearn(self, model_class, data_class):
+        """
+        Evaluate a machine learning model using cross-validation and return the results.
+
+        Parameters:
+        model (object): The machine learning model to evaluate.
+        X_train: The training data features.
+        y_train: The training data labels.
+        validation_obj: The cross-validation object to use for evaluation.
+        scoring: The scoring metric(s) to use for evaluation.
+        groups: The group labels to use for group-based cross-validation (optional).
+
+        Returns:
+        dict: A
+        """
+        
+        scores = {}
+        
+        for key in self.scoring: scores[key] = []
+            
+        X_train, y_train = data_class.get_training_data()
+        X_test, y_test = data_class.get_testing_data()
+
+        model_class.model.fit(X_train, y_train)
+        
+        fold_scores = custom_scorer_sklearn(model_class.model, X_test, y_test, self.scoring)
+        
+        # Collect scores
+        [scores[key].append(score) for key, score in fold_scores.items()]
+
+        return scores, {} # Empty lists for epoch losses and validation losses
+    
+    
+    def test_model_torch(self, model_class, data_class):
+        scores = {}
+        metrics_by_epoch = {}
+        vanilla_validation = VanillaValidation()
+        
+        for key in self.scoring: scores[key] = []
+        
+        X_train, y_train = data_class.get_training_data()
+        X_test, y_test = data_class.get_testing_data()
+
+        # Train and get test
+        fold_scores, fold_metrics_by_epoch = vanilla_validation.get_scores_torch(model_class, X_train, y_train, X_test, y_test, self.scoring, data_class.one_hot_encoded)
+        
+        # Collect scores
+        [scores[key].append(score) for key, score in fold_scores.items()]
+        
+        [metrics_by_epoch.setdefault(key, []) for key in fold_metrics_by_epoch.keys()]
+        [metrics_by_epoch[key].append(score) for key, score in fold_metrics_by_epoch.items()]
+
+        # scores = {f"{key}_mean": np.mean(scores[key]) for key in scores} | {f"{key}_std": np.std(scores[key]) for key in scores}
+        return scores, metrics_by_epoch
+    
     
     # NOT DEBUGGED
     def get_scores(self, model, X, y, one_hot_encoded=False):
