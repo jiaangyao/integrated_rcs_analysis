@@ -475,8 +475,8 @@ class BaseTorchModel(BaseModel):
  
     
     def predict_proba(self, data):
-        class_prob = softmax(self.predict(data), axis=1)
+        class_prob = softmax(self.predict(data), dim=1)
         return class_prob
     
     def predict_class(self, data):
-        return torch.argmax(self.predict(data), axis=1)
+        return torch.argmax(self.predict(data), dim=1)

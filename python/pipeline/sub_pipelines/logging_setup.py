@@ -9,6 +9,25 @@ from utils.file_utils import (
     save_conda_package_versions,
 )
 
+def wandb_setup(config, wandb_setup_conf):
+    
+    wandb.config = config
+    run = wandb.init(
+        entity=wandb_setup_conf.get("entity"),
+        project=wandb_setup_conf.get("project"),
+        group=wandb_setup_conf.get("group"),
+        tags=wandb_setup_conf.get("tags"),
+        notes=wandb_setup_conf.get("notes"),
+        dir=config.get("path_run"),
+    )
+    logger.info("WandB run url: {}".format(run.url))
+    logger.info("WandB project: {}".format(run.project))
+    logger.info("WandB entity: {}".format(run.entity))
+    logger.info("WandB run name: {}".format(run.name))
+    logger.info("WandB run id: {}".format(run.id))
+    logger.info("Local Directory Path: {}".format(config["path_run"]))
+    wandb.log({"metadata/local_dir": config.get("path_run")})
+
 
 def setup(config, WandB_hyperopt=False):
     logger.add(
@@ -31,24 +50,9 @@ def setup(config, WandB_hyperopt=False):
 
     # 2. Log config file to wandb, set up hydra logging, and save to disk
     if (
-        (wandb_setup := config.get("wandb")) is not None
+        (wandb_setup_conf := config.get("wandb")) is not None
         and not WandB_hyperopt
     ):
-        wandb.config = config
-        run = wandb.init(
-            entity=wandb_setup.get("entity"),
-            project=wandb_setup.get("project"),
-            group=wandb_setup.get("group"),
-            tags=wandb_setup.get("tags"),
-            notes=wandb_setup.get("notes"),
-            dir=config.get("path_run"),
-        )
-        logger.info("WandB run url: {}".format(run.url))
-        logger.info("WandB project: {}".format(run.project))
-        logger.info("WandB entity: {}".format(run.entity))
-        logger.info("WandB run name: {}".format(run.name))
-        logger.info("WandB run id: {}".format(run.id))
-        logger.info("Local Directory Path: {}".format(config["path_run"]))
-        wandb.log({"metadata/local_dir": config.get("path_run")})
+        wandb_setup(config, wandb_setup_conf)
 
     return logger

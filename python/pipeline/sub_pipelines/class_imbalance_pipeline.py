@@ -106,5 +106,8 @@ def run_class_imbalance_correction(X, y, groups, imb_config, logger):
         logger.info(f"Label vector shape: {y.shape}")
     except ValueError as e:
         logger.warning(f"Class imbalance strategy error: \n\t {e}.")
+    
+    if groups is not None:
+        groups = groups.squeeze()
 
-    return X, y, groups.squeeze()
+    return X, y, groups

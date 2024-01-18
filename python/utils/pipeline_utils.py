@@ -12,6 +12,24 @@ import pickle
 import joblib
 
 
+from pipeline.sub_pipelines import logging_setup
+
+
+def setup_logging(config: dict):
+
+    # Logging Setup
+    # Check if hyperparameter optimization is desired... needs to be passed to setup
+    if hyperopt_conf := config.get("hyperparameter_optimization"):
+        if hyperopt_conf.get("search_library") and hyperopt_conf.get("search_library").lower() == "wandb":
+            WandB_hyperopt = True
+        else:
+            WandB_hyperopt = False
+    else:
+        WandB_hyperopt = False
+    logger = logging_setup.setup(config["setup"], WandB_hyperopt=WandB_hyperopt)
+    return logger
+
+
 def get_callable_function(func_name):
     """
     Get a callable function handle from a string like 'module.function'.
@@ -223,18 +241,18 @@ def save_model(save_model_config, model, logger):
     model_path = save_model_config["model_path"]
     
     if save_model_config["save_type"] == "pickle":
-        model_path = os.path.join(model_path, ".pkl")
+        model_path = model_path + ".pkl"
         with open(model_path, "wb") as f:
             pickle.dump(model, f)
         logger.info(f"Model saved as pickle file to {model_path}")
         
     elif save_model_config["save_type"] == "torch":
-        model_path = os.path.join(model_path, ".pt")
+        model_path = model_path + ".pt"
         torch.save(model, model_path)
         logger.info(f"Model saved as torch file to {model_path}")
         
     elif save_model_config["save_type"] == "joblib":
-        model_path = os.path.join(model_path, ".pkl")
+        model_path = model_path + ".pkl"
         joblib.dump(model, model_path)
         logger.info(f"Model saved as pickle file to {model_path} using joblib")
         

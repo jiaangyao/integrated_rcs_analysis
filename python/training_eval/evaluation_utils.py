@@ -31,7 +31,7 @@ from torchmetrics import (
 def check_fitted(clf): 
     return hasattr(clf, "classes_")
 
-def get_num_classes(y_true, y_pred, one_hot_encoded):
+def get_num_classes(y_true, y_pred, y_pred_proba, one_hot_encoded):
     """
     Determines the number of classes based on the true and predicted labels.
 
@@ -46,7 +46,7 @@ def get_num_classes(y_true, y_pred, one_hot_encoded):
     # Take the max of the number of classes in y_true and y_pred, 
     # in case all classes are not present in one
     if one_hot_encoded:
-        num_classes = np.max([y_true.shape[-1], y_pred.shape[-1]])
+        num_classes = max(len(np.unique(y_true)), y_pred_proba.shape[-1])
     else:
         num_classes = max(len(np.unique(y_true)), len(np.unique(y_pred)))
     return int(num_classes)
@@ -82,17 +82,22 @@ def custom_scorer_torch(y_true, y_pred, y_pred_proba, scoring, one_hot_encoded=F
         y_true_tensor = torch.argmax(y_true_tensor, axis=-1)
     
     if not isinstance(y_pred, torch.Tensor):
-        y_pred_tensor = torch.tensor(y_pred)
+        y_pred_tensor = torch.tensor(y_pred).to_device()
     else:
         y_pred_tensor = y_pred
         
     if not isinstance(y_pred_proba, torch.Tensor):
-        y_pred_proba_tensor = torch.tensor(y_pred_proba)
+        y_pred_proba_tensor = torch.tensor(y_pred_proba).to_device()
     else:
         y_pred_proba_tensor = y_pred_proba
     
+    # Put all tensors on the same device
+    y_true_tensor = y_true_tensor.detach().cpu()
+    y_pred_tensor = y_pred_tensor.detach().cpu()
+    y_pred_proba_tensor = y_pred_proba_tensor.detach().cpu()
+    
     # Get number of classes   
-    num_classes = get_num_classes(y_true, y_pred, one_hot_encoded)
+    num_classes = get_num_classes(y_true, y_pred, y_pred_proba, one_hot_encoded)
     if num_classes == 2:
         task = "binary"
     else:

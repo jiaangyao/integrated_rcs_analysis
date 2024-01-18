@@ -28,7 +28,9 @@ def train_test_split_inds(X, test_size=0.2, random_seed=42, shuffle=True, strati
         - inds_X_train (array-like): The indices of the training set.
         - inds_X_test (array-like): The indices of the test set.
         """
+        # Manage parameter edge cases
         if shuffle is None: shuffle = False
+        if stratify is not None: shuffle = True
         
         inds = np.arange(len(X))
         inds_train, inds_test = train_test_split(
@@ -88,8 +90,18 @@ def set_up_cross_validation(config_dict, libs):
         return func(**kwargs)
 
 
-def create_eval_class_from_config(config, data_class):
-        
+def implement_train_test_split(config, data_class, logger=None):
+    """
+    Implements the train-test split based on the configuration parameters.
+
+    Args:
+        config (dict): Configuration parameters for the train-test split.
+        data_class (object): Data class object containing the data and labels.
+
+    Returns:
+        None
+    """
+    
     if config["data_split"]["name"] == "TrainTestSplit":
         if config['data_split'].get('stratify') is True:
             stratify = data_class.y
@@ -120,11 +132,39 @@ def create_eval_class_from_config(config, data_class):
                     
         data_class.assign_train_val_test_indices(train_inds, [], test_inds)
         data_class.train_test_split(train_inds, test_inds)
+        
+    if logger is not None:
+        logger.info(f"Train Size: {len(train_inds)}")
+        logger.info(f"Test Size: {len(test_inds)}")
     
+    return None
 
+
+def set_up_training_validation_folds(config, data_class):
+    """
+    Sets up the training and validation folds for model evaluation. Creates fold indices for training data and stores them in the data class object.
+    Ignores test (i.e. hold-out) data.
+
+    Args:
+        config (dict): Configuration parameters for setting up the folds.
+        data_class (object): Object containing the training and validation data.
+
+    Returns:
+        tuple: A tuple containing the name of the validation method and the validation object.
+
+    Raises:
+        None
+
+    """
+    
     # TODO: Expand to multiple (i.e. more than one) validation methods? Could potentially be useful for comparing different methods... store as list?
+    
+    # In the case that no validation method is specified, return None. This may be useful in the case where a data_class with folds is imported into the main pipeline.
+    if config.get("validation_method") is None:
+        return None, None
+    
     validation_name = list(config["validation_method"].keys())[0]
-    if 'fold' in validation_name.lower() or 'group' in validation_name.lower():
+    if 'fold' in validation_name.lower() or 'group' in validation_name.lower(): # StratifiedKFold, GroupKFold, etc...
         config["validation_method"]["random_state"] = config["random_seed"]
         val_object = set_up_cross_validation(config["validation_method"], VALIDATION_LIBRARIES)
 
@@ -148,6 +188,75 @@ def create_eval_class_from_config(config, data_class):
         train_fold, test_fold = train_test_split_inds(data_class.X_train, vanilla_val_config["validation_size"], random_seed=config["random_seed"])
         data_class.folds = [{"train": train_fold, "val": test_fold}]
         val_object = None
+    
+    return validation_name, val_object
+
+
+def create_eval_class_from_config(config, data_class):
+        
+    # if config["data_split"]["name"] == "TrainTestSplit":
+    #     if config['data_split'].get('stratify') is True:
+    #         stratify = data_class.y
+    #     train_inds, test_inds = train_test_split_inds(
+    #         data_class.X,
+    #         config['data_split']["test_size"], 
+    #         config["random_seed"],
+    #         shuffle=config['data_split'].get('shuffle'),
+    #         stratify=stratify
+    #     )
+    #     data_class.assign_train_val_test_indices(train_inds, [], test_inds)
+    #     data_class.train_test_split(train_inds, test_inds)
+        
+    # elif config["data_split"]["name"] == "LeavePGroupsOut":
+    #     lpgo = LeavePGroupsOut(n_groups=config["data_split"]["n_groups"])
+    #     # Assumes a random subset of groups are being held-out, so only take first fold
+    #     # Further grouping splits should be handled by LeaveOneGroupOut cross-validation object
+    #     if not config["data_split"]["select_random"]:
+    #         train_inds, test_inds = next(lpgo.split(data_class.X, groups=data_class.groups))
+    #     else: # Select random fold
+    #         # Generate a random index
+    #         random_index = np.random.RandomState(config['random_seed']).randint(0, lpgo.get_n_splits(groups=data_class.groups) - 1)
+
+    #         # Iterate over the generator until you reach the random index
+    #         for i, (train_tmp, test_tmp) in enumerate(lpgo.split(data_class.X, groups=data_class.groups)):
+    #             if i == random_index:
+    #                 train_inds, test_inds = train_tmp, test_tmp
+                    
+    #     data_class.assign_train_val_test_indices(train_inds, [], test_inds)
+    #     data_class.train_test_split(train_inds, test_inds)
+    
+    # Move this to different pipeline function?
+    # implement_train_test_split(config, data_class)
+    
+
+    # # TODO: Expand to multiple (i.e. more than one) validation methods? Could potentially be useful for comparing different methods... store as list?
+    # validation_name = list(config["validation_method"].keys())[0]
+    # if 'fold' in validation_name.lower() or 'group' in validation_name.lower():
+    #     config["validation_method"]["random_state"] = config["random_seed"]
+    #     val_object = set_up_cross_validation(config["validation_method"], VALIDATION_LIBRARIES)
+
+    #     if data_class.one_hot_encoded:
+    #         y_tmp = data_class.y_train.argmax(axis=1)
+    #     else:
+    #         y_tmp = data_class.y_train
+            
+    #     if data_class.groups is None:
+    #         data_class.folds = [{'train': train_fold, 'val': test_fold}
+    #                             for (train_fold, test_fold) 
+    #                             in val_object.split(data_class.X_train, y_tmp)]
+    #     else:
+    #         data_class.folds = [{'train': train_fold, 'val': test_fold,}
+    #                             for (train_fold, test_fold) 
+    #                             in val_object.split(data_class.X_train, y_tmp, groups=data_class.groups_train)]
+            
+    # # Treating VanillaValidation as special case of 1 fold cross validation
+    # elif "vanilla" in validation_name.lower():
+    #     vanilla_val_config = config["validation_method"].get(validation_name)
+    #     train_fold, test_fold = train_test_split_inds(data_class.X_train, vanilla_val_config["validation_size"], random_seed=config["random_seed"])
+    #     data_class.folds = [{"train": train_fold, "val": test_fold}]
+    #     val_object = None
+    
+    validation_name, val_object = set_up_training_validation_folds(config, data_class)
 
     return ModelEvaluation(validation_name, val_object, config["scoring"], config["model_type"], config["random_seed"])
 

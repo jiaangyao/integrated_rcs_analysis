@@ -1,4 +1,5 @@
 import wandb
+import subprocess
 
 # Libraries for hyperparameter tuning
 from training_eval.hyperparameter_optimization import HyperparameterOptimization
@@ -95,6 +96,8 @@ def run_hyperparameter_search(config, model_class, data, eval, logger):
         # Access the configuration of the best run
         best_run_config = best_run.config
         
+        # Finish sweep. As of 2024-01-11, need to use CLI
+        # subprocess.run(["wandb", "sweep", "--stop", sweep_address])
         
         return sweep_url, sweep_id, best_run_config
 

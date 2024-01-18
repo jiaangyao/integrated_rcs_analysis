@@ -28,7 +28,7 @@ from dataset.data_class import MLData
 from utils.file_utils import add_config_to_csv
 
 # Libraries for model evaluation
-from training_eval.model_evaluation import create_eval_class_from_config
+from training_eval.model_evaluation import create_eval_class_from_config, implement_train_test_split
 
 # Libraries for model selection
 from model.torch_model.skorch_model import SkorchModel
@@ -36,7 +36,7 @@ from model.torch_model.skorch_model import SkorchModel
 # Libraries for hyperparameter tuning
 
 # Variables
-CONFIG_PATH = "/home/claysmyth/code/configs/lightgbm_test_LOGO_and_data_fold_consistency"
+CONFIG_PATH = "/home/claysmyth/code/configs/psd_mlp_sleep"
 CONFIG_NAME = "pipeline_main"
 
 
@@ -51,16 +51,9 @@ def main(cfg: DictConfig):
     config = OrderedDict(
         OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
     )
-    # Logging Setup
-    # Check if hyperparameter optimization is desired... needs to be passed to setup
-    if hyperopt_conf := config.get("hyperparameter_optimization"):
-        if hyperopt_conf.get("search_library") and hyperopt_conf.get("search_library").lower() == "wandb":
-            WandB_hyperopt = True
-        else:
-            WandB_hyperopt = False
-    else:
-        WandB_hyperopt = False
-    logger = logging_setup.setup(config["setup"], WandB_hyperopt=WandB_hyperopt)
+    
+    # Setup logging, WandB, and save code, git info, and config file to run directory
+    logger = setup_logging(config)
 
     # Load data (save data versioning somewhere)
     logger.info(f"Loading data with data params {config['data_source']}")
@@ -98,19 +91,25 @@ def main(cfg: DictConfig):
         logger.info(f"Label vector shape: {y.shape}")
 
 
-    # TODO: Ensure class imbalance is only run on training data
-    # Class Imbalance Correction
-    if imb_config := config.get("class_imbalance"):
-        X, y, groups = class_imbalance_pipeline.run_class_imbalance_correction(X, y, groups, imb_config, logger)
-        
-    # Feature Selection
-        # Not implemented yet
-
     # Set up data object once all preprocessing and feature engineering is complete
     data = MLData(X=X, y=y, groups=groups, one_hot_encoded=one_hot_encoded)
     
 
-    # Evaluation Setup (i.e. CV, scoring metrics, etc...)
+    # Implement train-test split, if desired. Comes before class imbalance correction, because class imbalance correction should only be run on training data.
+    if evaluation_config := config.get("evaluation"):
+        implement_train_test_split(evaluation_config, data, logger)
+        
+        
+    # TODO: Ensure class imbalance is only run on training data
+    # Class Imbalance Correction
+    if imb_config := config.get("class_imbalance"):
+        data.X_train, data.y_train, data.groups_train = class_imbalance_pipeline.run_class_imbalance_correction(data.X_train, data.y_train, data.groups_train, imb_config, logger)
+        
+        
+    # Feature Selection
+        # Not implemented yet
+
+    # Evaluation Setup (i.e. CV and training folds, scoring metrics, etc...)
     if evaluation_config := config.get("evaluation"):
         eval = create_eval_class_from_config(evaluation_config, data)
         
@@ -143,15 +142,32 @@ def main(cfg: DictConfig):
             config, model_class, data, eval, logger
         )
     
-    # Test model on test set
-    if test_model_config := config.get("test_model") and best_run_config in locals():
+    # Test model on test (i.e. hold-out) set
+    if test_model_config := config.get("test_model"):
+        
+        model_instantiation = test_model_config.get("model_instantiation")
         
         # Pass best_run_config to test_model_config, if desired
-        if test_model_config["model_options"]['model_instantiation'] == "from_WandB_sweep":
-            test_model_config['model_options']['best_run_config'] = best_run_config
+        if model_instantiation == "from_WandB_sweep" and best_run_config in locals():
+            test_model_config['best_run_config'] = best_run_config
         
-        # Test model and log results
-        test_model_pipeline.test_model(model_class, eval, data, test_model_config, logger)
+        # Re-initialze setup and add extra 'test' tag and 'test' info to indicate that this is a test run
+        if test_model_config.get("reinit_wandb"):
+            
+            # Close previous WandB
+            if wandb.run is not None:
+                wandb.finish()
+                
+            if 'test' not in config["setup"]["wandb"]["tags"]:
+                config["setup"]["wandb"]["tags"].append("test")
+            
+            # Reinitialize WandB
+            logging_setup.wandb_setup(config["setup"], config["setup"]["wandb"])
+        
+        # Train model on entire training set, then test model on test (i.e. hold-out) set and log results
+        test_model_pipeline.test_model(model_class, eval, data, config, test_model_config, logger)
+        
+        # Log entry to pipeline runs tracking csv
 
     
     # Save Model
