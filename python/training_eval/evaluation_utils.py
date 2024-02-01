@@ -14,6 +14,7 @@ from sklearn.metrics import (
 )
 
 import torch
+
 # TODO: Probably should switch to torchmetrics.functional.<metric> ... these functions keep past states in memory...
 from torchmetrics import (
     Accuracy,
@@ -28,8 +29,10 @@ from torchmetrics import (
     PrecisionRecallCurve,
 )
 
-def check_fitted(clf): 
+
+def check_fitted(clf):
     return hasattr(clf, "classes_")
+
 
 def get_num_classes(y_true, y_pred, y_pred_proba, one_hot_encoded):
     """
@@ -43,7 +46,7 @@ def get_num_classes(y_true, y_pred, y_pred_proba, one_hot_encoded):
     Returns:
         int: The number of classes.
     """
-    # Take the max of the number of classes in y_true and y_pred, 
+    # Take the max of the number of classes in y_true and y_pred,
     # in case all classes are not present in one
     if one_hot_encoded:
         num_classes = max(len(np.unique(y_true)), y_pred_proba.shape[-1])
@@ -76,42 +79,48 @@ def custom_scorer_torch(y_true, y_pred, y_pred_proba, scoring, one_hot_encoded=F
         y_true_tensor = torch.tensor(y_true)
     else:
         y_true_tensor = y_true
-    
+
     # These metrics assume that y_true is not one-hot encoded
-    if one_hot_encoded: # Convert y_true to class labels
+    if one_hot_encoded:  # Convert y_true to class labels
         y_true_tensor = torch.argmax(y_true_tensor, axis=-1)
-    
+
     if not isinstance(y_pred, torch.Tensor):
         y_pred_tensor = torch.tensor(y_pred).to_device()
     else:
         y_pred_tensor = y_pred
-        
+
     if not isinstance(y_pred_proba, torch.Tensor):
         y_pred_proba_tensor = torch.tensor(y_pred_proba).to_device()
     else:
         y_pred_proba_tensor = y_pred_proba
-    
+
     # Put all tensors on the same device
     y_true_tensor = y_true_tensor.detach().cpu()
     y_pred_tensor = y_pred_tensor.detach().cpu()
     y_pred_proba_tensor = y_pred_proba_tensor.detach().cpu()
-    
-    # Get number of classes   
+
+    # Get number of classes
     num_classes = get_num_classes(y_true, y_pred, y_pred_proba, one_hot_encoded)
     if num_classes == 2:
         task = "binary"
     else:
         task = "multiclass"
-    
+
     # Probability based metrics
     if ("roc_auc" in scoring or "auc" in scoring) and one_hot_encoded:
-        roc_auc = AUROC(num_classes=num_classes, average='weighted', task=task)
+        roc_auc = AUROC(num_classes=num_classes, average="weighted", task=task)
         scores["roc_auc"] = roc_auc(y_pred_proba_tensor, y_true_tensor).item()
-    
-    if ('precision_recall_curve' in scoring or 
-            'prc' in scoring or 'pr_curve' in scoring or 
-            'precisionrecallcurve' in scoring or 'prcurve' in scoring) and one_hot_encoded:
-        raise NotImplementedError("Precision recall curve is not yet implemented for one-hot encoded data.")
+
+    if (
+        "precision_recall_curve" in scoring
+        or "prc" in scoring
+        or "pr_curve" in scoring
+        or "precisionrecallcurve" in scoring
+        or "prcurve" in scoring
+    ) and one_hot_encoded:
+        raise NotImplementedError(
+            "Precision recall curve is not yet implemented for one-hot encoded data."
+        )
         # precision_recall_curve = PrecisionRecallCurve(num_classes=num_classes, task=task)
         # scores['precision_recall_curve'] = precision_recall_curve(y_pred_proba_tensor, y_true_tensor).numpy()
 
@@ -121,43 +130,56 @@ def custom_scorer_torch(y_true, y_pred, y_pred_proba, scoring, one_hot_encoded=F
         scores["accuracy"] = accuracy(y_pred_tensor, y_true_tensor).item()
 
     if "precision" in scoring:
-        precision = Precision(average='weighted', num_classes=num_classes, task=task)
+        precision = Precision(average="weighted", num_classes=num_classes, task=task)
         scores["precision"] = precision(y_pred_tensor, y_true_tensor).item()
 
     if "recall" in scoring:
-        recall = Recall(average='weighted', num_classes=num_classes, task=task)
+        recall = Recall(average="weighted", num_classes=num_classes, task=task)
         scores["recall"] = recall(y_pred_tensor, y_true_tensor).item()
 
     if "f1" in scoring:
-        f1 = F1Score(average='weighted', num_classes=num_classes, task=task)
+        f1 = F1Score(average="weighted", num_classes=num_classes, task=task)
         scores["f1"] = f1(y_pred_tensor, y_true_tensor).item()
 
     if "average_precision" in scoring:
-        average_precision = AveragePrecision(num_classes=num_classes, average='weighted', task=task)
-        scores["average_precision"] = average_precision(y_pred_tensor, y_true_tensor).item()
+        average_precision = AveragePrecision(
+            num_classes=num_classes, average="weighted", task=task
+        )
+        scores["average_precision"] = average_precision(
+            y_pred_tensor, y_true_tensor
+        ).item()
 
     if "cohen_kappa" in scoring or "kappa" in scoring or "cohenkappa" in scoring:
         cohen_kappa = CohenKappa(num_classes=num_classes, task=task)
         scores["cohen_kappa"] = cohen_kappa(y_pred_tensor, y_true_tensor).item()
 
-    if "matthews_corrcoef" in scoring or "mcc" in scoring or "matthewscorrcoef" in scoring:
+    if (
+        "matthews_corrcoef" in scoring
+        or "mcc" in scoring
+        or "matthewscorrcoef" in scoring
+    ):
         matthews_corrcoef = MatthewsCorrCoef(num_classes=num_classes, task=task)
-        scores["matthews_corrcoef"] = matthews_corrcoef(y_pred_tensor, y_true_tensor).item()
-        
+        scores["matthews_corrcoef"] = matthews_corrcoef(
+            y_pred_tensor, y_true_tensor
+        ).item()
+
     if "confusion_matrix" in scoring or "confusionmatrix" in scoring:
         confusion_matrix = ConfusionMatrix(num_classes=num_classes, task=task)
-        scores["confusion_matrix"] = confusion_matrix(y_pred_tensor, y_true_tensor).numpy()
+        scores["confusion_matrix"] = confusion_matrix(
+            y_pred_tensor, y_true_tensor
+        ).numpy()
 
     return scores
 
+
 # Define function to calculate desired scores
 def custom_scorer_sklearn(clf, X_val, y_true, scoring):
-    assert check_fitted(clf) # Ensure that the model is fitted
-    
+    assert check_fitted(clf)  # Ensure that the model is fitted
+
     y_pred = clf.predict(X_val)
     y_pred_proba = clf.predict_proba(X_val)
     scores = {}
-    
+
     # Prediction based metrics
     if "accuracy" in scoring or "acc" in scoring or "ACC" in scoring:
         scores["accuracy"] = accuracy_score(y_true, y_pred)
@@ -176,17 +198,28 @@ def custom_scorer_sklearn(clf, X_val, y_true, scoring):
         scores["matthews_corrcoef"] = matthews_corrcoef(y_true, y_pred)
     if "confusion_matrix" in scoring:
         scores["confusion_matrix"] = confusion_matrix(y_true, y_pred)
-    
+
     # Confidence/Probability based metrics
     if "roc_auc" in scoring or "auc" in scoring or "AUC" in scoring:
         scores["roc_auc"] = roc_auc_score(
-            y_true, y_pred_proba,
+            y_true,
+            y_pred_proba,
         )
-    if "roc_auc_ovr" in scoring or "auc_ovr" in scoring or "AUC_OVR" in scoring or "AUC_ovr" in scoring:
+    if (
+        "roc_auc_ovr" in scoring
+        or "auc_ovr" in scoring
+        or "AUC_OVR" in scoring
+        or "AUC_ovr" in scoring
+    ):
         scores["roc_auc_ovr"] = roc_auc_score(
             y_true, y_pred_proba, average="weighted", multi_class="ovr"
         )
-    if "roc_auc_ovo" in scoring or "auc_ovo" in scoring or "AUC_OVO" in scoring or "AUC_ovo" in scoring:
+    if (
+        "roc_auc_ovo" in scoring
+        or "auc_ovo" in scoring
+        or "AUC_OVO" in scoring
+        or "AUC_ovo" in scoring
+    ):
         scores["roc_auc_ovo"] = roc_auc_score(
             y_true, y_pred_proba, average="weighted", multi_class="ovo"
         )
@@ -194,7 +227,7 @@ def custom_scorer_sklearn(clf, X_val, y_true, scoring):
         scores["average_precision"] = average_precision_score(
             y_true, y_pred_proba, average="weighted", multi_class="ovr"
         )
-        
+
     if "classification_report" in scoring:
         # ! NOT DEBUGGED YET
         scores["classification_report"] = classification_report(y_true, y_pred)

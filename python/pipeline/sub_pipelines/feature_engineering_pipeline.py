@@ -32,7 +32,14 @@ def create_feature_pipe_object(feature_eng_funcs):
 
 
 def process_features(
-    X, feature_pipe, pipe_string, channel_options, stacked_channels, num_channels, num_rows, logger
+    X,
+    feature_pipe,
+    pipe_string,
+    channel_options,
+    stacked_channels,
+    num_channels,
+    num_rows,
+    logger,
 ):
     """
     Applies a feature extraction pipeline to the data and transforms it based on channel options.
@@ -49,7 +56,7 @@ def process_features(
     """
     # Apply feature extraction pipeline on data
     logger.info(f"Transforming data into features with pipeline: \n {pipe_string}")
-    
+
     # Check if user wants to apply feature pipeline by channel, or specified dimension
     if channel_options["pipe_on_dim_0"]:
         X = np.stack(

@@ -59,7 +59,7 @@ def correct_df_time(df: pd.DataFrame | pl.DataFrame) -> pl.DataFrame:
     # and corrected
     if isinstance(df, pd.DataFrame):
         df = clean_dt_df(df)
-        #df_pl = pl.from_pandas(df)
+        # df_pl = pl.from_pandas(df)
 
     # otherwise don't do any datetime corection
     # TODO: @claysmyth implement this for polars
@@ -88,11 +88,15 @@ def load_data(
             data_source_params["database_path"],
             data_source_params["query"],
         )
-    elif (data_source_params["source"] == "parquet" or 
-        data_source_params["source"] == "csv" or 
-        data_source_params["source"] == "mat"):
+    elif (
+        data_source_params["source"] == "parquet"
+        or data_source_params["source"] == "csv"
+        or data_source_params["source"] == "mat"
+    ):
         columns = data_source_params.get("columns", None)
-        df = load_df_from_file(data_source_params['source'], data_source_params['data_path'], columns)
+        df = load_df_from_file(
+            data_source_params["source"], data_source_params["data_path"], columns
+        )
 
     # quickly convert the time to datetime format
     df = correct_df_time(df)

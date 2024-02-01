@@ -300,14 +300,7 @@ class SFSTrainer(DefaultModelTrainer):
             bar_format="{desc:<2.5}{percentage:3.0f}%|{bar:15}{r_bar}",
         ):
             # perform the SFS
-            (
-                output_fin,
-                output_init,
-                _,
-                _,
-                model_cfg,
-                trainer_cfg,
-            ) = run_pb_pipeline(
+            (output_fin, output_init, _, _, model_cfg, trainer_cfg,) = run_pb_pipeline(
                 features,
                 y_class,
                 y_stim,
@@ -347,10 +340,7 @@ class SFSTrainer(DefaultModelTrainer):
                 print("")
 
             # optionally log to wandb
-            (
-                vec_wandb_sfsPB,
-                vec_wandb_sinPB,
-            ) = wandb_logging_sfs_outer(
+            (vec_wandb_sfsPB, vec_wandb_sinPB,) = wandb_logging_sfs_outer(
                 output_fin=output_fin,
                 output_init=output_init,
                 idx_rep=idx_rep,

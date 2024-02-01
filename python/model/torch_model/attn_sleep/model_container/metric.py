@@ -15,4 +15,4 @@ def f1(output, target):
     with torch.no_grad():
         pred = torch.argmax(output, dim=1)
         assert pred.shape[0] == len(target)
-    return f1_score(pred.cpu().numpy(), target.data.cpu().numpy(), average='macro')
+    return f1_score(pred.cpu().numpy(), target.data.cpu().numpy(), average="macro")

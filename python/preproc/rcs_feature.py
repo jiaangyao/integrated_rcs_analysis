@@ -6,6 +6,7 @@ from ._pwelch_psd_feature import extract_rcs_feature_pwelch
 from ._rcssim_helpers import rcssim_fft_wrapper
 from .time_domain_base import identity
 
+
 def extract_td_data_df(df: pl.DataFrame, label_type: str):
     # epoching operation
 
@@ -71,7 +72,7 @@ def extract_rcs_feature(
     amp_gain=None,
     str_method="pwelch",
 ):
-    
+
     # time domain functions
     data_td = identity(data_td)
 

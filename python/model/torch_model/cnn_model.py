@@ -15,17 +15,18 @@ from torch.utils.data import DataLoader
 
 from .base import BaseTorchTrainer, BaseTorchModel, BaseTorchClassifier
 
+
 class TorchCNNClassifier(nn.Module, BaseTorchClassifier):
     def __init__(
-            self,
-            in_channels=1,  # Number of channels in the input image
-            img_size=32,    # Image height and width (assuming square images)
-            n_class=2,
-            act_func=nn.LeakyReLU(),
-            n_conv_layers=2,
-            n_fc_layers=2,
-            hidden_size=32,
-            dropout=0.5,
+        self,
+        in_channels=1,  # Number of channels in the input image
+        img_size=32,  # Image height and width (assuming square images)
+        n_class=2,
+        act_func=nn.LeakyReLU(),
+        n_conv_layers=2,
+        n_fc_layers=2,
+        hidden_size=32,
+        dropout=0.5,
     ):
         super().__init__()
 
@@ -44,11 +45,13 @@ class TorchCNNClassifier(nn.Module, BaseTorchClassifier):
         # Define the convolutional layers
         for i in range(n_conv_layers):
             in_ch = self.in_channels if i == 0 else hidden_size
-            self.conv_layers.append(nn.Conv2d(in_ch, hidden_size, kernel_size=3, stride=1, padding=1))
+            self.conv_layers.append(
+                nn.Conv2d(in_ch, hidden_size, kernel_size=3, stride=1, padding=1)
+            )
             self.conv_layers.append(self.act_func)
             self.conv_layers.append(nn.MaxPool2d(kernel_size=2, stride=2))
-        
-        self.flat_size = (img_size // (2**n_conv_layers))**2 * hidden_size
+
+        self.flat_size = (img_size // (2**n_conv_layers)) ** 2 * hidden_size
 
         # Define fully connected layers
         for i in range(n_fc_layers):

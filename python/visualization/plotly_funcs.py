@@ -4,9 +4,15 @@ from collections import OrderedDict
 import polars as pl
 from utils.decorators import polarify_in
 
+
 @polarify_in
 def plot_feature_distributions(
-    df, melt_cols, partition_col, value_name="Value", color_ordering=None, row_ordering=None
+    df,
+    melt_cols,
+    partition_col,
+    value_name="Value",
+    color_ordering=None,
+    row_ordering=None,
 ):
     """
     Plots the distributions of each desired column (melt_cols) in df by values in partition_col.
@@ -30,14 +36,16 @@ def plot_feature_distributions(
     )
 
     partitioned_data_long = data_long.partition_by(partition_col)
-    
+
     if row_ordering is not None:
         row_order = dict(zip(row_ordering, range(len(row_ordering))))
         print(row_order)
-        partitioned_data_long = [part.with_columns(
-                                        pl.col('Variable').map_dict(row_order).alias('order_col'))
-                                    .sort('order_col')
-                                for part in partitioned_data_long]
+        partitioned_data_long = [
+            part.with_columns(
+                pl.col("Variable").map_dict(row_order).alias("order_col")
+            ).sort("order_col")
+            for part in partitioned_data_long
+        ]
 
     colors = n_colors(
         "rgb(0, 0, 255)", "rgb(255, 0, 0)", len(partitioned_data_long), colortype="rgb"
@@ -82,7 +90,8 @@ def plot_feature_distributions(
         orientation="h", side="positive", width=1.5, points=False, meanline_visible=True
     )
     fig.update_layout(
-        xaxis_showgrid=False, xaxis_zeroline=False,
+        xaxis_showgrid=False,
+        xaxis_zeroline=False,
     )
 
     return fig

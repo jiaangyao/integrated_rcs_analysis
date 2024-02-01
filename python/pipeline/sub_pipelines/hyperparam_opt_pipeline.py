@@ -35,12 +35,15 @@ def wandb_sweep_setup(eval, hyperparam_obj, data_class, config, logger):
     logger.info("WandB entity: {}".format(wandb_config.get("entity")))
     logger.info(f"WandB sweep id: {sweep_id}")
     wandb_url = f"https://wandb.ai/{wandb_config.get('entity')}/{wandb_config.get('project')}/sweeps/{sweep_id}"
-    sweep_address = f"{wandb_config.get('entity')}/{wandb_config.get('project')}/{sweep_id}" # Used for getting best model parameters from sweep
+    sweep_address = f"{wandb_config.get('entity')}/{wandb_config.get('project')}/{sweep_id}"  # Used for getting best model parameters from sweep
     logger.info(f"WandB sweep url: {wandb_url}")
     logger.info("Local Directory Path: {}".format(setup_config["path_run"]))
     logger.info(f"WandB sweep config: {sweep_config}")
     hyperparam_obj.initialize_wandb_params(
-        setup_config["path_run"], wandb_config["group"], wandb_config["tags"], wandb_config["notes"]
+        setup_config["path_run"],
+        wandb_config["group"],
+        wandb_config["tags"],
+        wandb_config["notes"],
     )
 
     return sweep_id, sweep_config, wandb_url, sweep_address
@@ -60,13 +63,13 @@ def run_wandb_sweep(hyperparam_obj, sweep_method, num_runs, sweep_id):
 
 
 def run_hyperparameter_search(config, model_class, data, eval, logger):
-    
+
     # Hyperparameter search. First, check which library to use
     ho = HyperparameterOptimization(model_class, data, eval)
-    
+
     # Check if hyperparameter search is desired
-    hyperparam_config = config.get('hyperparameter_optimization')
-    if hyperparam_config['search_library'] is None:
+    hyperparam_config = config.get("hyperparameter_optimization")
+    if hyperparam_config["search_library"] is None:
         # If not, train and evaluate model with default hyperparameters
         ho.train_and_eval_no_search(config)
         return None, None
@@ -78,14 +81,12 @@ def run_hyperparameter_search(config, model_class, data, eval, logger):
             sweep_config,
             sweep_url,
             sweep_address,
-        ) = wandb_sweep_setup(
-            eval, ho, data, config, logger
-        )
-        
+        ) = wandb_sweep_setup(eval, ho, data, config, logger)
+
         run_wandb_sweep(
             ho, sweep_config["method"], hyperparam_config["num_runs"], sweep_id
         )
-        
+
         # Initialize the W&B API
         api = wandb.Api()
         sweep = api.sweep(sweep_address)
@@ -95,13 +96,12 @@ def run_hyperparameter_search(config, model_class, data, eval, logger):
 
         # Access the configuration of the best run
         best_run_config = best_run.config
-        
+
         # Finish sweep. As of 2024-01-11, need to use CLI
         # subprocess.run(["wandb", "sweep", "--stop", sweep_address])
-        
+
         return sweep_url, sweep_id, best_run_config
 
     # Run hyperparameter search using Optuna
     elif hyperparam_config["search_library"].lower() == "optuna":
         raise NotImplementedError
-    

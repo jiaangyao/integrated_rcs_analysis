@@ -8,8 +8,14 @@ from .torch_utils import init_gpu
 
 # from .base import TorchModelWrapper
 
+
 class SinusoidPositionalEncoding(nn.Module):
-    def __init__(self, embedding_dim: int, dropout: float = 0.1, max_sequential_length: int = 15000):
+    def __init__(
+        self,
+        embedding_dim: int,
+        dropout: float = 0.1,
+        max_sequential_length: int = 15000,
+    ):
         super().__init__()
         self.dropout = nn.Dropout(p=dropout)
 
@@ -28,16 +34,16 @@ class SinusoidPositionalEncoding(nn.Module):
         Args:
             x: Tensor, shape [seq_len, batch_size, embedding_dim]
         """
-        return self.pe[: seq_len]
-    
+        return self.pe[:seq_len]
+
 
 class GatedTransformerClassifier(torch.nn.Module, BaseTorchClassifier):
     def __init__(
         self,
-        input_token_dim=None, # Forces user to specify dimension of each token. Number of features per token
-        sequence_length=None, # Forces user to specify sequence length. Number of time steps (or tokens) in the time series
-        desired_embedding_dim=None, # Only for embedding positional encoding. Length of encoding vector
-        positional_encoding='embedding', # 'sinusoid' or 'embedding
+        input_token_dim=None,  # Forces user to specify dimension of each token. Number of features per token
+        sequence_length=None,  # Forces user to specify sequence length. Number of time steps (or tokens) in the time series
+        desired_embedding_dim=None,  # Only for embedding positional encoding. Length of encoding vector
+        positional_encoding="embedding",  # 'sinusoid' or 'embedding
         hidden_dim=512,  # Commonly used size in transformer models
         hidden_unit_dim=64,  # A smaller dimension for the hidden units
         hidden_unit_dim_time=64,  # Same as above, assuming similar scale
@@ -61,11 +67,13 @@ class GatedTransformerClassifier(torch.nn.Module, BaseTorchClassifier):
 
         # positional encoding for the time encoder
         # Pick either sinusoid, if you have your own tokenization, or embedding, if you don't (e.g. categorical or word data)
-        if positional_encoding == 'sinusoid':
-            self.pos_encoder = SinusoidPositionalEncoding(input_token_dim, output_dropout)
-        elif positional_encoding == 'embedding':
+        if positional_encoding == "sinusoid":
+            self.pos_encoder = SinusoidPositionalEncoding(
+                input_token_dim, output_dropout
+            )
+        elif positional_encoding == "embedding":
             self.pos_encoder = nn.Embedding(input_token_dim, desired_embedding_dim)
-        
+
         self.dropout_input = nn.Dropout(output_dropout)
 
         # define the time encoding layers
@@ -144,10 +152,10 @@ class GatedTransformerClassifier(torch.nn.Module, BaseTorchClassifier):
         # also transpose data to shape (time, sample, channel)
         # the channel encoder is attending along time axis
         x_channel = input.contiguous().permute(1, 0, 2)
-        if 'positional_encoding' == 'embedding':
+        if "positional_encoding" == "embedding":
             x_pos = torch.unsqueeze(self.pos_encoder(x_channel.shape[-1]), dim=1)
         else:
-            x_pos = self.pos_encoder(input.shape[-1]).permute(2,1,0)
+            x_pos = self.pos_encoder(input.shape[-1]).permute(2, 1, 0)
         x_channel = self.dropout_input(x_channel + x_pos)
         x_channel = self.channel_encoder(x_channel.permute(1, 2, 0))
 
@@ -274,10 +282,10 @@ class GatedTransformerModel(BaseTorchModel):
 
     def __init__(
         self,
-        input_token_dim=None, # Forces user to specify input sample. Number of samples (feature vecs) in the time series
-        sequence_length=None, # Forces user to specify sequence length. Number of time steps in the time series
-        desired_embedding_dim=None, # Only for embedding positional encoding. Length of encoding vector
-        positional_encoding='embedding',
+        input_token_dim=None,  # Forces user to specify input sample. Number of samples (feature vecs) in the time series
+        sequence_length=None,  # Forces user to specify sequence length. Number of time steps in the time series
+        desired_embedding_dim=None,  # Only for embedding positional encoding. Length of encoding vector
+        positional_encoding="embedding",
         hidden_dim=512,  # Commonly used size in transformer models
         hidden_unit_dim=64,  # A smaller dimension for the hidden units
         hidden_unit_dim_time=64,  # Same as above, assuming similar scale
@@ -307,25 +315,31 @@ class GatedTransformerModel(BaseTorchModel):
         bool_use_gpu=False,  # Default off for GPU usage
         n_gpu_per_process: int | float = 0,  # Default to 0, no GPU used
     ):
-        
-        self.model_kwargs, self.trainer_kwargs = self.split_kwargs_into_model_and_trainer(locals())
+
+        (
+            self.model_kwargs,
+            self.trainer_kwargs,
+        ) = self.split_kwargs_into_model_and_trainer(locals())
         self.device = init_gpu(use_gpu=bool_use_gpu)
-        
+
         # initialize the model
-        self.model = GatedTransformerClassifier(
-            **self.model_kwargs
-        )
+        self.model = GatedTransformerClassifier(**self.model_kwargs)
         self.model.to(self.device)
-        
+
         # Initialize early stopping
         self.early_stopping = self.get_early_stopper(early_stopping)
-        
+
         # Initialize Trainer
         self.trainer = GateTransformerTrainer(
             self.model, self.early_stopping, **self.trainer_kwargs
         )
-        super().__init__(self.model, self.trainer, self.early_stopping, self.model_kwargs, self.trainer_kwargs)
-
+        super().__init__(
+            self.model,
+            self.trainer,
+            self.early_stopping,
+            self.model_kwargs,
+            self.trainer_kwargs,
+        )
 
     def override_model(self, kwargs: dict) -> None:
         model_kwargs, trainer_kwargs = self.split_kwargs_into_model_and_trainer(kwargs)

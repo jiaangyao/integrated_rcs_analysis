@@ -11,36 +11,57 @@ from sklearn.linear_model import LinearRegression
 import polars as pl
 
 
-def multivariate_feature_embedding(matrix: npt.NDArray[np.float64], window_size: int, noverlap: int, sampling_frequency: int, band_range={
+def multivariate_feature_embedding(
+    matrix: npt.NDArray[np.float64],
+    window_size: int,
+    noverlap: int,
+    sampling_frequency: int,
+    band_range={
         "Delta": [0.5, 4],
         "Theta": [4, 8],
         "Alpha": [8, 12],
         "Beta": [12, 30],
         "Gamma": [30, 60],
-    }):
+    },
+):
     """Extracts custom features from a matrix of mulitvariate time series samples.
     Slides a window across the multivariate time series and extracts features from each window.
     As in: m (num channels) x s (num samples) -> f (num features) x w (num windows)
     """
-    num_windows = int(np.ceil((matrix.shape[1] - window_size) / (window_size - noverlap))) + 1
-    
+    num_windows = (
+        int(np.ceil((matrix.shape[1] - window_size) / (window_size - noverlap))) + 1
+    )
+
     for i in range(num_windows):
-        window = matrix[:, i * (window_size - noverlap) : i * (window_size - noverlap) + window_size]
-        single_channel_features = broadcast_feature_extraction_on_matrix(window, sampling_frequency, window_size, noverlap=0, band_ranges=band_range).reshape(-1, 1)
-        cross_channel_features = np.array(list(cross_channel_coherence(window, sampling_frequency, band_ranges=band_range).values())).reshape(-1, 1)
+        window = matrix[
+            :, i * (window_size - noverlap) : i * (window_size - noverlap) + window_size
+        ]
+        single_channel_features = broadcast_feature_extraction_on_matrix(
+            window, sampling_frequency, window_size, noverlap=0, band_ranges=band_range
+        ).reshape(-1, 1)
+        cross_channel_features = np.array(
+            list(
+                cross_channel_coherence(
+                    window, sampling_frequency, band_ranges=band_range
+                ).values()
+            )
+        ).reshape(-1, 1)
         features = np.vstack((single_channel_features, cross_channel_features))
         if i == 0:
             feature_matrix = features
         else:
             feature_matrix = np.hstack((feature_matrix, features))
-            
+
     if np.any(np.isinf(feature_matrix)):
         print("WARNING: Inf values in feature matrix")
         feature_matrix = np.nan_to_num(feature_matrix)
     return feature_matrix
 
 
-def cross_channel_coherence(matrix, sampling_frequency, band_ranges={
+def cross_channel_coherence(
+    matrix,
+    sampling_frequency,
+    band_ranges={
         "Delta": [0.5, 4],
         "Theta": [4, 8],
         "Alpha": [8, 12],
@@ -62,7 +83,7 @@ def cross_channel_coherence(matrix, sampling_frequency, band_ranges={
 
     for (ch1, ch2) in channel_pairs:
         f, coh = signal.coherence(matrix[ch1], matrix[ch2], fs=sampling_frequency)
-        
+
         for band_name, (f_low, f_high) in band_ranges.items():
             # Extract coherence values within the frequency band
             band_mask = (f >= f_low) & (f <= f_high)
@@ -159,7 +180,7 @@ def single_variate_feature_extraction(
                 for feature_name, feature_function in additional_features.items()
             }
         )
-        
+
     return np.array(list(features.values()))
 
 
@@ -195,7 +216,13 @@ def get_single_variate_feature_names(additional_features: dict = {}):
             f"{pb_combo[0]}/{pb_combo[1]}"
             for pb_combo in itertools.combinations(band_ranges.keys(), 2)
         ]
-        + ["spectral_slope", "spectral_intercept", "spectral_entropy", "spectral_centroid", "spectral_energy"]
+        + [
+            "spectral_slope",
+            "spectral_intercept",
+            "spectral_entropy",
+            "spectral_centroid",
+            "spectral_energy",
+        ]
         + list(additional_features.keys())
     )
 
@@ -252,38 +279,43 @@ def get_psd_polars(
     Returns:
         pl.DataFrame: The DataFrame with additional columns for the PSD values and frequency values.
     """
-    
+
     # Assumes each time domain column is already epoched (e.g. time_domain_base.epoch_data was called)
     for col in td_columns:
         # Calculate PSD
         f, pxx = signal.welch(
-            df.get_column(col).to_numpy(), fs=sampling_frequency, nperseg=window_size, noverlap=noverlap, axis=-1
+            df.get_column(col).to_numpy(),
+            fs=sampling_frequency,
+            nperseg=window_size,
+            noverlap=noverlap,
+            axis=-1,
         )
-        
+
         # Select PSD values within desired frequency range
         pxx = pxx[:, np.where((f >= freq_range[0]) & (f <= freq_range[1]))[0]]
-        
+
         # Add PSD values to DataFrame
         df = df.with_columns(
             pl.Series(
                 name=f"{col}_psd",
-                values= pxx,
-                dtype=pl.Array(inner=pl.Float32, width=pxx.shape[1])
+                values=pxx,
+                dtype=pl.Array(inner=pl.Float32, width=pxx.shape[1]),
             )
         )
-    
+
     # Add frequency values to DataFrame. Entire column will be an identical vector of frequency values.
-    f_mat = np.tile(f[np.where((f >= freq_range[0]) & (f <= freq_range[1]))[0]], (df.height, 1))
+    f_mat = np.tile(
+        f[np.where((f >= freq_range[0]) & (f <= freq_range[1]))[0]], (df.height, 1)
+    )
     df = df.with_columns(
         pl.Series(
             name=f"psd_freq",
             values=f_mat,
-            dtype=pl.Array(inner=pl.Float32, width=f_mat.shape[1])
+            dtype=pl.Array(inner=pl.Float32, width=f_mat.shape[1]),
         )
     )
-    
+
     return df
-    
 
 
 def get_psd(
@@ -299,17 +331,25 @@ def get_psd(
     Each row should be an array of time series observations.
     """
     # Handle frequency ranges edge cases. Ensure freq_ranges is a 2D array where each row is a frequency range band to keep.
-    if ~isinstance(freq_ranges, np.ndarray): freq_ranges = np.array(freq_ranges)
-    if freq_ranges.ndim == 1: freq_ranges = freq_ranges.reshape(1, -1)
-    
+    if ~isinstance(freq_ranges, np.ndarray):
+        freq_ranges = np.array(freq_ranges)
+    if freq_ranges.ndim == 1:
+        freq_ranges = freq_ranges.reshape(1, -1)
+
     f, pxx = signal.welch(
         X, fs=sampling_frequency, nperseg=window_size, noverlap=noverlap, axis=-1
     )
-    
-    # Concatenate PSDs for each desired frequency range into single matrix    
-    pxx = np.concatenate([pxx[:, np.where((f >= freq_range[0]) & (f <= freq_range[1]))[0]] for freq_range in freq_ranges], axis=-1)
-    
+
+    # Concatenate PSDs for each desired frequency range into single matrix
+    pxx = np.concatenate(
+        [
+            pxx[:, np.where((f >= freq_range[0]) & (f <= freq_range[1]))[0]]
+            for freq_range in freq_ranges
+        ],
+        axis=-1,
+    )
+
     if log:
         pxx = np.log(pxx)
-        
+
     return pxx

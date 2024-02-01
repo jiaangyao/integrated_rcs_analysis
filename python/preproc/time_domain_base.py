@@ -8,6 +8,7 @@ import polars.selectors as cs
 import pandas as pd
 from typing import List, Union, Dict
 from ._pl_namespace.filt import butterworth_bandpass_np
+
 # from utils.decorators import # polarify_input
 
 
@@ -45,6 +46,7 @@ def standardize_df_columns(df, cols_to_standardize, by_cols=[]):
             ]
         )
 
+
 def normalize_df_columns(df, cols_to_standardize, range=[0, 1], by_cols=[]):
     """
     Normalize the specified columns in a DataFrame to have the range provided.
@@ -61,10 +63,12 @@ def normalize_df_columns(df, cols_to_standardize, range=[0, 1], by_cols=[]):
     if by_cols:
         return df.with_columns(
             [
-                ((pl.col(col) - pl.col(col).min())
-                / (pl.col(col).max() - pl.col(col).min())
-                * (range[1] - range[0])
-                + range[0]).over(by_cols)
+                (
+                    (pl.col(col) - pl.col(col).min())
+                    / (pl.col(col).max() - pl.col(col).min())
+                    * (range[1] - range[0])
+                    + range[0]
+                ).over(by_cols)
                 for col in cols_to_standardize
             ]
         )
@@ -78,7 +82,8 @@ def normalize_df_columns(df, cols_to_standardize, range=[0, 1], by_cols=[]):
                 for col in cols_to_standardize
             ]
         )
-        
+
+
 # @polarify_input
 def epoch_df_by_timesegment(
     df: pl.DataFrame,
@@ -115,7 +120,7 @@ def epoch_df_by_timesegment(
     """
 
     # TODO: Consider 'streaming' option to save on RAM
-    
+
     td_cols = cs.by_name(*td_columns)
     if drop_nulls_in_td_columns_before_epoching:
         df_filtered = df.filter(
@@ -124,7 +129,7 @@ def epoch_df_by_timesegment(
         )
     else:
         df_filtered = df
-    
+
     if align_with_PB_outputs:
         df_pb_count = (
             df_filtered.join(
@@ -211,22 +216,23 @@ def epoch_df_by_timesegment(
             .select(pl.all().exclude("^.*TD_count$"))
             .select(pl.all().exclude("^.*_contains_no_null$"))
         )
-    
+
     if df_epoched.height == 0:
-        raise ValueError("Epoched DataFrame is empty. Check that the specified columns are present in the DataFrame, and that the specified interval, period, and sample rate are valid.") 
-    
+        raise ValueError(
+            "Epoched DataFrame is empty. Check that the specified columns are present in the DataFrame, and that the specified interval, period, and sample rate are valid."
+        )
+
     return df_epoched
 
+
 # @polarify_input
-def remove_null_sections(
-    df: pl.DataFrame, columns: List[str]
-) -> pl.DataFrame:
-    '''
+def remove_null_sections(df: pl.DataFrame, columns: List[str]) -> pl.DataFrame:
+    """
     Label sections of null values and non-null in a DataFrame. Each contiguous section of null values, and non-null values, is assigned a unique identifier.
     Then, remove rows where any of the specified columns are null.
     Sections of continuity is labeled by new column named 'non_null_seg_nr'.
     Assumes that the DataFrame is sorted by time, and not epoched.
-    '''
+    """
     # First, label sections of non-null and null values,
     # to avoid introducing artifacts at the boundaries of null values.
     # Use row count (row_nr) to keep track of row order, e.g. as index column
@@ -251,7 +257,7 @@ def remove_null_sections(
             )
             # Fill 0's with previous row number to get a unique identifier for each null/non-null segment
             .cumsum().alias("non_null_seg_nr")
-        # Drop Null Rows, i.e. where columns are null (usually due to disconnects)
+            # Drop Null Rows, i.e. where columns are null (usually due to disconnects)
         )
         .filter(
             pl.all_horizontal(pl_cols.is_not_null())
@@ -320,12 +326,20 @@ def bandpass_filter(
     )
 
     # Join as new columns into original DataFrame, and remove unnecessary columns used for indexing
-    return df.with_row_count().join(df_filt, on="row_nr", how="left").drop(["row_nr", "non_null_seg_nr"])
+    return (
+        df.with_row_count()
+        .join(df_filt, on="row_nr", how="left")
+        .drop(["row_nr", "non_null_seg_nr"])
+    )
 
 
 # @polarify_input
 def bandpass_envelope_downsample(
-    df: pl.DataFrame, columns: List[str], filt_args: Dict, downsample_factor: int, group_by=[]
+    df: pl.DataFrame,
+    columns: List[str],
+    filt_args: Dict,
+    downsample_factor: int,
+    group_by=[],
 ) -> pl.DataFrame:
     """
     Apply a bandpass filter to the specified columns in a DataFrame.
@@ -349,9 +363,9 @@ def bandpass_envelope_downsample(
 
             fsfloat
             The sampling frequency of the digital system.
-            
+
     - downsample_factor (int): Factor by which the data is downsampled. All filtered data is downsampled by the same factor.
-            
+
     - group_by (List[str]): A list of columns to group by. Default is []. (E.g. group_by=['SessionIdentity'] or group_by=['SessionDate'])
 
     returns:
@@ -365,15 +379,18 @@ def bandpass_envelope_downsample(
     df_filt = (
         df_parsed.group_by(group_by + ["non_null_seg_nr"]).agg(
             [
-                pl.col(col).filt.bandpass_envelope_downsample(N, Wn, fs, downsample_factor).suffix(f"_{key}_downsampled")
+                pl.col(col)
+                .filt.bandpass_envelope_downsample(N, Wn, fs, downsample_factor)
+                .suffix(f"_{key}_downsampled")
                 # Note: can also use map_elements on the numpy array directly
                 # pl.col(col).map_elements(lambda x: butterworth_bandpass_np(x.to_numpy(), N, Wn, fs)).suffix(f'_{key}')
                 for key, (N, Wn, fs) in filt_args.items()
                 for col in columns
             ]
             # Also downsample the index column
-            + [pl.col("row_nr").map_elements(
-                lambda x: x.gather_every(downsample_factor)
+            + [
+                pl.col("row_nr").map_elements(
+                    lambda x: x.gather_every(downsample_factor)
                 )
             ]
         )
@@ -383,14 +400,23 @@ def bandpass_envelope_downsample(
         .drop(group_by + ["non_null_seg_nr"])
         # Convert back to long format
         .explode(
-            ["row_nr"] + [f"{col}_{key}_downsampled" for key in filt_args.keys() for col in columns]
+            ["row_nr"]
+            + [
+                f"{col}_{key}_downsampled"
+                for key in filt_args.keys()
+                for col in columns
+            ]
         )
         # Sort back into chronological order
         .sort("row_nr")
     )
 
     # Join as new columns into original DataFrame, and remove unnecessary columns used for indexing
-    return df.with_row_count().join(df_filt, on="row_nr", how="left").drop(["row_nr", "non_null_seg_nr"])
+    return (
+        df.with_row_count()
+        .join(df_filt, on="row_nr", how="left")
+        .drop(["row_nr", "non_null_seg_nr"])
+    )
 
 
 # TODO: Implement functime feature extraction

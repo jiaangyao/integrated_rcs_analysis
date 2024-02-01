@@ -58,7 +58,9 @@ def preprocess_dataframe(data_df, preproc_funcs, logger):
     )
 
     for i, pipe_step in enumerate(preproc_pipe):
-        assert pipe_step[0] is not None, f"Function {preproc_funcs[i]} not found. Verify module is imported and available in POTENTIAL_FEATURE_LIBRARIES within pipeline.subpipelines.preproce_pipeline.py."
+        assert (
+            pipe_step[0] is not None
+        ), f"Function {preproc_funcs[i]} not found. Verify module is imported and available in POTENTIAL_FEATURE_LIBRARIES within pipeline.subpipelines.preproce_pipeline.py."
         logger.info(
             f"Running preprocessing step {pipe_step[0]} with args {pipe_step[1]}"
         )
@@ -147,13 +149,20 @@ def process_labels(data_df, label_config, logger):
 
     # Extract group labels for LeaveOneGroupOut cross validation (if desired)
     if group_col := label_config["group_column"]:
-        logger.info(f'Using Group column: {group_col}')
+        logger.info(f"Using Group column: {group_col}")
         if label_config.get("numerically_map_groups") is True:
-            unique_groups = np.sort(data_df.get_column(group_col).unique().to_numpy().squeeze())
+            unique_groups = np.sort(
+                data_df.get_column(group_col).unique().to_numpy().squeeze()
+            )
             group_mapping = dict(zip(unique_groups, np.arange(unique_groups.size)))
             logger.info(f"Mapping Groups with: {group_mapping}")
-            groups = (data_df.with_columns(pl.col(group_col).replace(group_mapping, default=None))
-                            .get_column(group_col).to_numpy().squeeze()
+            groups = (
+                data_df.with_columns(
+                    pl.col(group_col).replace(group_mapping, default=None)
+                )
+                .get_column(group_col)
+                .to_numpy()
+                .squeeze()
             )
         else:
             groups = data_df.get_column(group_col).to_numpy().squeeze()

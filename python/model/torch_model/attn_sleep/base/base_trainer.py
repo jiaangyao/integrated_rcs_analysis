@@ -3,16 +3,18 @@ from abc import abstractmethod
 from numpy import inf
 import numpy as np
 
+
 class BaseTrainer:
     """
     Base class for all trainers
     """
+
     def __init__(self, model, criterion, metric_ftns, optimizer, config, fold_id):
         self.config = config
-        self.logger = config.get_logger('trainer', config['trainer']['verbosity'])
+        self.logger = config.get_logger("trainer", config["trainer"]["verbosity"])
 
         # setup GPU device if available, move model into configured device
-        self.device, device_ids = self._prepare_device(config['n_gpu'])
+        self.device, device_ids = self._prepare_device(config["n_gpu"])
         self.model = model.to(self.device)
         if len(device_ids) > 1:
             self.model = torch.nn.DataParallel(model, device_ids=device_ids)
@@ -21,22 +23,22 @@ class BaseTrainer:
         self.metric_ftns = metric_ftns
         self.optimizer = optimizer
 
-        cfg_trainer = config['trainer']
-        self.epochs = cfg_trainer['epochs']
-        self.save_period = cfg_trainer['save_period']
-        self.monitor = cfg_trainer.get('monitor', 'off')
+        cfg_trainer = config["trainer"]
+        self.epochs = cfg_trainer["epochs"]
+        self.save_period = cfg_trainer["save_period"]
+        self.monitor = cfg_trainer.get("monitor", "off")
         self.fold_id = fold_id
 
         # configuration to monitor model performance and save best
-        if self.monitor == 'off':
-            self.mnt_mode = 'off'
+        if self.monitor == "off":
+            self.mnt_mode = "off"
             self.mnt_best = 0
         else:
             self.mnt_mode, self.mnt_metric = self.monitor.split()
-            assert self.mnt_mode in ['min', 'max']
+            assert self.mnt_mode in ["min", "max"]
 
-            self.mnt_best = inf if self.mnt_mode == 'min' else -inf
-            self.early_stop = cfg_trainer.get('early_stop', inf)
+            self.mnt_best = inf if self.mnt_mode == "min" else -inf
+            self.early_stop = cfg_trainer.get("early_stop", inf)
 
         self.start_epoch = 1
 
@@ -66,25 +68,32 @@ class BaseTrainer:
             result, epoch_outs, epoch_trgs = self._train_epoch(epoch, self.epochs)
 
             # save logged informations into log dict
-            log = {'epoch': epoch}
+            log = {"epoch": epoch}
             log.update(result)
             all_outs.extend(epoch_outs)
             all_trgs.extend(epoch_trgs)
             # print logged informations to the screen
             for key, value in log.items():
-                self.logger.info('    {:15s}: {}'.format(str(key), value))
+                self.logger.info("    {:15s}: {}".format(str(key), value))
 
             # evaluate model performance according to configured metric, save best checkpoint as model_best
-            best = False #True
-            if self.mnt_mode != 'off':
+            best = False  # True
+            if self.mnt_mode != "off":
                 try:
                     # check whether model performance improved or not, according to specified metric(mnt_metric)
-                    improved = (self.mnt_mode == 'min' and log[self.mnt_metric] <= self.mnt_best) or \
-                               (self.mnt_mode == 'max' and log[self.mnt_metric] >= self.mnt_best)
+                    improved = (
+                        self.mnt_mode == "min" and log[self.mnt_metric] <= self.mnt_best
+                    ) or (
+                        self.mnt_mode == "max" and log[self.mnt_metric] >= self.mnt_best
+                    )
                 except KeyError:
-                    self.logger.warning("Warning: Metric '{}' is not found. "
-                                        "Model performance monitoring is disabled.".format(self.mnt_metric))
-                    self.mnt_mode = 'off'
+                    self.logger.warning(
+                        "Warning: Metric '{}' is not found. "
+                        "Model performance monitoring is disabled.".format(
+                            self.mnt_metric
+                        )
+                    )
+                    self.mnt_mode = "off"
                     improved = False
 
                 if improved:
@@ -95,8 +104,10 @@ class BaseTrainer:
                     not_improved_count += 1
 
                 if not_improved_count > self.early_stop:
-                    self.logger.info("Validation performance didn\'t improve for {} epochs. "
-                                     "Training stops.".format(self.early_stop))
+                    self.logger.info(
+                        "Validation performance didn't improve for {} epochs. "
+                        "Training stops.".format(self.early_stop)
+                    )
                     break
 
             if epoch % self.save_period == 0:
@@ -116,14 +127,18 @@ class BaseTrainer:
         """
         n_gpu = torch.cuda.device_count()
         if n_gpu_use > 0 and n_gpu == 0:
-            self.logger.warning("Warning: There\'s no GPU available on this machine,"
-                                "training will be performed on CPU.")
+            self.logger.warning(
+                "Warning: There's no GPU available on this machine,"
+                "training will be performed on CPU."
+            )
             n_gpu_use = 0
         if n_gpu_use > n_gpu:
-            self.logger.warning("Warning: The number of GPU\'s configured to use is {}, but only {} are available "
-                                "on this machine.".format(n_gpu_use, n_gpu))
+            self.logger.warning(
+                "Warning: The number of GPU's configured to use is {}, but only {} are available "
+                "on this machine.".format(n_gpu_use, n_gpu)
+            )
             n_gpu_use = n_gpu
-        device = torch.device('cuda:0' if n_gpu_use > 0 else 'cpu')
+        device = torch.device("cuda:0" if n_gpu_use > 0 else "cpu")
         list_ids = list(range(n_gpu_use))
         return device, list_ids
 
@@ -137,18 +152,18 @@ class BaseTrainer:
         """
         arch = type(self.model).__name__
         state = {
-            'arch': arch,
-            'epoch': epoch,
-            'state_dict': self.model.state_dict(),
-            'optimizer': self.optimizer.state_dict(),
-            'monitor_best': self.mnt_best,
-            'config': self.config
+            "arch": arch,
+            "epoch": epoch,
+            "state_dict": self.model.state_dict(),
+            "optimizer": self.optimizer.state_dict(),
+            "monitor_best": self.mnt_best,
+            "config": self.config,
         }
-        filename = str(self.checkpoint_dir / 'checkpoint-epoch{}.pth'.format(epoch))
+        filename = str(self.checkpoint_dir / "checkpoint-epoch{}.pth".format(epoch))
         torch.save(state, filename)
         self.logger.info("Saving checkpoint: {} ...".format(filename))
         if save_best:
-            best_path = str(self.checkpoint_dir / 'model_best.pth')
+            best_path = str(self.checkpoint_dir / "model_best.pth")
             torch.save(state, best_path)
             self.logger.info("Saving current best: model_best.pth ...")
 
@@ -161,23 +176,32 @@ class BaseTrainer:
         resume_path = str(resume_path)
         self.logger.info("Loading checkpoint: {} ...".format(resume_path))
         checkpoint = torch.load(resume_path)
-        self.start_epoch = checkpoint['epoch'] + 1
-        self.mnt_best = checkpoint['monitor_best']
+        self.start_epoch = checkpoint["epoch"] + 1
+        self.mnt_best = checkpoint["monitor_best"]
 
         # load architecture params from checkpoint.
-        if checkpoint['config']['arch'] != self.config['arch']:
-            self.logger.warning("Warning: Architecture configuration given in config file is different from that of "
-                                "checkpoint. This may yield an exception while state_dict is being loaded.")
-        self.model.load_state_dict(checkpoint['state_dict'])
+        if checkpoint["config"]["arch"] != self.config["arch"]:
+            self.logger.warning(
+                "Warning: Architecture configuration given in config file is different from that of "
+                "checkpoint. This may yield an exception while state_dict is being loaded."
+            )
+        self.model.load_state_dict(checkpoint["state_dict"])
 
         # load optimizer state from checkpoint only when optimizer type is not changed.
-        if checkpoint['config']['optimizer']['type'] != self.config['optimizer']['type']:
-            self.logger.warning("Warning: Optimizer type given in config file is different from that of checkpoint. "
-                                "Optimizer parameters not being resumed.")
+        if (
+            checkpoint["config"]["optimizer"]["type"]
+            != self.config["optimizer"]["type"]
+        ):
+            self.logger.warning(
+                "Warning: Optimizer type given in config file is different from that of checkpoint. "
+                "Optimizer parameters not being resumed."
+            )
         else:
-            self.optimizer.load_state_dict(checkpoint['optimizer'])
+            self.optimizer.load_state_dict(checkpoint["optimizer"])
 
-        self.logger.info("Checkpoint loaded. Resume training from epoch {}".format(self.start_epoch))
+        self.logger.info(
+            "Checkpoint loaded. Resume training from epoch {}".format(self.start_epoch)
+        )
 
     def _calc_metrics(self):
         from sklearn.metrics import classification_report
@@ -198,11 +222,11 @@ class BaseTrainer:
         for root, dirs, files in os.walk(save_dir):
             for file in files:
                 if "outs" in file:
-                     outs_list.append(os.path.join(root, file))
+                    outs_list.append(os.path.join(root, file))
                 if "trgs" in file:
-                     trgs_list.append(os.path.join(root, file))
+                    trgs_list.append(os.path.join(root, file))
 
-        if len(outs_list)==self.config["data_loader"]["args"]["num_folds"]:
+        if len(outs_list) == self.config["data_loader"]["args"]["num_folds"]:
             for i in range(len(outs_list)):
                 outs = np.load(outs_list[i])
                 trgs = np.load(trgs_list[i])
@@ -226,7 +250,6 @@ class BaseTrainer:
         cm_Save_path = os.path.join(save_dir, cm_file_name)
         torch.save(cm, cm_Save_path)
 
-
         # Uncomment if you want to copy some of the important files into the experiement folder
         # from shutil import copyfile
         # copyfile("model/model.py", os.path.join(self.checkpoint_dir, "model.py"))
@@ -235,6 +258,3 @@ class BaseTrainer:
         # copyfile("train_Kfold_CV.py", os.path.join(self.checkpoint_dir, "train_Kfold_CV.py"))
         # copyfile("config.json",  os.path.join(self.checkpoint_dir, "config.json"))
         # copyfile("data_loader/data_loaders.py",  os.path.join(self.checkpoint_dir, "data_loaders.py"))
-
-
-

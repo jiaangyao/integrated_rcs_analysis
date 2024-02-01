@@ -15,9 +15,7 @@ from biomarker.biomarker_id import SFSTrainer
 from utils.wandb_utils import wandb_logging_sfs_outer
 
 
-@hydra.main(
-    version_base=None, config_path="../conf", config_name="config_tune_debug"
-)
+@hydra.main(version_base=None, config_path="../conf", config_name="config_tune_debug")
 def biomarker_id_tune_sfs(
     cfg: DictConfig,
     **kwargs,
@@ -122,10 +120,7 @@ def sfs_inner_loop_trainable(
         session.report({"avg_acc": avg_acc, "avg_auc": avg_auc})
 
         # optionally log to wandb
-        (
-            vec_wandb_sfsPB,
-            vec_wandb_sinPB,
-        ) = wandb_logging_sfs_outer(
+        (vec_wandb_sfsPB, vec_wandb_sinPB,) = wandb_logging_sfs_outer(
             output_fin=output_fin,
             output_init=output_init,
             idx_rep=idx_rep,

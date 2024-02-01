@@ -5,27 +5,27 @@ import numpy.typing as npt
 import torch.nn as nn
 
 # TODO: Below caused circular import error with torch_model.base, need to fix
-#from .base import TorchModelWrapper
+# from .base import TorchModelWrapper
 
 
 class TorchRNNModel(nn.Module):
     def __init__(
-            self,
-            n_input,
-            n_class,
-            str_loss,
-            bool_cnn=True,
-            cnn_act_func=None,
-            cnn_ks=5,
-            cnn_stride=3,
-            bool_cnn_dropout=False,
-            cnn_dropout=0.5,
-            n_rnn_layer=2,
-            rnn_dim=32,
-            bool_bidirectional=True,
-            rnn_dropout=0.5,
-            bool_final_dropout=True,
-            final_dropout=0.5,
+        self,
+        n_input,
+        n_class,
+        str_loss,
+        bool_cnn=True,
+        cnn_act_func=None,
+        cnn_ks=5,
+        cnn_stride=3,
+        bool_cnn_dropout=False,
+        cnn_dropout=0.5,
+        n_rnn_layer=2,
+        rnn_dim=32,
+        bool_bidirectional=True,
+        rnn_dropout=0.5,
+        bool_final_dropout=True,
+        final_dropout=0.5,
     ):
         super().__init__()
 
@@ -100,8 +100,8 @@ class TorchRNNModel(nn.Module):
         # RNN processing - need hidden state for classification
         _, x = self.biGRU(x)
         x = x.contiguous()[
-            -self.multi:, :, :
-            ]  # now shape (self.multi, batch_size, rnn_dim)
+            -self.multi :, :, :
+        ]  # now shape (self.multi, batch_size, rnn_dim)
 
         # output layer
         x = x.permute(1, 0, 2)  # now in format (batch_size, self.multi, rnn_dim)
@@ -115,8 +115,8 @@ class TorchRNNModel(nn.Module):
         return out
 
 
-#class RNNModelWrapper(TorchModelWrapper):
-class RNNModelWrapper():
+# class RNNModelWrapper(TorchModelWrapper):
+class RNNModelWrapper:
     def __init__(
         self,
         n_input,

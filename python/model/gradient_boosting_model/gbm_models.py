@@ -23,7 +23,7 @@ class LightXGBoostModel(BaseModel):
     def override_model(self, model_kwargs):
         self.model_kwargs = model_kwargs
         self.model = LGBMClassifier(**model_kwargs)
-    
+
     def reset_model(self):
         self.model = LGBMClassifier(**self.model_kwargs)
 

@@ -6,8 +6,8 @@ import numpy.typing as npt
 
 
 def create_output_struct(
-        output_fin: dict,
-        output_curr: dict,
+    output_fin: dict,
+    output_curr: dict,
 ):
     # TODO: change into a OOP structure
     for key in output_curr.keys():
@@ -24,9 +24,9 @@ def create_output_struct(
 
 
 def append_output_struct(
-        output_fin: dict,
-        output_curr: dict,
-        str_except: list[str] | None = None,
+    output_fin: dict,
+    output_curr: dict,
+    str_except: list[str] | None = None,
 ):
     for key in output_curr.keys():
         # sanity check
@@ -49,7 +49,7 @@ def append_output_struct(
 
 
 def arrayize_output_struct(
-        output_fin,
+    output_fin,
 ):
     for key in output_fin.keys():
         if isinstance(output_fin[key], list):
@@ -59,30 +59,30 @@ def arrayize_output_struct(
 
 
 def append_pred_output_struct(
-        output_fin,
+    output_fin,
 ):
     # create gigantic list in final structure and append everything to it
-    output_fin['pred'] = dict()
-    for dict_curr in output_fin['vec_pred']:
+    output_fin["pred"] = dict()
+    for dict_curr in output_fin["vec_pred"]:
         for key, val in dict_curr.items():
-            if key not in output_fin['pred'].keys():
-                output_fin['pred'][key] = []
-            output_fin['pred'][key].append(val)
+            if key not in output_fin["pred"].keys():
+                output_fin["pred"][key] = []
+            output_fin["pred"][key].append(val)
 
-    n_folds = len(output_fin['vec_pred'])
-    for key, val in output_fin['pred'].items():
+    n_folds = len(output_fin["vec_pred"])
+    for key, val in output_fin["pred"].items():
         # sanity check
         assert len(val) == n_folds, "Number of folds mismatch"
 
         # next turn into numpy array
         val = np.concatenate(val, axis=0)
-        output_fin['pred'][key] = val
+        output_fin["pred"][key] = val
 
     return output_fin
 
 
 def comp_summary_output_struct(
-        output_fin,
+    output_fin,
 ):
     # TODO: tidy this up and make less hard-coded
     output_fin["avg_acc"] = np.mean(output_fin["vec_acc"])
@@ -98,8 +98,8 @@ def comp_summary_output_struct(
 
 
 def combine_struct_by_field_list(
-        vec_struct: list | tuple,
-        str_field: str,
+    vec_struct: list | tuple,
+    str_field: str,
 ) -> list:
     output_array = []
     for i in range(len(vec_struct)):
@@ -111,7 +111,7 @@ def combine_struct_by_field_list(
 
 
 def combine_struct_by_field(
-        vec_struct: list | tuple,
-        str_field: str,
+    vec_struct: list | tuple,
+    str_field: str,
 ) -> npt.NDArray[np.float_]:
     return np.stack(combine_struct_by_field_list(vec_struct, str_field), axis=0)

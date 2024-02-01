@@ -9,8 +9,9 @@ from utils.file_utils import (
     save_conda_package_versions,
 )
 
+
 def wandb_setup(config, wandb_setup_conf):
-    
+
     wandb.config = config
     run = wandb.init(
         entity=wandb_setup_conf.get("entity"),
@@ -49,10 +50,7 @@ def setup(config: dict, WandB_hyperopt=False):
     logger.info(f"Beginning pipeline...")
 
     # 2. Log config file to wandb, set up hydra logging, and save to disk
-    if (
-        (wandb_setup_conf := config.get("wandb")) is not None
-        and not WandB_hyperopt
-    ):
+    if (wandb_setup_conf := config.get("wandb")) is not None and not WandB_hyperopt:
         wandb_setup(config, wandb_setup_conf)
 
     return logger
