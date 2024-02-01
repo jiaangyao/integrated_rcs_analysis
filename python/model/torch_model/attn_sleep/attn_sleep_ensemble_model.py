@@ -64,8 +64,12 @@ class AttnSleepEnsembleModel(BaseTorchModel):
             "d_ff = 120",
             "h",
             "dropout",
-            "num_classes",
+            "n_class",
             "afr_reduced_cnn_size",
+            "kernel_size_1",
+            "stride_1",
+            "kernel_size_2",
+            "stride_2"
     ]
         
     def __init__(self,
@@ -77,6 +81,10 @@ class AttnSleepEnsembleModel(BaseTorchModel):
             dropout = 0.1,
             n_class = 5,
             afr_reduced_cnn_size = 30,
+            kernel_size_1=50,
+            stride_1=6,
+            kernel_size_2=400,
+            stride_2=50,
             lam=1e-5,
             n_epoch=20,
             batch_size=32,

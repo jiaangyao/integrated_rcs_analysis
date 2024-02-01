@@ -73,12 +73,12 @@ class GELU(nn.Module):
         
         
 class MRCNN(nn.Module):
-    def __init__(self, afr_reduced_cnn_size):
+    def __init__(self, afr_reduced_cnn_size, kernel_size_1=50, stride_1=6, kernel_size_2=400, stride_2=50):
         super(MRCNN, self).__init__()
         drate = 0.5
         self.GELU = nn.GELU()  # for older versions of PyTorch.  For new versions use nn.GELU() instead.
         self.features1 = nn.Sequential(
-            nn.Conv1d(1, 64, kernel_size=50, stride=6, bias=False, padding=24),
+            nn.Conv1d(1, 64, kernel_size=kernel_size_1, stride=stride_1, bias=False, padding=24),
             nn.BatchNorm1d(64),
             self.GELU,
             nn.MaxPool1d(kernel_size=8, stride=2, padding=4),
@@ -96,7 +96,7 @@ class MRCNN(nn.Module):
         )
 
         self.features2 = nn.Sequential(
-            nn.Conv1d(1, 64, kernel_size=400, stride=50, bias=False, padding=200),
+            nn.Conv1d(1, 64, kernel_size=kernel_size_2, stride=stride_2, bias=False, padding=200),
             nn.BatchNorm1d(64),
             self.GELU,
             nn.MaxPool1d(kernel_size=4, stride=2, padding=2),
@@ -310,10 +310,14 @@ class AttnSleep(nn.Module):
             dropout = 0.1,
             n_class = 5,
             afr_reduced_cnn_size = 30,
+            kernel_size_1=50,
+            stride_1=6,
+            kernel_size_2=400,
+            stride_2=50,
         ):
         super(AttnSleep, self).__init__()
 
-        self.mrcnn = MRCNN(afr_reduced_cnn_size) # use MRCNN_SHHS for SHHS dataset
+        self.mrcnn = MRCNN(afr_reduced_cnn_size, kernel_size_1, stride_1, kernel_size_2, stride_2) # use MRCNN_SHHS for SHHS dataset
 
         attn = MultiHeadedAttention(h, d_model, afr_reduced_cnn_size)
         ff = PositionwiseFeedForward(d_model, d_ff, dropout)

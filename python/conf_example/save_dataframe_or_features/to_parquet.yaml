@@ -1,0 +1,4 @@
+input_type: dataframe
+
+output_type: parquet
+file_path: ${SUBBASE_PATH}/${device}_features.parquet

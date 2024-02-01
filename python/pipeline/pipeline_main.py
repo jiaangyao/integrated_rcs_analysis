@@ -36,7 +36,7 @@ from model.torch_model.skorch_model import SkorchModel
 # Libraries for hyperparameter tuning
 
 # Variables
-CONFIG_PATH = "/home/claysmyth/code/configs/psd_mlp_sleep"
+CONFIG_PATH = "/home/claysmyth/code/configs/lightgbm_sleep_parquet"
 CONFIG_NAME = "pipeline_main"
 
 
@@ -171,7 +171,6 @@ def main(cfg: DictConfig):
 
     
     # Save Model
-    # TODO: Consider moving this elsewhere
     if save_model_config := config.get("save_model"):
         save_model(save_model_config, model_class.model, logger)
 

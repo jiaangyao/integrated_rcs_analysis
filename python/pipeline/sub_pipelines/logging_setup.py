@@ -29,7 +29,7 @@ def wandb_setup(config, wandb_setup_conf):
     wandb.log({"metadata/local_dir": config.get("path_run")})
 
 
-def setup(config, WandB_hyperopt=False):
+def setup(config: dict, WandB_hyperopt=False):
     logger.add(
         config["file_log"],
         format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {module}:{function}:{line} - {message}",

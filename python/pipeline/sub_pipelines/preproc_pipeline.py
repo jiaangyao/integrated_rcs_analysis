@@ -10,6 +10,7 @@ import polars as pl
 # Stand-in variable for custom time domain processing functions
 import preproc.time_domain_base as tdb
 import preproc.spectral_base as sb
+import preproc.polars_manipulations as pm
 from utils.polars_utils import extract_polars_column_as_ndarray
 
 # Libraries for preprocessing and feature selection
@@ -21,6 +22,7 @@ import scipy.stats as scistats
 
 # Global Variables
 POTENTIAL_FEATURE_LIBRARIES = [
+    pm,
     tdb,
     sb,
     np,
@@ -55,7 +57,8 @@ def preprocess_dataframe(data_df, preproc_funcs, logger):
         [(values) for values in preproc_funcs.values()],
     )
 
-    for pipe_step in preproc_pipe:
+    for i, pipe_step in enumerate(preproc_pipe):
+        assert pipe_step[0] is not None, f"Function {preproc_funcs[i]} not found. Verify module is imported and available in POTENTIAL_FEATURE_LIBRARIES within pipeline.subpipelines.preproce_pipeline.py."
         logger.info(
             f"Running preprocessing step {pipe_step[0]} with args {pipe_step[1]}"
         )

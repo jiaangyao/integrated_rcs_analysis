@@ -1,0 +1,51 @@
+functions:
+  standardize_df_columns:
+    cols_to_standardize: ['TD_BG', 'TD_key2', 'TD_key3']
+    by_cols: ['SessionIdentity']
+  epoch_df_by_timesegment:
+    interval: '30s'
+    period: '30s'
+    td_columns:
+      - TD_BG
+      - TD_key2
+      - TD_key3
+    group_by_cols:
+      - SleepStage
+      - SessionIdentity
+
+# up to renaming but a big dictionary with various flags on how to
+feature_extraction_options:
+  feature_columns: # Names of columns in dataframe to extract features from. Will be passed into numpy array with the dimensions specified by the channel_options
+    - TD_BG
+    - TD_key2
+    - TD_key3
+
+  # If the feature columns are TD sensor channels (3 dimensional maximum), then the following allows for handling the channels individually
+  channel_options:
+    # If stack channels is True, then the feature columns will be stacked into an m x n x f array, where m is the number of channel columns, n is the number of rows (i.e. data points), and f is the number of features (i.e. elements) per channel column row.
+    # Stacking channels is useful for feature engineering steps that operate on individual channels, e.g. FFT
+    # If stack channels is False, then the feature columns will be concatenated n x (m*f), i.e. the features in each row will be concatenated, across columns, into a single feature vector.
+    stack_channels: True
+
+    # If group_channel_rows is True, then the feature columns will be stacked into an n x m x f array, where n is the number of rows (i.e. data points), m is the number of channel columns, and f is the number of features (i.e. elements) per channel column row.
+    # Group_channel_rows is useful for feature engineering steps that group channels together in time
+    group_channel_rows: False
+
+    # If concatenate_channel_rows is True, then the feature columns will be stacked into an n x (m * f) array, where n is the number of rows (i.e. data points), m is the number of channel columns, and f is the number of features (i.e. elements) per channel column row.
+    # Concatenating channels is useful if the feature engineering steps operate on the entire feature vector, e.g. PCA
+    concatenate_channel_rows: False
+
+label_options:
+  label_column: "SleepStage" # e.g. "SleepStage" or "MedState"
+  group_column: Null # Used for grouping data by subject, session, etc... especially useful for leave-one-group-out cross validation
+
+  # Leave empty if no remapping is desired
+  label_remapping:
+    # E.g. For binarizing multiclass labels
+    2: 0
+    3: 0
+    4: 1
+    5: 2
+    6: 3
+
+  OneHotEncode: False

@@ -13,7 +13,9 @@ from utils.decorators import polarify_out
 
 
 def load_df_from_file(
-    data_source_params: dict,
+    file_type: str,
+    data_path: str,
+    columns: list[str] = None,
 ) -> pd.DataFrame | pl.DataFrame:
     """Load a datafile into a pandas or polars dataframe
 
@@ -25,13 +27,16 @@ def load_df_from_file(
     """
     # right now does simple testing of whether file is csv or no
     # if csv then use pandas to load
-    if data_source_params["file_data"].endswith(".csv"):
-        df = load_csv_df(
-            data_source_params["path_data"], data_source_params["file_data"]
-        )
+    if file_type == "csv":
+        # df = load_csv_df(
+        #     data_source_params["path_data"], data_source_params["file_data"]
+        # )
+        df = pl.read_csv(data_path, columns=columns)
     # otherwise use polars to load
-    elif data_source_params["file_data"].endswith(".parquet"):
-        df = load_parquet_pl(data_source_params["data_path"])
+    elif file_type == "parquet":
+        df = pl.read_parquet(data_path, columns=columns)
+    elif file_type == "mat":
+        raise NotImplementedError
     else:
         print("File type not supported")
         raise NotImplementedError
@@ -83,8 +88,11 @@ def load_data(
             data_source_params["database_path"],
             data_source_params["query"],
         )
-    elif data_source_params["source"] == "file":
-        df = load_df_from_file(data_source_params)
+    elif (data_source_params["source"] == "parquet" or 
+        data_source_params["source"] == "csv" or 
+        data_source_params["source"] == "mat"):
+        columns = data_source_params.get("columns", None)
+        df = load_df_from_file(data_source_params['source'], data_source_params['data_path'], columns)
 
     # quickly convert the time to datetime format
     df = correct_df_time(df)

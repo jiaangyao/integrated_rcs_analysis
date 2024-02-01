@@ -113,6 +113,7 @@ def implement_train_test_split(config, data_class, logger=None):
             stratify=stratify
         )
         data_class.assign_train_val_test_indices(train_inds, [], test_inds)
+        logger.info('Splitting data into training and testing sets...')
         data_class.train_test_split(train_inds, test_inds)
         
     elif config["data_split"]["name"] == "LeavePGroupsOut":
@@ -131,6 +132,7 @@ def implement_train_test_split(config, data_class, logger=None):
                     train_inds, test_inds = train_tmp, test_tmp
                     
         data_class.assign_train_val_test_indices(train_inds, [], test_inds)
+        logger.info('Splitting data into training and testing sets...')
         data_class.train_test_split(train_inds, test_inds)
         
     if logger is not None:
