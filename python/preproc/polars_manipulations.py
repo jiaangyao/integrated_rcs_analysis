@@ -61,7 +61,7 @@ def rename_columns(df, rename_dict={}):
     return df.rename(rename_dict)
 
 
-@polarify_in
+#@polarify_in
 def select_columns(df: pl.DataFrame, columns: List[str] = None, regex: str = None, dtype: Union[List[str], str] = None, selectors: List[str] = None, exclude: List[str] = None) -> pl.DataFrame:
     """
     Select columns from a polars DataFrame using a list of column names, a regex pattern, a list of Polars DataTypes, or a list of Polars selectors.
@@ -112,4 +112,49 @@ def select_columns(df: pl.DataFrame, columns: List[str] = None, regex: str = Non
         raise ValueError("Selector must be a list of column names, a list of Polars DataTypes, or a regex pattern.")
     
     return df
+
+
+#@polarify_in
+def filter_rows(df: pl.DataFrame, condition: str = '') -> pl.DataFrame:
+    """
+    Filter rows in a polars DataFrame using a condition string.
+    
+    args:
+        df (pl.DataFrame): input polars DataFrame
+        condition (str or List[str]): condition string to filter rows. Can be arbitrarily complex, as long as it is well-constructed and a valid Python expression. Newlines may cause issues.
+            E.g. "(pl.col('A') > 0" | "pl.col('A') > -10) & (pl.col('B') == 'taco') & (pl.col('C').is_in([1, 2, 3]))"
+        
+    returns:
+        pl.DataFrame: output polars DataFrame with filtered rows
+    """
+    
+    if condition:
+        condition = eval(condition)
+            
+        return df.filter(condition)
+    
+    else:
+        return df
+
+
+def with_columns(df: pl.DataFrame, operations: List[str] = None) -> pl.DataFrame:
+    """
+    Apply operations to columns in a polars DataFrame.
+    
+    args:
+        df (pl.DataFrame): input polars DataFrame
+        operations (List[str]): list of operations to apply to columns. Each operation should be a string that can be evaluated as a valid Python expression.
+            E.g. ["C = pl.col('A') + pl.col('B')", "pl.col('A').is_null().alias('A_null'), "pl.when(pl.col('foo') > 2).then(1).otherwise(-1).alias('val')"]
+        
+    returns:
+        pl.DataFrame: output polars DataFrame with modified columns
+    """
+    
+    if operations:
+        operations = [eval(op) for op in operations]
+            
+        return df.with_columns(*operations)
+    
+    else:
+        return df
 
