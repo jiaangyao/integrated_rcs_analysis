@@ -22,4 +22,3 @@ logger = logging.getLogger(__name__)
 
 # set up the version of the script
 __version__ = "0.3.0"
-
