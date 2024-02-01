@@ -3,6 +3,7 @@ import numpy as np
 # TODO: put all constants into constants directory
 _MAX_NUMBER_OF_FINAL_PB = 5
 
+
 def get_idx_ch(n_ch, n_bins):
     """
     Get index of channel for all FFT bins

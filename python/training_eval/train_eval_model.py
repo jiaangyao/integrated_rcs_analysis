@@ -47,7 +47,7 @@ def step_model(
 
         # if asked to normalize the features
         # TODO: integrate this into the DataLoader class in torch
-        if trainer_cfg['bool_whiten_feature']:
+        if trainer_cfg["bool_whiten_feature"]:
             # calculate mean and std from training set
             mean_train = np.mean(feature_train, axis=0)
             sigma_train = np.std(feature_train, axis=0)
@@ -59,7 +59,7 @@ def step_model(
 
         # optionally perform L2 normalization
         # TODO: verify this function
-        if trainer_cfg['bool_l2_normalize_feature']:
+        if trainer_cfg["bool_l2_normalize_feature"]:
             # calculate l2 norm from training set
             l2_norm_train = np.linalg.norm(feature_train, axis=1)
 
@@ -73,8 +73,8 @@ def step_model(
             trainer_cfg_model = OmegaConf.to_container(trainer_cfg, resolve=True)
         else:
             trainer_cfg_model = copy.deepcopy(trainer_cfg)
-        trainer_cfg_model.pop('bool_whiten_feature')
-        trainer_cfg_model.pop('bool_l2_normalize_feature')
+        trainer_cfg_model.pop("bool_whiten_feature")
+        trainer_cfg_model.pop("bool_l2_normalize_feature")
 
     else:
         feature_train, feature_test = vec_features
@@ -85,15 +85,31 @@ def step_model(
         trainer_cfg_model = None
 
     # now perform training
-    model = train_model(model, feature_train, y_class_train, feature_valid, y_class_valid, trainer_cfg_model)
+    model = train_model(
+        model,
+        feature_train,
+        y_class_train,
+        feature_valid,
+        y_class_valid,
+        trainer_cfg_model,
+    )
 
     # now perform evaluation
-    output = eval_model(model, feature_test, y_class_test, y_stim_test, n_class, hashmap)
+    output = eval_model(
+        model, feature_test, y_class_test, y_stim_test, n_class, hashmap
+    )
 
     return output
 
 
-def train_model(model, feature_train, y_class_train, feature_valid=None, y_class_valid=None, trainer_cfg_model=None,):
+def train_model(
+    model,
+    feature_train,
+    y_class_train,
+    feature_valid=None,
+    y_class_valid=None,
+    trainer_cfg_model=None,
+):
 
     # now train the model
     # if input is torch model

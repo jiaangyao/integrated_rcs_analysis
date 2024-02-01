@@ -17,13 +17,13 @@ from .base import BaseTorchTrainer, BaseTorchModel, BaseTorchClassifier
 
 class TorchMLPClassifier(nn.Module, BaseTorchClassifier):
     def __init__(
-            self,
-            n_input=64,
-            n_class=2,
-            act_func=nn.LeakyReLU(),
-            n_layer=3,
-            hidden_size=32,
-            dropout=0.5,
+        self,
+        n_input=64,
+        n_class=2,
+        act_func=nn.LeakyReLU(),
+        n_layer=3,
+        hidden_size=32,
+        dropout=0.5,
     ):
         super().__init__()
 
@@ -87,7 +87,7 @@ class TorchMLPClassifier(nn.Module, BaseTorchClassifier):
             x = self.layers[1](x)
             out = self.layers[2](x)
         return out
-    
+
 
 class TorchMLPTrainer(BaseTorchTrainer):
     def __init__(
@@ -95,10 +95,10 @@ class TorchMLPTrainer(BaseTorchTrainer):
         model,
         early_stopping=None,
         n_class=2,
-        str_loss='CrossEntropy',
-        str_reg='L2',
+        str_loss="CrossEntropy",
+        str_reg="L2",
         lam=1e-5,
-        str_opt='Adam',
+        str_opt="Adam",
         lr=1e-4,
         transform=None,
         target_transform=None,
@@ -108,7 +108,7 @@ class TorchMLPTrainer(BaseTorchTrainer):
         bool_verbose=False,
         bool_use_ray=False,
         bool_use_gpu=False,
-        n_gpu_per_process: int | float = 0
+        n_gpu_per_process: int | float = 0,
     ):
         super().__init__(
             model,
@@ -127,10 +127,9 @@ class TorchMLPTrainer(BaseTorchTrainer):
             bool_verbose,
             bool_use_ray,
             bool_use_gpu,
-            n_gpu_per_process
+            n_gpu_per_process,
         )
-    
-    
+
     # def train(
     #     self,
     #     train_data,
@@ -167,6 +166,7 @@ class TorchMLPTrainer(BaseTorchTrainer):
 
     #     return vec_avg_loss, vec_avg_valid_loss
 
+
 # @ray.remote(num_gpus=0.125)
 class TorchMLPModel(BaseTorchModel):
     def __init__(
@@ -190,24 +190,31 @@ class TorchMLPModel(BaseTorchModel):
         bool_use_gpu=False,
         n_gpu_per_process: int | float = 0,
     ):
-        
-        self.model_kwargs, self.trainer_kwargs = self.split_kwargs_into_model_and_trainer(locals())
+
+        (
+            self.model_kwargs,
+            self.trainer_kwargs,
+        ) = self.split_kwargs_into_model_and_trainer(locals())
         # TODO: Improve device logic...
         self.device = init_gpu(use_gpu=bool_use_gpu)
-        
+
         # initialize the model
-        self.model = TorchMLPClassifier(
-            **self.model_kwargs
-        )
+        self.model = TorchMLPClassifier(**self.model_kwargs)
         self.model.to(self.device)
-        
+
         self.early_stopping = self.get_early_stopper(early_stopping)
-        
+
         self.trainer = TorchMLPTrainer(
             self.model, self.early_stopping, **self.trainer_kwargs
         )
-        
-        super().__init__(self.model, self.trainer, self.early_stopping)
+
+        super().__init__(
+            self.model,
+            self.trainer,
+            self.early_stopping,
+            self.model_kwargs,
+            self.trainer_kwargs,
+        )
 
     # def predict(self, data: npt.NDArray) -> npt.NDArray:
     #     # ensure that data is in the right format
@@ -215,23 +222,30 @@ class TorchMLPModel(BaseTorchModel):
     #         raise ValueError("Need to convert to 2D data first")
 
     #     return super().predict(data)
-    
+
     def override_model(self, kwargs: dict) -> None:
         model_kwargs, trainer_kwargs = self.split_kwargs_into_model_and_trainer(kwargs)
         self.model_kwargs = model_kwargs
-        self.trainer_kwargs = trainer_kwargs | {"early_stopping": self.early_stopping}
+        self.trainer_kwargs = trainer_kwargs
         self.model = TorchMLPClassifier(**model_kwargs)
-        self.early_stopping.reset()
-        self.trainer = TorchMLPTrainer(self.model, self.early_stopping, **trainer_kwargs)
         self.model.to(self.device)
-    
+        if self.early_stopping is not None:
+            self.early_stopping.reset()
+        self.trainer = TorchMLPTrainer(
+            self.model, self.early_stopping, **trainer_kwargs
+        )
+        self.model.to(self.device)
+
     def reset_model(self) -> None:
-        #self.override_model(self.model_kwargs | self.trainer_kwargs)
+        # self.override_model(self.model_kwargs | self.trainer_kwargs)
         self.model = TorchMLPClassifier(**self.model_kwargs)
-        self.early_stopping.reset()
-        self.trainer = TorchMLPTrainer(self.model, self.early_stopping, **self.trainer_kwargs)
         self.model.to(self.device)
-        
+        if self.early_stopping is not None:
+            self.early_stopping.reset()
+        self.trainer = TorchMLPTrainer(
+            self.model, self.early_stopping, **self.trainer_kwargs
+        )
+        self.model.to(self.device)
 
 
 @ray.remote(num_cpus=1, num_gpus=0.2)
@@ -240,8 +254,6 @@ class MLPModelWrapperRay(TorchMLPModel):
         # TODO: actor is deprecated, need to remove
         super().__init__(*args, **kwargs)
 
-
-        
     # def update_training_params(self, epochs, batch_size, criterion='CrossEntropy', optimizer='adam', lr=0.1):
     #     self.epochs = epochs
     #     self.batch_size = batch_size
@@ -255,6 +267,8 @@ class MLPModelWrapperRay(TorchMLPModel):
     #         "batch_size": self.batch_size,
     #         "callbacks": self.callbacks
     #     }
+
+
 # class SKCompatWrapper():
 #     def __init__(self, model, criterion='CrossEntropy', optimizer='adam', lr=0.1, epochs=10, batch_size=32):
 #         self.model = model
@@ -263,7 +277,7 @@ class MLPModelWrapperRay(TorchMLPModel):
 #         self.epochs = epochs
 #         self.batch_size = batch_size
 #         self.losses = []
-    
+
 #     def create_optimizer(self, optimizer, lr):
 #         if isinstance(optimizer, optim.Optimizer):
 #             return optimizer
@@ -273,7 +287,7 @@ class MLPModelWrapperRay(TorchMLPModel):
 #             return optim.SGD(self.model.parameters(), lr=lr)
 #         else:
 #             raise ValueError(f'Optimizer {optimizer} not supported')
-    
+
 #     def create_criterion(self, criterion):
 #         if isinstance(criterion, nn.Module):
 #             return criterion
@@ -283,7 +297,7 @@ class MLPModelWrapperRay(TorchMLPModel):
 #             return nn.MSELoss()
 #         else:
 #             raise ValueError(f'Criterion {criterion} not supported')
-    
+
 #     def update_training_params(self, epochs, batch_size, criterion='CrossEntropy', optimizer='adam', lr=0.1):
 #         self.epochs = epochs
 #         self.batch_size = batch_size
@@ -295,7 +309,7 @@ class MLPModelWrapperRay(TorchMLPModel):
 #         y = torch.tensor(OneHotEncoder().fit_transform(y.reshape(-1, 1)).toarray(), dtype=torch.float32)
 #         dataset = TensorDataset(torch.tensor(X, dtype=torch.float32), y)
 #         data_loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
-        
+
 #         for epoch in range(self.epochs):
 #             for inputs, labels in data_loader:
 #                 #labels = torch.tensor(OneHotEncoder(categories=[0,1,2,3,4]).fit_transform(labels.reshape(-1, 1)).toarray(), dtype=torch.float32)
@@ -315,7 +329,7 @@ class MLPModelWrapperRay(TorchMLPModel):
 #         #return outputs.numpy()
 #         # argmax converts it back to muliclass labels for sklearn
 #         return np.argmax(outputs.numpy(), axis=-1)
-    
+
 #     def predict_proba(self, X):
 #         with torch.no_grad():
 #             inputs = torch.tensor(X, dtype=torch.float32)
@@ -336,19 +350,19 @@ class MLPModelWrapperRay(TorchMLPModel):
 #         }
 
 # class SKCompatWrapperExternal(BaseModel):
-    
+
 #     def __init__(self, model, X, y, validation, scoring):
 #         super().__init__(model, X, y, validation, scoring)
-    
-    
+
+
 #     def override_model(self, model_args, model_kwargs) -> None:
 #         config = model_kwargs
 #         architecture_config = [config['n_input'], config['n_class'], config['activation'], config['criterion'], config['n_layer'], config['hidden_size'], config['dropout']]
 #         self.model = SKCompatWrapper(TorchMLPModel(*architecture_config))
 #         #self.model.to(self.device)
 #         self.model.update_training_params(config['epochs'], config['batch_size'], config['criterion'], config['optimizer'], config['lr'])
-        
-        
+
+
 #     def wandb_train(self, config=None):
 #         X_train, y_train = self.fetch_data()
 #         # Initialize a new wandb run
@@ -357,14 +371,14 @@ class MLPModelWrapperRay(TorchMLPModel):
 #             config = wandb.config
 
 #             self.override_model((), config)
-            
+
 #             # Create condition to check if kfold, groupedkfold, stratifiedkfold, or simple train test split
 
 #             self.model.fit(X_train, np.argmax(y_train, axis=-1))
 #             wandb.log({'accuracy': self.model.score(X_train, np.argmax(y_train, axis=-1))})
 #             # # Evaluate predictions
-#             # results = evaluate_model(self.model, X_train, np.argmax(y_train, axis=-1), self.validation, self.scoring)            
-            
+#             # results = evaluate_model(self.model, X_train, np.argmax(y_train, axis=-1), self.validation, self.scoring)
+
 #             # TODO: Figure out why cross-validation code below yields horrible accuracy results...
 #             # #Drop prefixes for logging
 #             # mean_results = {f'{k.split("_", 1)[-1]}_mean': np.mean(v) for k, v in results.items()}
@@ -373,4 +387,3 @@ class MLPModelWrapperRay(TorchMLPModel):
 #             # # Log model performance metrics to W&B
 #             # wandb.log(std_results)
 #             # wandb.log(mean_results)
-    

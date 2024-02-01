@@ -1,0 +1,4 @@
+input_type: data_class
+
+output_type: pickle
+file_path: ${SUBBASE_PATH}/${device}_features.pickle

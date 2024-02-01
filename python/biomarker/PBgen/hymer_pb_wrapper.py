@@ -118,7 +118,9 @@ def hymer_pb_method(
     )
 
     # obtain the initial AUC from first pass
-    orig_metric = combine_struct_by_field(vec_output, str_metric) if n_iter == 1 else None
+    orig_metric = (
+        combine_struct_by_field(vec_output, str_metric) if n_iter == 1 else None
+    )
 
     # now obtain the features for PB growing step
     vec_features_pb_sub, vec_pb_full, vec_idx_peak_pb = get_pb_grow_features(
@@ -158,4 +160,13 @@ def hymer_pb_method(
         bool_verbose=bool_verbose,
     )
 
-    return vec_output_pb_grow, vec_pb_full, vec_idx_peak_pb, model_cfg_pb, trainer_cfg_pb, wandb_pb_filt, wandb_pb_grow, orig_metric
+    return (
+        vec_output_pb_grow,
+        vec_pb_full,
+        vec_idx_peak_pb,
+        model_cfg_pb,
+        trainer_cfg_pb,
+        wandb_pb_filt,
+        wandb_pb_grow,
+        orig_metric,
+    )

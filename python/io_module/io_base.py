@@ -14,6 +14,7 @@ from .polars_io import load_database_pl, load_parquet_pl
 
 import importlib
 
+
 def load_data(config):
     """Load data into a polars dataframe
 

@@ -66,7 +66,7 @@ def process_and_log_scalar_scores(scores_df, run_dir):
         cs.numeric().mean().suffix('_mean'),
         cs.numeric().std().suffix('_std')
     ])
-    wandb.log(scores_agg.to_dict(as_series=False))
+    wandb.log({k: v[0] for k, v in scores_agg.to_dict(as_series=False).items()})
     scores_agg.write_parquet(Path(f'{run_dir}/scalar_scores_agg.parquet'))
     return None
 

@@ -7,7 +7,7 @@ import numpy.typing as npt
 
 import torch.nn as nn
 
-#from model.torch_model.base import _STR_TO_ACTIVATION
+# from model.torch_model.base import _STR_TO_ACTIVATION
 _STR_TO_ACTIVATION = {
     "relu": nn.ReLU(),
     "tanh": nn.Tanh(),
@@ -45,7 +45,7 @@ def gpu_memory_map() -> dict:
     """Returns map of GPU id to memory allocated on that GPU."""
 
     output = run_command("nvidia-smi")
-    gpu_output = output[output.find("GPU Memory"):]
+    gpu_output = output[output.find("GPU Memory") :]
     # lines of the form
     # |    0      8734    C   python                                       11705MiB |
     memory_regex = re.compile(
@@ -72,12 +72,12 @@ def pick_gpu_lowest_memory() -> int:
 
 
 def init_gpu(
-        use_gpu: bool = True,
-        gpu_id: int = 0,
-        bool_use_best_gpu: bool = True,
-        bool_limit_gpu_mem: bool = False,
-        gpu_memory_fraction: float = 0.5,
-        verbose: bool = False,
+    use_gpu: bool = True,
+    gpu_id: int = 0,
+    bool_use_best_gpu: bool = True,
+    bool_limit_gpu_mem: bool = False,
+    gpu_memory_fraction: float = 0.5,
+    verbose: bool = False,
 ):
     global device
 
@@ -85,7 +85,7 @@ def init_gpu(
         # pick best gpu if flag is set
         if bool_use_best_gpu:
             gpu_id = pick_gpu_lowest_memory()
-            
+
         device = torch.device("cuda:" + str(gpu_id))
 
         force_cudnn_initialization()
@@ -94,39 +94,41 @@ def init_gpu(
 
         # optionally limit gpu memory
         if bool_limit_gpu_mem:
-            torch.cuda.set_per_process_memory_fraction(gpu_memory_fraction, device=device)
+            torch.cuda.set_per_process_memory_fraction(
+                gpu_memory_fraction, device=device
+            )
             if verbose:
                 print("GPU memory limited to {}%".format(gpu_memory_fraction * 101))
     else:
         device = torch.device("cpu")
         if verbose:
             print("GPU not detected. Defaulting to CPU.")
-    
+
     return device
 
 
 def set_device(
-        gpu_id: int,
+    gpu_id: int,
 ):
     torch.cuda.set_device(gpu_id)
 
 
 def from_numpy(
-        *args,
-        **kwargs,
+    *args,
+    **kwargs,
 ) -> torch.Tensor:
     return torch.from_numpy(*args, **kwargs).float().to(device)
 
 
 def from_numpy_same_device(
-        *args,
-        **kwargs,
+    *args,
+    **kwargs,
 ) -> torch.Tensor:
     return torch.from_numpy(*args, **kwargs).float()
 
 
 def to_numpy(
-        tensor: torch.Tensor,
+    tensor: torch.Tensor,
 ) -> npt.NDArray:
     return tensor.to("cpu").detach().numpy()
 
@@ -138,6 +140,7 @@ def get_act_func(str_act) -> dict:
         return _STR_TO_ACTIVATION[str_act.lower()]
     else:
         raise ValueError(f"Activation function {str_act} not recognized.")
+
 
 def force_cudnn_initialization():
     s = 32

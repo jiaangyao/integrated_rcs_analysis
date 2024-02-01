@@ -91,7 +91,11 @@ def sfs_feature_sweep(
         vec_output.append(output_curr)
 
         # incrementally update wandb table if already initialized
-        if bool_use_wandb and not bool_use_lightweight_wandb and wandb_table is not None:
+        if (
+            bool_use_wandb
+            and not bool_use_lightweight_wandb
+            and wandb_table is not None
+        ):
             wandb_table.add_data(
                 idx_feature + 1,
                 output_curr["avg_acc"],
@@ -99,7 +103,7 @@ def sfs_feature_sweep(
                 output_curr["avg_auc"],
                 n_iter,
             )
-            
+
         # # otherwise if use lightweight wandb, then log the simple output
         # elif bool_use_lightweight_wandb:
         #     log_dict = {
@@ -295,7 +299,7 @@ def sfs_pb_sweep(
                 output_curr["avg_auc"],
                 n_iter,
             )
-            
+
         # # otherwise if use lightweight wandb, then log the simple output
         # elif bool_use_lightweight_wandb:
         #     log_dict = {
@@ -411,7 +415,6 @@ def sfs_pb_sweep_ray(
         bool_use_wandb=bool_use_wandb,
         bool_use_lightweight_wandb=bool_use_lightweight_wandb,
         bool_use_ray=True,
-        
     )
 
     return vec_output_sfs, wandb_table
@@ -614,8 +617,7 @@ def seq_forward_selection(
             # labels_cell=labels_cell,
         )
         vec_features_pb_sub = [
-            correct_pb_feature_dim(features, pb, idx_used, n_iter)
-            for pb in vec_pb_full
+            correct_pb_feature_dim(features, pb, idx_used, n_iter) for pb in vec_pb_full
         ]
 
         # run parallelized version of feature combination sweep

@@ -8,16 +8,16 @@ class EarlyStopping:
     """Early stops the training if validation loss doesn't improve after a given patience."""
 
     def __init__(
-            self,
-            patience=7,
-            delta=0.0,
-            metrics=["loss", "accuracy"],
-            es_metric="loss",
-            verbose=False,
-            path="~/Documents/temp",
-            filename="checkpoint.pt",
-            trace_func=print,
-            bool_save_checkpoint=False,
+        self,
+        patience=7,
+        delta=0.0,
+        metrics=["loss", "accuracy"],
+        es_metric="loss",
+        verbose=False,
+        path="~/Documents/temp",
+        filename="checkpoint.pt",
+        trace_func=print,
+        bool_save_checkpoint=False,
     ):
         """
         Args:
@@ -50,10 +50,10 @@ class EarlyStopping:
         self.best_model_weights = None
 
     def __call__(
-            self,
-            val_metric,
-            model,
-            mode="min",
+        self,
+        val_metric,
+        model,
+        mode="min",
     ):
         if mode == "min":
             score = -val_metric
@@ -84,9 +84,9 @@ class EarlyStopping:
             self.counter = 0
 
     def save_model(
-            self,
-            val_loss,
-            model,
+        self,
+        val_loss,
+        model,
     ):
         """
         Saves model when validation loss decrease.
@@ -98,9 +98,9 @@ class EarlyStopping:
             self._save_model_to_self(val_loss, model)
 
     def _save_checkpoint(
-            self,
-            val_loss,
-            model,
+        self,
+        val_loss,
+        model,
     ):
         # create output directory if it doesn't exist
         self.path.mkdir(parents=True, exist_ok=True)
@@ -113,9 +113,9 @@ class EarlyStopping:
         self.val_loss_min = val_loss
 
     def _save_model_to_self(
-            self,
-            val_loss,
-            model,
+        self,
+        val_loss,
+        model,
     ):
         if self.verbose:
             self.trace_func(
@@ -127,8 +127,8 @@ class EarlyStopping:
         self.best_model_weights = model.state_dict()
 
     def load_model(
-            self,
-            model,
+        self,
+        model,
     ):
         """
         Loads model when validation loss decrease.
@@ -142,8 +142,8 @@ class EarlyStopping:
         return model
 
     def _load_checkpoint(
-            self,
-            model,
+        self,
+        model,
     ):
         if self.verbose:
             self.trace_func(f"Loading model from {str(self.path / self.filename)} ...")
@@ -152,8 +152,8 @@ class EarlyStopping:
         return model
 
     def _load_model_from_self(
-            self,
-            model,
+        self,
+        model,
     ):
         if self.verbose:
             self.trace_func(f"Loading model from self ...")

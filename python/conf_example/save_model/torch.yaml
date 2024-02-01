@@ -1,0 +1,2 @@
+model_path: ${setup.path_run}/model
+save_type: torch

@@ -1,0 +1,15 @@
+validation_split: 0.2
+patience: 10
+delta: 0.01
+metrics: 
+  - loss
+  - accuracy
+# es_metric is the metric to monitor for early stopping, should be one of the strings included in 'metrics'
+es_metric: loss
+mode: min
+verbose: False
+bool_save_checkpoint: False
+# baseline: None
+# restore_best_weights: True
+random_seed: ${random_seed}
+path: ${run_dir}

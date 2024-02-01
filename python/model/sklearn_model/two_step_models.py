@@ -8,6 +8,7 @@ from sklearn.utils.extmath import safe_sparse_dot
 
 # TODO: need to verify
 
+
 class TwoStepLDATree(BaseEstimator, ClassifierMixin):
     # Emulates decision tree, but each step is an LDA. Assumes binary (e.g. labels are only 0 or 1) classification.
     def __init__(self):

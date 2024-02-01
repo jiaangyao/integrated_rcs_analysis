@@ -7,6 +7,7 @@ import pandas as pd
 
 _MAX_NUMEBER_OF_FINAL_PB = 5
 
+
 def wandb_log(dict_log: dict):
     # use wandb for logging
     if wandb.run is not None:

@@ -1,0 +1,36 @@
+# Main config for unconstrained pipeline. Holds parameters on PB identification pipeline.
+
+# High level pipeline parameters
+random_seed: 42
+
+# Define steps in pipeline
+defaults:
+  - _self_
+  - setup: example
+  - data_source: csv
+  - preprocessing: preprocessing_epoch
+  - feature_engineering: feature_engineering_PSD
+  - feature_selection: Null
+  - class_imbalance: SMOTE_oversample
+  - save_dataframe_or_features: to_pickle # Leave empty or Null if not saving preprocessed or feature engineered data.
+  - model: LightXGBoostModel
+  - evaluation: classification_sklearn_default
+  - hyperparameter_optimization: WandB
+  - sweep: ${hyperparameter_optimization}/${model} # Set to Empty if hyperparameter_optimization is no_search
+  - test_model: default # Set to empty or Null if not testing model
+  - save_model: to_pickle
+
+# Hydra overrides 
+hydra:
+  run:
+    dir: ${setup.path_run}
+  sweep:
+    #dir: ${SUBBASE_PATH}/multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    #dir: ${setup.path_run}/sweep
+    dir: ${setup.path_run}
+    subdir: ${hydra.job.num}
+  runtime:
+    output_dir: ${setup.path_run}
+  job:
+    name: ${setup.run_name}
+  output_subdir: configs

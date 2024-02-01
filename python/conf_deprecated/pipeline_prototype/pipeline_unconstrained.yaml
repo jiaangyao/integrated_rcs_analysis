@@ -1,0 +1,61 @@
+# Main config for unconstrained pipeline. Holds parameters on PB identification pipeline.
+#pipeline_name: unconstrained
+
+# Organization and Logging info
+project: Sleep_Classification_Debug # Sleep_Classification_Trials
+device: 02L
+experiment: Transformer
+run_name: Transformer_debug
+info: Debugging Gated Transformer model
+time_stamp: ${now:%Y-%m-%d}_${now:%H-%M-%S}
+BASE_PATH: /media/shortterm_ssd/Clay
+SUBBASE_PATH: ${BASE_PATH}/${project}/${experiment}
+run_dir: ${SUBBASE_PATH}/${run_name}_${device}_${time_stamp}
+log_file: ${run_dir}/${run_name}.log
+run_tracking_csv: ${BASE_PATH}/ml_run_tracking.csv
+code_snapshot_exlude:
+  - analysis_notebooks_*
+  - analysis_JY
+
+# WandB info
+wandb:
+  project: ${project}
+  entity: cnsmyth
+  group: ${experiment}
+  tags: 
+    - sleep 
+    - ${device}
+    - ${run_name}
+  notes: ${info}
+
+# High level pipeline parameters
+random_seed: 42
+
+# Define steps in pipeline
+defaults:
+  - _self_
+  - data_source: database
+  - preprocessing: example_bd_preprocessed
+  - feature_engineering: example
+  - feature_selection: 
+  - class_imbalance_correction:
+  - save_dataframe_or_features: Null # to_database # Leave empty or Null if not saving preprocessed or feature engineered data.
+  - model: GatedTransformerModel
+  - evaluation: classification_default
+  - hyperparameter_optimization: no_search 
+  - sweep: Null # ${hyperparameter_optimization}/${model} # Set to Empty if hyperparameter_optimization is no_search
+
+# Hydra overrides 
+hydra:
+  run:
+    dir: ${run_dir}
+  sweep:
+    #dir: ${SUBBASE_PATH}/multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
+    #dir: ${run_dir}/sweep
+    dir: ${run_dir}
+    subdir: ${hydra.job.num}
+  runtime:
+    output_dir: ${run_dir}
+  job:
+    name: ${run_name}
+  output_subdir: configs

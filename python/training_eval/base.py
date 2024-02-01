@@ -8,7 +8,10 @@ from model.base import get_dynamics_model
 _VEC_MODEL_DYNAMICS_ONLY = get_dynamics_model()
 
 
-def correct_data_dim(str_model, features_sub: npt.NDArray,):
+def correct_data_dim(
+    str_model,
+    features_sub: npt.NDArray,
+):
     # create empty list for holding output and sanity check
     assert features_sub.shape[0] > 0, "Input features should not be empty"
 

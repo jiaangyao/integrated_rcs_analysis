@@ -1,12 +1,13 @@
 import optuna
 import wandb
-from ray import tune
-import numpy as np
-from loguru import logger
-from analysis_CS.process_classification_results import process_and_log_eval_results_sklearn, process_and_log_eval_results_torch
+from training_eval.process_classification_results import (
+    process_and_log_eval_results_sklearn,
+    process_and_log_eval_results_torch,
+)
+import glob
+import shutil
 
-
-# TODO: Implement hyperparameter optimization via Optuna, WandB, and/or Ray Tune
+# TODO: Implement hyperparameter optimization via Optuna, Ray Tune
 
 
 class HyperparameterOptimization:
@@ -15,10 +16,26 @@ class HyperparameterOptimization:
         self.data = data  # Should be an instance of dataset.data_class.MLData
         self.evaluation = eval  # Should be an instance of training_eval.model_evaluation.ModelEvaluation
 
-    def initialize_wandb_params(self, output_dir, wandb_group, wandb_tags):
-        self.output_dir = output_dir # Typically the local directory
+    def initialize_wandb_params(self, output_dir, wandb_group, wandb_tags, wandb_notes):
+        self.output_dir = output_dir  # Typically the local directory
         self.wandb_group = wandb_group
         self.wandb_tags = wandb_tags
+        self.wandb_notes = wandb_notes
+
+    def train_and_eval_no_search(self, config):
+        # Train model and Evaluate predictions
+        results, epoch_metrics = self.evaluation.evaluate_model(
+            self.model_class, self.data
+        )
+
+        # Log results (to WandB)
+        # TODO: Create a logging class to handle this, so that users can pick different logging options/dashboards outside of W&B
+        if self.evaluation.model_type == "torch":
+            process_and_log_eval_results_torch(
+                results, config["setup"]["path_run"], epoch_metrics
+            )
+        elif self.evaluation.model_type == "sklearn":
+            process_and_log_eval_results_sklearn(results, config["setup"]["path_run"])
 
     def initialize_ray(self):
         raise NotImplementedError
@@ -40,47 +57,33 @@ class HyperparameterOptimization:
         pass
 
     def wandb_sweep(self, config=None):
-        #X_train, y_train = self.data.get_training_data()
+
         # Initialize a new wandb run
         with wandb.init(
             config=config,
             dir=self.output_dir,
             group=self.wandb_group,
             tags=self.wandb_tags,
+            notes=self.wandb_notes,
         ):
+            # Log the local directory path to wandb, and save log file to run directory (so that it is visible in each run's files dashboard)
+            wandb.log({"metadata/local_dir": wandb.run.dir})
+            if log_file := glob.glob(f"{self.output_dir}/*.log"):
+                shutil.copy(log_file[0], wandb.run.dir)
+
             # If called by wandb.agent this config will be set by Sweep Controller
             config = wandb.config
-            wandb.log({'metadata/local_dir': self.output_dir})
 
             self.model_class.override_model(config.as_dict())
 
             # Evaluate predictions
-            results, epoch_losses, epoch_val_losses = self.evaluation.evaluate_model(
+            results, epoch_metrics = self.evaluation.evaluate_model(
                 self.model_class, self.data
             )
-            
-            if self.evaluation.model_type == 'torch':
-                if epoch_val_losses: raise NotImplementedError("Epoch Validation processing and logging not yet implemented for torch models")
-                process_and_log_eval_results_torch(results, config["run_dir"], epoch_losses, epoch_val_losses)
-            elif self.evaluation.model_type == 'sklearn':
-                process_and_log_eval_results_sklearn(results, config["run_dir"])
 
-            # # Drop prefixes for logging
-            # mean_results = {
-            #     (f'{k.split("_", 1)[-1]}_mean' if 'test_' in k else f'{k}_mean'): np.mean(v) 
-            #     for k, v in results.items()
-            # }
-            # std_results = {
-            #     (f'{k.split("_", 1)[-1]}_std' if 'test_' in k else f'{k}_std'): np.std(v) 
-            #     for k, v in results.items()
-            # }
-
-            # # Log model performance metrics to W&B
-            # wandb.log(std_results)
-            # wandb.log(mean_results)
-
-            # TODO: Implement if test_model is true, then log results on hold-out test set
-            # if self.test_model:
-            #     self.model.fit(X_train, y_train)
-            #     X_test, y_test = self.fetch_test_data()
-            #     y_preds = self.model.predict(X_test)
+            if self.evaluation.model_type == "torch":
+                process_and_log_eval_results_torch(
+                    results, self.output_dir, epoch_metrics
+                )
+            elif self.evaluation.model_type == "sklearn":
+                process_and_log_eval_results_sklearn(results, self.output_dir)

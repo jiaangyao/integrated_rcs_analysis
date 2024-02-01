@@ -7,6 +7,30 @@ from sklearn.base import BaseEstimator, TransformerMixin
 import inspect
 import types
 import pkgutil
+import torch
+import pickle
+import joblib
+
+
+from pipeline.sub_pipelines import logging_setup
+
+
+def setup_logging(config: dict):
+
+    # Logging Setup
+    # Check if hyperparameter optimization is desired... needs to be passed to setup
+    if hyperopt_conf := config.get("hyperparameter_optimization"):
+        if (
+            hyperopt_conf.get("search_library")
+            and hyperopt_conf.get("search_library").lower() == "wandb"
+        ):
+            WandB_hyperopt = True
+        else:
+            WandB_hyperopt = False
+    else:
+        WandB_hyperopt = False
+    logger = logging_setup.setup(config["setup"], WandB_hyperopt=WandB_hyperopt)
+    return logger
 
 
 def get_callable_function(func_name):
@@ -121,10 +145,11 @@ def find_and_load_class(module_name, class_name, args=[], kwargs={}):
     # as the desired class may be in a module that yields import error
     except (ModuleNotFoundError, ImportError) as e:
         # If module is not found, just return None
-        if isinstance(e, ModuleNotFoundError): print(f"Module {module_name} not found, skipping")
-        if isinstance(e, ImportError): print(f"Module {module_name} could not be imported, skipping")
+        if isinstance(e, ModuleNotFoundError):
+            print(f"Module {module_name} not found, skipping")
+        if isinstance(e, ImportError):
+            print(f"Module {module_name} could not be imported, skipping")
         return None
-    
 
     # Check if the class is in the current module.
     cls = getattr(module, class_name, None)
@@ -196,7 +221,9 @@ def create_transform_pipeline(steps):
             module_name = inspect.getmodule(func).__name__.rsplit(".", 1)[0]
         except Exception as e:
             print(f"Exception: {e}")
-            print(f"Could not retrieve module name for function {func}. Function could be mispelled or in different module.")
+            print(
+                f"Could not retrieve module name for function {func}. Function could be mispelled or in different module."
+            )
         if module_name in name:
             pipe_step_paths.append((name, kwargs))
         else:
@@ -211,3 +238,31 @@ def create_transform_pipeline(steps):
 
     pipe = Pipeline(pipe_steps)
     return pipe, pipe_step_paths
+
+
+def save_model(save_model_config, model, logger):
+    """
+    Saves model as a pickle or torch file in the specified path.
+    """
+    model_path = save_model_config["model_path"]
+
+    if save_model_config["save_type"] == "pickle":
+        model_path = model_path + ".pkl"
+        with open(model_path, "wb") as f:
+            pickle.dump(model, f)
+        logger.info(f"Model saved as pickle file to {model_path}")
+
+    elif save_model_config["save_type"] == "torch":
+        model_path = model_path + ".pt"
+        torch.save(model, model_path)
+        logger.info(f"Model saved as torch file to {model_path}")
+
+    elif save_model_config["save_type"] == "joblib":
+        model_path = model_path + ".pkl"
+        joblib.dump(model, model_path)
+        logger.info(f"Model saved as pickle file to {model_path} using joblib")
+
+    else:
+        raise ValueError(
+            f"Model type {save_model_config['save_type']} not supported. Must be 'pickle' or 'torch'."
+        )

@@ -5,8 +5,13 @@ import ray
 from sklearn.model_selection import StratifiedKFold, KFold
 from omegaconf import DictConfig
 
-from dataset.struct_dataset import create_output_struct, append_output_struct, arrayize_output_struct, \
-    append_pred_output_struct, comp_summary_output_struct
+from dataset.struct_dataset import (
+    create_output_struct,
+    append_output_struct,
+    arrayize_output_struct,
+    append_pred_output_struct,
+    comp_summary_output_struct,
+)
 from preproc.label_base import create_hashmap
 from model.pipeline import init_model
 from .base import correct_data_dim, get_valid_data
@@ -14,17 +19,17 @@ from .train_eval_model import step_model
 
 
 def kfold_cv_training(
-        features_sub: npt.NDArray,
-        y_class,
-        y_stim,
-        idx_feature,
-        model_cfg: DictConfig | dict,
-        trainer_cfg: DictConfig | dict,
-        n_fold=10,
-        str_model="LDA",
-        bool_use_strat_kfold=True,
-        random_seed: int | None = 0,
-        # bool_return_pred: bool = False,
+    features_sub: npt.NDArray,
+    y_class,
+    y_stim,
+    idx_feature,
+    model_cfg: DictConfig | dict,
+    trainer_cfg: DictConfig | dict,
+    n_fold=10,
+    str_model="LDA",
+    bool_use_strat_kfold=True,
+    random_seed: int | None = 0,
+    # bool_return_pred: bool = False,
 ):
     # create the training and test sets
     if bool_use_strat_kfold:
@@ -117,13 +122,13 @@ def kfold_cv_training(
 
 
 def kfold_cv_training_batch(
-        vec_features_batch,
-        y_class,
-        y_stim,
-        vec_idx_feature,
-        model_cfg,
-        trainer_cfg,
-        **kwargs,
+    vec_features_batch,
+    y_class,
+    y_stim,
+    vec_idx_feature,
+    model_cfg,
+    trainer_cfg,
+    **kwargs,
 ):
     vec_output = [
         kfold_cv_training(

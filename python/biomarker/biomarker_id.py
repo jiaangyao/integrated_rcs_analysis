@@ -11,10 +11,10 @@ from omegaconf import DictConfig, OmegaConf
 import hydra
 import wandb
 
-from pipeline.io_pipeline import load_data, load_amp_gain
+from pipeline.sub_pipelines.io_pipeline import load_data, load_amp_gain
 from preproc.rcs_feature import extract_rcs_feature
 from model.pipeline import get_model_params
-from pipeline.biomakrer_pipeline import run_pb_pipeline
+from pipeline.sub_pipelines.biomarker_pipeline import run_pb_pipeline
 
 from utils.wandb_utils import wandb_logging_sfs_outer
 
@@ -300,14 +300,7 @@ class SFSTrainer(DefaultModelTrainer):
             bar_format="{desc:<2.5}{percentage:3.0f}%|{bar:15}{r_bar}",
         ):
             # perform the SFS
-            (
-                output_fin,
-                output_init,
-                _,
-                _,
-                model_cfg,
-                trainer_cfg,
-            ) = run_pb_pipeline(
+            (output_fin, output_init, _, _, model_cfg, trainer_cfg,) = run_pb_pipeline(
                 features,
                 y_class,
                 y_stim,
@@ -347,10 +340,7 @@ class SFSTrainer(DefaultModelTrainer):
                 print("")
 
             # optionally log to wandb
-            (
-                vec_wandb_sfsPB,
-                vec_wandb_sinPB,
-            ) = wandb_logging_sfs_outer(
+            (vec_wandb_sfsPB, vec_wandb_sinPB,) = wandb_logging_sfs_outer(
                 output_fin=output_fin,
                 output_init=output_init,
                 idx_rep=idx_rep,

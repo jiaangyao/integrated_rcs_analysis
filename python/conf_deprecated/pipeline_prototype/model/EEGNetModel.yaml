@@ -1,0 +1,20 @@
+defaults:
+  - _self_
+  - early_stopping: Null # torch_default # Can be Null (i.e. None-type)
+
+model_name: EEGNetModel
+parameters:
+    chunk_size: 128
+    num_electrodes: 1 # TODO: IF in_channels = 1 and num_electrodes = 3, then error is thrown...
+    in_channels: 15 # Num of bandpassed channels (total)
+    F1: 15
+    F2: 6
+    D: 15
+    n_class: 5
+    kernel_1: 64
+    kernel_2: 16
+    dropout: 0.25
+    linear_input_size: 702 # 2808 # Determined empirically.. not a good solution
+    n_epoch: 35
+    batch_size: 64
+    bool_use_gpu: True

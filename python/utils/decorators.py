@@ -8,6 +8,7 @@ def polarify_in(func):
         if isinstance(df, pd.DataFrame):
             args[0] = pl.from_pandas(df)
         return func(*args, **kwargs)
+
     return wrapper
 
 
@@ -17,6 +18,7 @@ def pandify_in(func):
         if isinstance(df, pl.DataFrame):
             args[0] = df.to_pandas()
         return func(*args, **kwargs)
+
     return wrapper
 
 
@@ -27,6 +29,7 @@ def polarify_out(func):
             return pl.from_pandas(df)
         else:
             return df
+
     return wrapper
 
 
@@ -37,4 +40,5 @@ def pandify_out(func):
             return df.to_pandas()
         else:
             return df
+
     return wrapper
