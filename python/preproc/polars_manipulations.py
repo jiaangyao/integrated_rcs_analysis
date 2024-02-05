@@ -135,7 +135,7 @@ def filter_rows(df: pl.DataFrame, condition: str = "") -> pl.DataFrame:
     args:
         df (pl.DataFrame): input polars DataFrame
         condition (str or List[str]): condition string to filter rows. Can be arbitrarily complex, as long as it is well-constructed and a valid Python expression. Newlines may cause issues.
-            E.g. "(pl.col('A') > 0" | "pl.col('A') > -10) & (pl.col('B') == 'taco') & (pl.col('C').is_in([1, 2, 3]))"
+            E.g. "(pl.col('A') > 0" | "pl.col('A') < -10) & (pl.col('B') == 'taco') & (pl.col('C').is_in([1, 2, 3]))"
 
     returns:
         pl.DataFrame: output polars DataFrame with filtered rows
