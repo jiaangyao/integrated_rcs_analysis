@@ -28,6 +28,8 @@ def wandb_setup(config, wandb_setup_conf):
     logger.info("WandB run id: {}".format(run.id))
     logger.info("Local Directory Path: {}".format(config["path_run"]))
     wandb.log({"metadata/local_dir": config.get("path_run")})
+    # Set the WANDB_DIR environment variable to your desired directory
+    os.environ["WANDB_DIR"] = os.path.abspath(config.get("path_run"))
 
 
 def setup(config: dict, WandB_hyperopt=False):

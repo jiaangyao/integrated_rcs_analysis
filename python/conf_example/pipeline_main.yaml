@@ -11,6 +11,7 @@ defaults:
   - preprocessing: preprocessing_epoch
   - feature_engineering: feature_engineering_PSD
   - feature_selection: Null
+  - data_augmentation: data_aug_example
   - class_imbalance: SMOTE_oversample
   - save_dataframe_or_features: to_pickle # Leave empty or Null if not saving preprocessed or feature engineered data.
   - model: LightXGBoostModel

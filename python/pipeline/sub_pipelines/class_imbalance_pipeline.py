@@ -63,12 +63,28 @@ def run_class_imbalance_correction(X, y, groups, imb_config, logger):
                 f"Channel dimension for class imbalance correction: {channel_dim}, applying class imbalance along channels."
             )
             if channel_dim == 1:
-                X = X.transpose(1, 0, 2)
-            elif channel_dim >= 2:
-                raise ValueError(
-                    f"Channel dimension {channel_dim} is not supported for class imbalance correction. Max dimension is 1."
-                )
-
+                transpose_order = (1, 0) + tuple(range(2, X.ndim))
+                X = X.transpose(transpose_order)
+                temp_flattened = False
+            else:
+                logger.warning(f"Channel dimension {channel_dim} is not debugged for class imbalance correction... Please verify appropriate class corrections.")
+                transpose_order = X.ndim.copy()
+                transpose_order[0] = channel_dim
+                transpose_order[channel_dim] = 0
+                X = X.transpose(transpose_order)
+                temp_flattened = False
+                
+            if X.ndim >= 3: # Imblearn only likes 2D arrays.. need to flatten extra dimensions
+                temp_flattened = True
+                # Store the original shape
+                original_shape = X.shape
+                # Flatten the array after the 2nd dimension
+                # Calculate the new shape: the product of dimensions from the 3rd dimension onwards
+                new_shape = X.shape[:2] + (-1,)
+                X = X.reshape(new_shape)
+            else: 
+                temp_flattened = False
+                
             X_list = []
             groups_list = []
             y_list = []
@@ -102,11 +118,30 @@ def run_class_imbalance_correction(X, y, groups, imb_config, logger):
             if groups:
                 groups = groups_list[0]
 
+            if temp_flattened: # Get back to the original feature shape (with channels as 0th dimension)
+                new_shape = X.shape[:2] + original_shape[2:]
+                X = X.reshape(new_shape)
+            
             # Transpose the feature matrix back to (num_rows, num_channels, num_cols), if channel dimension is 1
             if channel_dim == 1:
-                X = X.transpose(1, 0, 2)
+                X = X.transpose(transpose_order)
+            elif channel_dim > 1:
+                X = X.transpose(transpose_order)
+            
 
-        else:
+        else: # Run class imbalance correction on the entire feature matrix, not by channel
+            
+            if X.ndim >= 3: # Imblearn only likes 2D arrays.. need to temporarily flatten extra dimensions
+                temp_flattened = True
+                # Store the original shape
+                original_shape = X.shape
+                # Flatten the array after the 2nd dimension
+                # Calculate the new shape: the product of dimensions from the 3rd dimension onwards
+                new_shape = [X.shape[0]] + [-1]
+                X = X.reshape(new_shape)
+            else:
+                temp_flattened = False
+                
             X, y_tmp = imb_strategy.fit_resample(X, y)
             if groups is not None:
                 if groups.ndim == 1:
@@ -115,6 +150,10 @@ def run_class_imbalance_correction(X, y, groups, imb_config, logger):
                 assert np.array_equal(
                     y_tmp, y_group
                 ), "Imbalance applied to group labels did not match data labels."
+            
+            if temp_flattened:
+                new_shape = (X.shape[0],) + original_shape[1:]
+                X = X.reshape(new_shape)
 
             y = y_tmp
 

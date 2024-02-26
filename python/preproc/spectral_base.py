@@ -9,6 +9,7 @@ import numpy.typing as npt
 from scipy import stats, signal
 from sklearn.linear_model import LinearRegression
 import polars as pl
+from scipy.signal import ShortTimeFFT # Requires scipy >= 1.12
 
 
 def multivariate_feature_embedding(
@@ -353,3 +354,42 @@ def get_psd(
         pxx = np.log(pxx)
 
     return pxx
+
+
+def get_spectrograms(X, win_size=500, win_type='hamming', win_params={}, hop=250, fs=500, scale_to='psd', axis=-1, log=True, freq_ranges=[[0.5, 100]]):
+    """
+    Calculate the spectrogram of the input data.
+
+    Args:
+        X (np.ndarray): Input data for spectrogram calculation.
+        win (int): Size of the window used for spectrogram calculation.
+        hop (int): Number of samples to overlap between windows.
+        fs (int): Sampling frequency of the data.
+        scale_to (str): Scaling method for spectrogram calculation.
+        axis (int): Axis along which the spectrogram is calculated.
+        log (bool): Whether to apply logarithmic scaling to the spectrogram.
+        freq_ranges (list): List of frequency ranges to keep in the spectrogram.
+
+    Returns:
+        np.ndarray: Input data, where specified axis is converted to spectrogram.
+    """
+    win = signal.get_window(win_type, win_size, **win_params)
+    sft = ShortTimeFFT(win=win, hop=hop, fs=fs, scale_to=scale_to)
+    Sxx = sft.spectrogram(X, axis=axis)
+    
+    if log:
+        Sxx = np.log(Sxx)
+        
+    if freq_ranges:
+        freq_inds_to_keep = np.concatenate([
+            np.where((sft.f >= freq_range[0]) & (sft.f <= freq_range[1]))[0]
+            for freq_range in freq_ranges
+        ], axis=-1)
+        
+        if axis == -1:
+            Sxx = np.take(Sxx, freq_inds_to_keep, axis=-2) # The second to last axis is the frequency axis
+        else:
+            Sxx = np.take(Sxx, freq_inds_to_keep, axis=axis)
+        
+    return Sxx
+    

@@ -19,6 +19,7 @@ from sub_pipelines import (
     biomarker_pipeline,
     feature_engineering_pipeline,
     class_imbalance_pipeline,
+    data_augmentation_pipeline,
     io_pipeline,
     preproc_pipeline,
     hyperparam_opt_pipeline,
@@ -40,7 +41,7 @@ from model.torch_model.skorch_model import SkorchModel
 # Libraries for hyperparameter tuning
 
 # Variables
-CONFIG_PATH = "/home/claysmyth/code/configs/lightgbm_sleep_parquet"
+CONFIG_PATH = "/home/claysmyth/code/configs/AlexNet_sleep"
 CONFIG_NAME = "pipeline_main"
 
 
@@ -115,7 +116,16 @@ def main(cfg: DictConfig):
     if evaluation_config := config.get("evaluation"):
         implement_train_test_split(evaluation_config, data, logger)
 
-    # TODO: Ensure class imbalance is only run on training data
+    # Data Augmentation
+    if augment_config := config.get("data_augmentation"):
+        (
+            data.X_train,
+            data.y_train,
+            data.groups_train
+        ) = data_augmentation_pipeline.run_data_augmentation(
+            data.X_train, data.y_train, data.groups_train, augment_config, logger
+        )
+    
     # Class Imbalance Correction
     if imb_config := config.get("class_imbalance"):
         (
@@ -125,7 +135,7 @@ def main(cfg: DictConfig):
         ) = class_imbalance_pipeline.run_class_imbalance_correction(
             data.X_train, data.y_train, data.groups_train, imb_config, logger
         )
-
+    
     # Feature Selection
     # Not implemented yet
 

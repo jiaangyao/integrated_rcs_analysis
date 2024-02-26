@@ -9,7 +9,7 @@ info: LightGBM. Example config for repository.
 time_stamp: ${now:%Y-%m-%d}_${now:%H-%M-%S}
 path_base: /your/path/to/save/data # Please don't use your home directory... save in SSD or HDD
 path_subbase: ${setup.path_base}/${setup.project}/${setup.group}
-path_run: ${setup.path_subbase}/${setup.run_name}_${setup.device}_${setup.time_stamp}
+path_run: ${setup.path_subbase}/${setup.run_name}_${setup.time_stamp}
 file_log: ${setup.path_run}/${setup.run_name}.log
 run_tracking_csv: ${setup.path_base}/ml_run_tracking.csv
 code_snapshot_exlude: # This is a list of directories to exclude from the code snapshot

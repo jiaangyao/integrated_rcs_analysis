@@ -149,6 +149,7 @@ def find_and_load_class(module_name, class_name, args=[], kwargs={}):
             print(f"Module {module_name} not found, skipping")
         if isinstance(e, ImportError):
             print(f"Module {module_name} could not be imported, skipping")
+        print(f"Exception: {e}")
         return None
 
     # Check if the class is in the current module.
