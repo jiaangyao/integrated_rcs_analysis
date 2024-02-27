@@ -68,7 +68,7 @@ def run_class_imbalance_correction(X, y, groups, imb_config, logger):
                 temp_flattened = False
             else:
                 logger.warning(f"Channel dimension {channel_dim} is not debugged for class imbalance correction... Please verify appropriate class corrections.")
-                transpose_order = X.ndim.copy()
+                transpose_order = np.arange(X.ndim)
                 transpose_order[0] = channel_dim
                 transpose_order[channel_dim] = 0
                 X = X.transpose(transpose_order)

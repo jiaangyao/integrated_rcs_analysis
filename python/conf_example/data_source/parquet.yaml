@@ -1,3 +1,5 @@
 source: parquet
 # Asterisk imports all parquet files in the directory
 data_path: /some/directory/with/parquet/files/*.parquet
+kwargs: # See available kwargs here: https://docs.pola.rs/py-polars/html/reference/api/polars.read_parquet.html#polars.read_parquet
+  # e.g. n_rows: 10_000_000

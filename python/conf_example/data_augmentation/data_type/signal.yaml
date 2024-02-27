@@ -1,3 +1,19 @@
 data_type: signal
+sample_rate: 500
 
-functions:
+# Note, with current implementation, if you use p < 1.0, then you will have duplicate training examples.
+augment_groupings: # List of dicts
+  -
+    AddGaussianNoise:
+      min_amplitude: 0.001
+      max_amplitude: 0.015
+      p: 1.0
+    ScaleAugment:
+  -
+    TimeMask:
+      min_band_part: 0.1
+      max_band_part: 0.3
+      fade: True
+      p: 1.0
+    
+  

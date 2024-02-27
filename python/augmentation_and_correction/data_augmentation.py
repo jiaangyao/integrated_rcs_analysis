@@ -1,7 +1,7 @@
 import numpy as np
 import numpy.random as random
-# import albumentations as A
-# import audiomentations as AA
+import albumentations as album
+import audiomentations as audio
 import numpy as np
 
 """
@@ -16,14 +16,14 @@ class UniversalCompose:
         if isinstance(data, dict):
             if 'image' in data:
                 for t in self.transforms:
-                    if isinstance(t, (A.BasicTransform, A.Compose)):
-                        data['image'] = t(image=data['image'])['image']
+                    if isinstance(t, (album.BasicTransform, album.Compose)):
+                        data = t(image=data['image'])['image']
                     elif callable(t):  # Check if the transformation is a custom function
                         data = t(data)  # Assume the custom function modifies the data in-place or returns a modified version
             elif 'signal' in data:
                 for t in self.transforms:
-                    if isinstance(t, (AA.AudioTransform, AA.Compose)):
-                        data['signal'], data['sample_rate'] = t(samples=data['signal'], sample_rate=data['sample_rate'])
+                    if isinstance(t, (audio.core.transforms_interface.BaseWaveformTransform, audio.Compose)):
+                        data = t(samples=data['signal'], sample_rate=data['sample_rate'])
                     elif callable(t):  # Check if the transformation is a custom function
                         data = t(data)  # Assume the custom function modifies the data in-place or returns a modified version
         else:
@@ -34,7 +34,18 @@ class UniversalCompose:
         self.transforms.append(transform)
 
 
+class ScaleAugment(object):
+    def __init__(self, low_range = 0.5, up_range = 1.5):
+        self.up_range = up_range  # e.g. .8
+        self.low_range = low_range
 
+    #         assert self.up_range >= self.low_range
+    def __call__(self, sample):
+        multiplier = np.random.uniform(self.low_range, self.up_range)
+        return sample * multiplier
+
+
+# ! Below functions are not debugged yet
 class Jitter(object):
     """
     randomly select the default window from the original window
@@ -97,18 +108,6 @@ class AdditiveNoise(object):
     def __call__(self, sample):
         sample_ = sample + self.sigma * np.random.randn(*sample.shape)
         return sample_
-
-
-class ScaleAugment(object):
-    def __init__(self, low_range, up_range):
-        self.up_range = up_range  # e.g. .8
-        self.low_range = low_range
-        print('scale', self.low_range, self.up_range)
-
-    #         assert self.up_range >= self.low_range
-    def __call__(self, sample):
-        multiplier = np.random.uniform(self.low_range, self.up_range)
-        return sample * multiplier
 
 
 class LevelChannelNoise(object):

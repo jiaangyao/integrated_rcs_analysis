@@ -41,7 +41,7 @@ from model.torch_model.skorch_model import SkorchModel
 # Libraries for hyperparameter tuning
 
 # Variables
-CONFIG_PATH = "/home/claysmyth/code/configs/AlexNet_sleep"
+CONFIG_PATH = "/home/claysmyth/code/configs/AttnSleepEnsembleModel_parquet"
 CONFIG_NAME = "pipeline_main"
 
 

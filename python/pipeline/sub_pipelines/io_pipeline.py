@@ -15,7 +15,7 @@ from utils.decorators import polarify_out
 def load_df_from_file(
     file_type: str,
     data_path: str,
-    columns: list[str] = None,
+    kwargs: dict = None,
 ) -> pd.DataFrame | pl.DataFrame:
     """Load a datafile into a pandas or polars dataframe
 
@@ -31,10 +31,10 @@ def load_df_from_file(
         # df = load_csv_df(
         #     data_source_params["path_data"], data_source_params["file_data"]
         # )
-        df = pl.read_csv(data_path, columns=columns)
+        df = pl.read_csv(data_path, **kwargs)
     # otherwise use polars to load
     elif file_type == "parquet":
-        df = pl.read_parquet(data_path, columns=columns)
+        df = pl.read_parquet(data_path, **kwargs)
     elif file_type == "mat":
         raise NotImplementedError
     else:
@@ -93,9 +93,9 @@ def load_data(
         or data_source_params["source"] == "csv"
         or data_source_params["source"] == "mat"
     ):
-        columns = data_source_params.get("columns", None)
+        kwargs = data_source_params.get("kwargs", None)
         df = load_df_from_file(
-            data_source_params["source"], data_source_params["data_path"], columns
+            data_source_params["source"], data_source_params["data_path"], kwargs
         )
 
     # quickly convert the time to datetime format
