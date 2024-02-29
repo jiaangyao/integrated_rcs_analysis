@@ -93,7 +93,7 @@ def load_data(
         or data_source_params["source"] == "csv"
         or data_source_params["source"] == "mat"
     ):
-        kwargs = data_source_params.get("kwargs", None)
+        kwargs = data_source_params.get("kwargs", {})
         df = load_df_from_file(
             data_source_params["source"], data_source_params["data_path"], kwargs
         )

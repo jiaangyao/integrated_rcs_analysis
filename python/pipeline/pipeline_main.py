@@ -2,7 +2,7 @@
 # TODO: Potentially helpful to use Kedro for pipeline management
 
 # Add python directory to path
-import sys, os
+import sys, os, argparse
 
 sys.path.append(os.getcwd())
 
@@ -14,7 +14,7 @@ from collections import OrderedDict
 
 # Local Imports
 from utils.pipeline_utils import *
-from sub_pipelines import (
+from pipeline.sub_pipelines import (
     logging_setup,
     biomarker_pipeline,
     feature_engineering_pipeline,
@@ -41,15 +41,16 @@ from model.torch_model.skorch_model import SkorchModel
 # Libraries for hyperparameter tuning
 
 # Variables
-CONFIG_PATH = "/home/claysmyth/code/configs/AttnSleepEnsembleModel_parquet"
-CONFIG_NAME = "pipeline_main"
+#DEFAULT_CONFIG_PATH = "../conf_example"
+DEFAULT_CONFIG_PATH = "/home/claysmyth/code/configs/consolidated/"
+DEFAULT_CONFIG_NAME = "pipeline_main"
 
 
 # Main pipeline function
 @hydra.main(
     version_base=None,
-    config_path=CONFIG_PATH,
-    config_name=CONFIG_NAME,
+    config_path=DEFAULT_CONFIG_PATH,
+    config_name=DEFAULT_CONFIG_NAME,
 )
 def main(cfg: DictConfig):
     # Convert config to ordered dict
@@ -237,4 +238,12 @@ def main(cfg: DictConfig):
 
 
 if __name__ == "__main__":
+    # # Parse command line arguments
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument("-c", "--config-path", help="Path to config directory")
+    # args, _ = parser.parse_known_args()
+
+    # # Set DEFAULT_CONFIG_PATH if --config-path flag is provided
+    # if args.config_path:
+    #     DEFAULT_CONFIG_PATH = args.config_path   
     main()

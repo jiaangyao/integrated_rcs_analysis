@@ -11,6 +11,15 @@ def wandb_sweep_setup(eval, hyperparam_obj, data_class, config, logger):
     sweep_config = config["sweep"]
     setup_config = config["setup"]
     wandb_config = setup_config["wandb"]
+    
+    tags = wandb_config.get("tags")
+    for ele in tags:
+        if isinstance(ele, list):
+            tags.remove(ele)
+            tags.extend(ele)
+        elif ele is None:
+            tags.remove(ele)
+    wandb_config["tags"] = tags
 
     if eval.model_type == "skorch" or eval.model_type == "torch":
         # Add input and output shape, which depends on data

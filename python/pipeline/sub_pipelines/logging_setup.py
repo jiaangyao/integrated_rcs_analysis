@@ -13,11 +13,20 @@ from utils.file_utils import (
 def wandb_setup(config, wandb_setup_conf):
 
     wandb.config = config
+    
+    tags = wandb_setup_conf.get("tags")
+    for ele in tags:
+        if isinstance(ele, list):
+            tags.remove(ele)
+            tags.extend(ele)
+        elif ele is None:
+            tags.remove(ele)
+    
     run = wandb.init(
         entity=wandb_setup_conf.get("entity"),
         project=wandb_setup_conf.get("project"),
         group=wandb_setup_conf.get("group"),
-        tags=wandb_setup_conf.get("tags"),
+        tags=tags,
         notes=wandb_setup_conf.get("notes"),
         dir=config.get("path_run"),
     )

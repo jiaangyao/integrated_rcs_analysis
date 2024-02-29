@@ -133,3 +133,4 @@ MANIFEST
 .lh/
 python/analysis_*/
 python/analysis_CS/
+python/nohup.out
