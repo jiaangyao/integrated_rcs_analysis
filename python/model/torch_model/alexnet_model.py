@@ -111,7 +111,7 @@ class AlexNetModel(BaseTorchModel):
         transform=None,
         target_transform=None,
         bool_use_ray=False,
-        bool_use_gpu=False,
+        bool_use_gpu=True,
         n_gpu_per_process: int | float = 0,
     ):
 

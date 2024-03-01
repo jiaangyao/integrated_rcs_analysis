@@ -13,14 +13,22 @@ def execute_commands_from_csv(csv_path):
     df = pd.read_csv(csv_path)
     
     for index, row in df.iterrows():
+        
+        if row['run_row'] == False: # Skip row if the 'run_row' column is False, allowing user to not execute certain rows of CSV
+            continue
+        
         # Start building the command
         # command = [f"{PYTHON_PATH}", "python/pipeline/pipeline_main.py"]
         command = ["/home/claysmyth/code/integrated_rcs_analysis/python/pipeline/pipeline_main.py"]
         
         # Iterate over each column and add to the command if the value exists
         for column in df.columns:
+            
+            if column == 'run_row': # Ignore the 'run_row' column, because we already checked it
+                continue
+            
             # Assuming 'flag' column should be treated differently
-            if column == 'Flags':
+            if column == 'flags':
                 if pd.notna(row[column]):
                     command.append(f'--{row[column]}')  # Append flag as is
             else:

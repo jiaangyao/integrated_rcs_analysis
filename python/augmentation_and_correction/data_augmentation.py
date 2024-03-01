@@ -3,6 +3,7 @@ import numpy.random as random
 import albumentations as album
 import audiomentations as audio
 import numpy as np
+from audiomentations.core.transforms_interface import BaseSpectrogramTransform
 
 """
 (Some) Methods and functions below are taken from Sean
@@ -18,6 +19,8 @@ class UniversalCompose:
                 for t in self.transforms:
                     if isinstance(t, (album.BasicTransform, album.Compose)):
                         data = t(image=data['image'])['image']
+                    elif isinstance(t, (BaseSpectrogramTransform, audio.Compose)):
+                        data = t(data['image'])
                     elif callable(t):  # Check if the transformation is a custom function
                         data = t(data)  # Assume the custom function modifies the data in-place or returns a modified version
             elif 'signal' in data:
@@ -43,7 +46,106 @@ class ScaleAugment(object):
     def __call__(self, sample):
         multiplier = np.random.uniform(self.low_range, self.up_range)
         return sample * multiplier
+    
 
+# Next two are adapted from audiomentations: https://github.com/iver56/audiomentations/tree/main/audiomentations/spec_augmentations
+
+class SpecFrequencyMask(BaseSpectrogramTransform):
+    """
+    Mask a set of frequencies in a spectrogram, à la Google AI SpecAugment. This type of data
+    augmentation has proved to make speech recognition models more robust.
+
+    The masked frequencies can be replaced with either the mean of the original values or a
+    given constant (e.g. zero).
+    """
+
+    supports_multichannel = True
+
+    def __init__(
+        self,
+        min_mask_fraction: float = 0.03,
+        max_mask_fraction: float = 0.25,
+        mask_dim: int = 1,
+        fill_mode: str = "constant",
+        fill_constant: float = 0.0,
+        p: float = 0.5,
+    ):
+        super().__init__(p)
+        self.min_mask_fraction = min_mask_fraction
+        self.max_mask_fraction = max_mask_fraction
+        self.mask_dim = mask_dim
+        assert fill_mode in ("mean", "constant")
+        self.fill_mode = fill_mode
+        self.fill_constant = fill_constant
+
+    def randomize_parameters(self, magnitude_spectrogram):
+        super().randomize_parameters(magnitude_spectrogram)
+        if self.parameters["should_apply"]:
+            num_frequency_bins = magnitude_spectrogram.shape[self.mask_dim]
+            min_frequencies_to_mask = int(
+                round(self.min_mask_fraction * num_frequency_bins)
+            )
+            max_frequencies_to_mask = int(
+                round(self.max_mask_fraction * num_frequency_bins)
+            )
+            num_frequencies_to_mask = random.randint(
+                min_frequencies_to_mask, max_frequencies_to_mask
+            )
+            self.parameters["start_frequency_index"] = random.randint(
+                0, num_frequency_bins - num_frequencies_to_mask
+            )
+            self.parameters["end_frequency_index"] = (
+                self.parameters["start_frequency_index"] + num_frequencies_to_mask
+            )
+
+    def apply(self, magnitude_spectrogram):
+        if self.fill_mode == "mean":
+            fill_value = np.mean(
+                magnitude_spectrogram[
+                self.parameters["start_frequency_index"] : self.parameters[
+                    "end_frequency_index"
+                ]
+                ]
+            )
+        else:
+            # self.fill_mode == "constant"
+            fill_value = self.fill_constant
+        magnitude_spectrogram = magnitude_spectrogram.copy()
+        # magnitude_spectrogram[
+        # self.parameters["start_frequency_index"] : self.parameters[
+        #     "end_frequency_index"
+        # ]
+        # ] = fill_value
+        
+        # Build the slicing object
+        slices = [slice(None)] * magnitude_spectrogram.ndim  # All dimensions initially take all elements
+        slices[self.mask_dim] = slice(self.parameters["start_frequency_index"], self.parameters["end_frequency_index"])  # Apply slicing on the target dimension
+
+        # Apply the mask
+        magnitude_spectrogram[tuple(slices)] = fill_value
+        return magnitude_spectrogram
+
+
+class SpecChannelShuffle(BaseSpectrogramTransform):
+    """
+    Shuffle the channels of a multichannel spectrogram (channels last).
+    This can help combat positional bias.
+    """
+    supports_multichannel = True
+    supports_mono = False
+    def __init__(self, p: float = 0.5, channel_dim: int = 1):
+        super().__init__(p)
+        self.channel_dim = channel_dim
+
+    def randomize_parameters(self, magnitude_spectrogram):
+        super().randomize_parameters(magnitude_spectrogram)
+        if self.parameters["should_apply"]:
+            self.parameters["shuffled_channel_indexes"] = list(range(magnitude_spectrogram.shape[self.channel_dim]))
+            random.shuffle(self.parameters["shuffled_channel_indexes"])
+
+    def apply(self, magnitude_spectrogram):
+        return np.take(magnitude_spectrogram, self.parameters["shuffled_channel_indexes"], axis=self.channel_dim)
+    
 
 # ! Below functions are not debugged yet
 class Jitter(object):

@@ -25,16 +25,17 @@ POTENTIAL_AUGMENTATION_LIBRARIES = [
 
 def run_data_augmentation(X_train, y_train, groups_train, augment_conf, logger):
     
-    # First, need to verify that channel dim is first dim. If not, need to transpose
+    # First, need to verify that channel dim is first dim. If not, need to transpose. Not necessary for images, as channel information is important for samples
     channel_dim = augment_conf.get("channel_dim")
-    if channel_dim != 0:
+    aug_dtype_conf = augment_conf.get("data_type")
+    dtype = aug_dtype_conf.get("dtype")
+    
+    if channel_dim != 0 and dtype != "image":
         transpose_order = np.arange(X_train.ndim)
         transpose_order[0] = channel_dim
         transpose_order[channel_dim] = 0
         X_train = np.transpose(X_train, transpose_order)
     np.random.seed(augment_conf.get("random_seed"))
-    
-    aug_dtype_conf = augment_conf.get("data_type")
     
     # Create a list to store the augmented data. Each element of the list will be the augmented data for a different grouping of augmentation functions
     X_train_aug = []
@@ -67,11 +68,10 @@ def run_data_augmentation(X_train, y_train, groups_train, augment_conf, logger):
         
         # Apply the pipeline to the training data
         # Specifying the data type of the transform pipeline helps execute the pipeline
-        if dtype := aug_dtype_conf.get("data_type"):
-            if dtype == "image":
-                X_train_dict = {dtype: X_train}
-            elif dtype == "signal":
-                X_train_dict = {dtype: X_train, "sample_rate": aug_dtype_conf.get("sample_rate")}
+        if dtype == "image":
+            X_train_dict = {dtype: X_train}
+        elif dtype == "signal":
+            X_train_dict = {dtype: X_train, "sample_rate": aug_dtype_conf.get("sample_rate")}
         
         # Run pipe
         X_train_aug_tmp = transform_pipeline(X_train_dict)
@@ -82,8 +82,8 @@ def run_data_augmentation(X_train, y_train, groups_train, augment_conf, logger):
         if groups_train is not None:
             groups_train_aug.append(groups_train)
     
-    # If the channel dimension was not the first dimension, need to transpose back
-    if channel_dim != 0:
+    # If the channel dimension was not the first dimension, need to transpose back. Not necessary for images
+    if channel_dim != 0 and dtype != "image":
         X_train_aug = [np.transpose(X_train_aug_ele, transpose_order) for X_train_aug_ele in X_train_aug]
         X_train = np.transpose(X_train, transpose_order)
     
