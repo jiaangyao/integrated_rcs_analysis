@@ -93,7 +93,7 @@ def run_data_augmentation(X_train, y_train, groups_train, augment_conf, logger):
     if groups_train is not None:
         groups_train = np.concatenate([groups_train, *groups_train_aug], axis=0)
         
-    logger.info(f"Data augmentation complete. New training data shape: {X_train.shape}")
+    # logger.info(f"Data augmentation complete. New training data shape: {X_train.shape}")
 
     # # Collect augmented data for each augmentation function as lists
     # X_augmented = []

@@ -39,7 +39,7 @@ class MLData(DanticBaseModel):
     # If get_fold_by_index is False, then each fold saves the training and validation sets explicitly as a tuple of the form (X_train, y_train, X_val, y_val).
     # This is useful if the training data needs to be class imbalance corrected or augmented, and the folds need to be updated. 
     # Running class imbalance correction or data augmentation on the training data will turn this flag to False.
-    get_fold_by_index: bool = True
+    get_fold_by_index_bool: bool = True
     metadata: dict | None = None
 
     def __init__(self, **data):
@@ -87,7 +87,7 @@ class MLData(DanticBaseModel):
         """
         Returns the training and testing data for the fold specified by fold_ind.
         """
-        if self.get_fold_by_index:
+        if self.get_fold_by_index_bool:
             return self.get_fold_by_index(fold_num)
         else:
             return self.get_fold_by_explicit(fold_num)
@@ -186,4 +186,4 @@ class MLData(DanticBaseModel):
         """
         assert len(folds) == len(self.folds), "The number of folds provided does not match the number of folds in the data."
         self.folds = folds
-        self.get_fold_by_index = False
+        self.get_fold_by_index_bool = False

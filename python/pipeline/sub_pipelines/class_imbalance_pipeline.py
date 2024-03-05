@@ -157,8 +157,8 @@ def run_class_imbalance_correction(X, y, groups, imb_config, logger):
 
             y = y_tmp
 
-        logger.info(f"Feature matrix shape after class imbalance correction: {X.shape}")
-        logger.info(f"Label vector shape: {y.shape}")
+        # logger.info(f"Feature matrix shape after class imbalance correction: {X.shape}")
+        # logger.info(f"Label vector shape: {y.shape}")
     except ValueError as e:
         logger.warning(f"Class imbalance strategy error: \n\t {e}.")
 

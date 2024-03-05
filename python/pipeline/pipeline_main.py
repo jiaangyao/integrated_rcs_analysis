@@ -125,9 +125,11 @@ def main(cfg: DictConfig):
     if (augment_config := config.get("data_augmentation")) or (imb_config := config.get("class_imbalance")):
         new_folds = []
         logger.info(f"Running data augmentation and/or class imbalance correction on each fold of training data individually. {len(data.folds)} folds in total.")
-        logger.info("Original training fold shape: ", data.get_fold(0)[0].shape)
-        for i, fold in enumerate(data.folds):
-            X_train, y_train, X_val, y_val = fold
+        for i in range(len(data.folds)):
+            X_train, y_train, X_val, y_val = data.get_fold(i)
+            if i == 0:
+                logger.info(f"Original training fold shape: {X_train.shape}")
+                
             # Data Augmentation
             if augment_config:
                 (
@@ -137,6 +139,9 @@ def main(cfg: DictConfig):
                 ) = data_augmentation_pipeline.run_data_augmentation(
                     X_train, y_train, data.groups_train, augment_config, logger
                 )
+                
+                if i == 0:
+                    logger.info("Training fold shape after data augmentation: ", X_train.shape)
             
             # Class Imbalance Correction
             if imb_config:
@@ -147,12 +152,16 @@ def main(cfg: DictConfig):
                 ) = class_imbalance_pipeline.run_class_imbalance_correction(
                     X_train, y_train, data.groups_train, imb_config, logger
                 )
+                
+                if i == 0:
+                    logger.info("Training fold shape after class imbalance correction: ", X_train.shape)
             
             new_folds.append((X_train, y_train, X_val, y_val))
         
         logger.info("Data augmentation and/or class imbalance correction complete... overriding folds with folds containing corrected training data.")
+        # NOTE THAT data.X_train and data.y_train are not updated/changed here! This only updates the folds...
         data.override_folds(new_folds)
-        logger.info("New training fold shape: ", data.get_fold(0)[0].shape)
+        logger.info(f"New training fold shape: {data.get_fold(0)[0].shape}")
     
     # Feature Selection
     # Not implemented yet
