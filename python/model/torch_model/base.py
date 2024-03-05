@@ -29,6 +29,7 @@ from .rnn_model import RNNModelWrapper
 from sklearn.model_selection import train_test_split
 
 from training_eval.model_evaluation import custom_scorer_torch
+import torch.cuda
 
 # TODO: transfer constants to constants directory
 # define global variables
@@ -136,17 +137,22 @@ class BaseTorchTrainer:
         self.bool_use_gpu = bool_use_gpu
 
         # initialize GPU with memory constraints
-        gpu_id = torch.cuda.current_device() if bool_use_gpu else 0
-        bool_use_best_gpu = False if self.bool_use_ray else True
-        bool_limit_gpu_mem = True if self.bool_use_ray else False
-        ptu.init_gpu(
-            use_gpu=bool_use_gpu,
-            gpu_id=gpu_id,
-            bool_use_best_gpu=bool_use_best_gpu,
-            bool_limit_gpu_mem=bool_limit_gpu_mem,
-            gpu_memory_fraction=n_gpu_per_process,
-        )
-        self.device = ptu.device
+        # gpu_id = torch.cuda.current_device() if bool_use_gpu else 0
+        # bool_use_best_gpu = False if self.bool_use_ray else True
+        # bool_limit_gpu_mem = True if self.bool_use_ray else False
+        # ptu.init_gpu(
+        #     use_gpu=bool_use_gpu,
+        #     gpu_id=gpu_id,
+        #     bool_use_best_gpu=bool_use_best_gpu,
+        #     bool_limit_gpu_mem=bool_limit_gpu_mem,
+        #     gpu_memory_fraction=n_gpu_per_process,
+        # )
+        
+        # Get model's device for 
+        if next(self.model.parameters()).is_cuda:
+            self.device = next(model.parameters()).get_device()
+        else:
+            self.device = torch.device(type="cpu")
 
         # additional flags
         self.bool_torch = True
@@ -166,10 +172,8 @@ class BaseTorchTrainer:
         # double check device selection
         if self.bool_use_gpu:
             assert torch.cuda.is_available(), "Make sure you have a GPU available"
-            assert self.device.type == "cuda", "Make sure you are using GPU"
-
             assert (
-                torch.cuda.current_device() == self.device.index
+                torch.cuda.current_device() == self.device
             ), "Make sure you are using specified GPU"
 
         if self.early_stopping is not None:
@@ -231,6 +235,10 @@ class BaseTorchTrainer:
                 assert (
                     self.model.training
                 ), "make sure your network is in train mode with `.train()`"
+            
+                if x_train.device != self.device:
+                    x_train = x_train.to(self.device)
+                    y = y.to(self.device)
 
                 # forward pass
                 y_pred = self.model(x_train)
@@ -284,6 +292,11 @@ class BaseTorchTrainer:
                         assert (
                             not self.model.training
                         ), "make sure your network is in eval mode with `.eval()`"
+                        
+                        if x_valid.device != self.device:
+                            x_valid = x_valid.to(self.device)
+                            y_valid = y_valid.to(self.device)
+
 
                         # forward pass
                         y_valid_pred = self.model(x_valid)
@@ -349,6 +362,8 @@ class BaseTorchTrainer:
 
                 # load the last checkpoint with the best model
                 # self.model = self.early_stopping.load_model(self.model)
+            
+            torch.cuda.empty_cache()
 
         # Convert scores to numpy arrays
         vec_avg_loss = np.stack(vec_avg_loss, axis=0)

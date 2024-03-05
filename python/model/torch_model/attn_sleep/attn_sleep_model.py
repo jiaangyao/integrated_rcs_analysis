@@ -70,12 +70,12 @@ class AttnSleepModel(BaseTorchModel):
         model_kwargs, trainer_kwargs = self.split_kwargs_into_model_and_trainer(kwargs)
         self.model_kwargs = model_kwargs
         self.trainer_kwargs = trainer_kwargs
-        self.model = AttnSleep(**model_kwargs)
+        self.model = AttnSleep(**self.model_kwargs)
         self.model.to(self.device)
         if self.early_stopping is not None:
             self.early_stopping.reset()
         self.trainer = BaseTorchTrainer(
-            self.model, self.early_stopping, **trainer_kwargs
+            self.model, self.early_stopping, **self.trainer_kwargs
         )
 
     def reset_model(self) -> None:

@@ -31,7 +31,7 @@ def wandb_sweep_setup(eval, hyperparam_obj, data_class, config, logger):
     # TODO: Debug name... throws error
     sweep_config[
         "name"
-    ] = f"{setup_config['run_name']}_{setup_config['device']}_{setup_config['time_stamp']}_sweep"
+    ] = f"{setup_config['run_name']}_{setup_config['time_stamp']}_sweep"
 
     sweep_id = wandb.sweep(
         sweep_config,

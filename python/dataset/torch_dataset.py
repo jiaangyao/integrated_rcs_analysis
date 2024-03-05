@@ -13,6 +13,7 @@ class NeuralDataset(Dataset):
         labels: npt.NDArray | None,
         transform=None,
         target_transform=None,
+        to_gpu: bool = False,
     ):
         # sanity check
         assert (
@@ -20,8 +21,13 @@ class NeuralDataset(Dataset):
         ), "Need to initialize with either features and labels"
 
         # obtain the features and labels
-        self.features = ptu.from_numpy(features)
-        self.labels = ptu.from_numpy(labels).long()
+        if to_gpu:
+            self.features = ptu.from_numpy(features)
+            self.labels = ptu.from_numpy(labels).long()
+        else:
+            self.features = torch.from_numpy(features).float()
+            self.labels = torch.from_numpy(labels).long()
+
         assert torch.is_tensor(self.features)
         assert torch.is_tensor(self.labels)
 

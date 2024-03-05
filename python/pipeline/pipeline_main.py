@@ -116,33 +116,50 @@ def main(cfg: DictConfig):
     # Implement train-test split, if desired. Comes before class imbalance correction, because class imbalance correction should only be run on training data.
     if evaluation_config := config.get("evaluation"):
         implement_train_test_split(evaluation_config, data, logger)
-
-    # Data Augmentation
-    if augment_config := config.get("data_augmentation"):
-        (
-            data.X_train,
-            data.y_train,
-            data.groups_train
-        ) = data_augmentation_pipeline.run_data_augmentation(
-            data.X_train, data.y_train, data.groups_train, augment_config, logger
-        )
     
-    # Class Imbalance Correction
-    if imb_config := config.get("class_imbalance"):
-        (
-            data.X_train,
-            data.y_train,
-            data.groups_train,
-        ) = class_imbalance_pipeline.run_class_imbalance_correction(
-            data.X_train, data.y_train, data.groups_train, imb_config, logger
-        )
+    # Evaluation Setup (i.e. CV and training folds, scoring metrics, etc...)
+    if evaluation_config := config.get("evaluation"):
+        eval = create_eval_class_from_config(evaluation_config, data)
+
+    # Data Augmentation and/or Class Imbalance Correction
+    if (augment_config := config.get("data_augmentation")) or (imb_config := config.get("class_imbalance")):
+        new_folds = []
+        logger.info(f"Running data augmentation and/or class imbalance correction on each fold of training data individually. {len(data.folds)} folds in total.")
+        logger.info("Original training fold shape: ", data.get_fold(0)[0].shape)
+        for i, fold in enumerate(data.folds):
+            X_train, y_train, X_val, y_val = fold
+            # Data Augmentation
+            if augment_config:
+                (
+                    X_train,
+                    y_train,
+                    _
+                ) = data_augmentation_pipeline.run_data_augmentation(
+                    X_train, y_train, data.groups_train, augment_config, logger
+                )
+            
+            # Class Imbalance Correction
+            if imb_config:
+                (
+                    X_train,
+                    y_train,
+                    _,
+                ) = class_imbalance_pipeline.run_class_imbalance_correction(
+                    X_train, y_train, data.groups_train, imb_config, logger
+                )
+            
+            new_folds.append((X_train, y_train, X_val, y_val))
+        
+        logger.info("Data augmentation and/or class imbalance correction complete... overriding folds with folds containing corrected training data.")
+        data.override_folds(new_folds)
+        logger.info("New training fold shape: ", data.get_fold(0)[0].shape)
     
     # Feature Selection
     # Not implemented yet
 
-    # Evaluation Setup (i.e. CV and training folds, scoring metrics, etc...)
-    if evaluation_config := config.get("evaluation"):
-        eval = create_eval_class_from_config(evaluation_config, data)
+    # # Evaluation Setup (i.e. CV and training folds, scoring metrics, etc...)
+    # if evaluation_config := config.get("evaluation"):
+    #     eval = create_eval_class_from_config(evaluation_config, data)
 
     # Visualize data, if desired
     # Not implemented yet
@@ -181,7 +198,7 @@ def main(cfg: DictConfig):
         model_instantiation = test_model_config.get("model_instantiation")
 
         # Pass best_run_config to test_model_config, if desired
-        if model_instantiation == "from_WandB_sweep" and best_run_config in locals():
+        if model_instantiation == "from_WandB_sweep" and 'best_run_config' in locals():
             test_model_config["best_run_config"] = best_run_config
 
         # Re-initialze setup and add extra 'test' tag and 'test' info to indicate that this is a test run

@@ -16,14 +16,16 @@ class UniversalCompose:
     def __call__(self, data):
         if isinstance(data, dict):
             if 'image' in data:
+                data = data['image']
                 for t in self.transforms:
                     if isinstance(t, (album.BasicTransform, album.Compose)):
-                        data = t(image=data['image'])['image']
+                        data = t(image=data)['image']
                     elif isinstance(t, (BaseSpectrogramTransform, audio.Compose)):
-                        data = t(data['image'])
+                        data = t(data)
                     elif callable(t):  # Check if the transformation is a custom function
                         data = t(data)  # Assume the custom function modifies the data in-place or returns a modified version
             elif 'signal' in data:
+                data = data['signal']
                 for t in self.transforms:
                     if isinstance(t, (audio.core.transforms_interface.BaseWaveformTransform, audio.Compose)):
                         data = t(samples=data['signal'], sample_rate=data['sample_rate'])

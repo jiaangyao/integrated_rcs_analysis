@@ -145,12 +145,11 @@ class AlexNetModel(BaseTorchModel):
         model_kwargs, trainer_kwargs = self.split_kwargs_into_model_and_trainer(kwargs)
         self.model_kwargs = model_kwargs
         self.trainer_kwargs = trainer_kwargs
-        self.model = AlexNet(**model_kwargs)
+        self.model = AlexNet(**self.model_kwargs)
         self.model.to(self.device)
         if self.early_stopping is not None:
             self.early_stopping.reset()
-        self.trainer = AlexNetTrainer(self.model, self.early_stopping, **trainer_kwargs)
-        self.model.to(self.device)
+        self.trainer = AlexNetTrainer(self.model, self.early_stopping, **self.trainer_kwargs)
 
     def reset_model(self) -> None:
         # self.override_model(self.model_kwargs | self.trainer_kwargs)
@@ -161,4 +160,3 @@ class AlexNetModel(BaseTorchModel):
         self.trainer = AlexNetTrainer(
             self.model, self.early_stopping, **self.trainer_kwargs
         )
-        self.model.to(self.device)

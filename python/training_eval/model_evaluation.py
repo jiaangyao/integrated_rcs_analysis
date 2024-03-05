@@ -471,6 +471,7 @@ class ModelEvaluation:
             # NOTE: Each fold is treated as a vanilla validation
             X_train, y_train, X_val, y_val = data_class.get_fold(i)
 
+            # Reset model, so that it starts from scratch for each fold
             model_class.reset_model()
 
             fold_scores, fold_metrics_by_epoch = vanilla_validation.get_scores_torch(

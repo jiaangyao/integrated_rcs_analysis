@@ -24,7 +24,7 @@ def get_model(model_class, test_model_conf, logger):
 
     elif model_instantiation == "from_WandB_sweep":
 
-        logger.info("Creating model from best hyperparameters from sweep.")
+        logger.info(f"Creating model from best hyperparameters from sweep: {test_model_conf.get('best_run_config')}")
 
         # Create model from best hyperparameters
         model_class.override_model(test_model_conf.get("best_run_config"))

@@ -311,11 +311,11 @@ class EEGNetModel(BaseTorchModel):
         model_kwargs, trainer_kwargs = self.split_kwargs_into_model_and_trainer(kwargs)
         self.model_kwargs = model_kwargs
         self.trainer_kwargs = trainer_kwargs
-        self.model = EEGNet(**model_kwargs)
+        self.model = EEGNet(**self.model_kwargs)
         self.model.to(self.device)
         if self.early_stopping is not None:
             self.early_stopping.reset()
-        self.trainer = EEGNetTrainer(self.model, self.early_stopping, **trainer_kwargs)
+        self.trainer = EEGNetTrainer(self.model, self.early_stopping, **self.trainer_kwargs)
         self.model.to(self.device)
 
     def reset_model(self) -> None:

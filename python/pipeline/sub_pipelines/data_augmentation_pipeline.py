@@ -28,7 +28,7 @@ def run_data_augmentation(X_train, y_train, groups_train, augment_conf, logger):
     # First, need to verify that channel dim is first dim. If not, need to transpose. Not necessary for images, as channel information is important for samples
     channel_dim = augment_conf.get("channel_dim")
     aug_dtype_conf = augment_conf.get("data_type")
-    dtype = aug_dtype_conf.get("dtype")
+    dtype = aug_dtype_conf.get("data_type")
     
     if channel_dim != 0 and dtype != "image":
         transpose_order = np.arange(X_train.ndim)
