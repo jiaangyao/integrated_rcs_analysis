@@ -83,11 +83,17 @@ def dataframe_to_matrix_export(data_df, channel_options, feature_columns, logger
     Returns:
     np.ndarray: The resulting numpy array after applying channel options.
     """
-
+    # If feature_columns is a string, assume it's a regex pattern and select columns that match
+    if isinstance(feature_columns, str):
+        df_tmp = data_df.select(pl.col(feature_columns))
+        feature_columns = df_tmp.columns
+        
     # Convert to numpy, with desired dimensionality
     # m is num channels (i.e. num columns extracted from dataframe),
     # n is num rows (i.e. individual data measurements),
     # f is num features per row
+    logger.info(f"Extracting following columns as feature matrix: {feature_columns}")
+    
     if channel_options["stack_channels"]:  # Stack channels into m x n x f tensor
         logger.info(f"Stacking Channels")
         X = np.stack(

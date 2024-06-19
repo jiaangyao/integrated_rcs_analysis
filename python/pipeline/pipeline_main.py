@@ -36,7 +36,7 @@ from training_eval.model_evaluation import (
 )
 
 # Libraries for model selection
-from model.torch_model.skorch_model import SkorchModel
+#from model.torch_model.skorch_model import SkorchModel
 
 # Libraries for hyperparameter tuning
 
@@ -122,7 +122,9 @@ def main(cfg: DictConfig):
         eval = create_eval_class_from_config(evaluation_config, data)
 
     # Data Augmentation and/or Class Imbalance Correction
-    if (augment_config := config.get("data_augmentation")) or (imb_config := config.get("class_imbalance")):
+    augment_config = config.get("data_augmentation")
+    imb_config = config.get("class_imbalance")
+    if (augment_config is not None) or (imb_config is not None):
         new_folds = []
         logger.info(f"Running data augmentation and/or class imbalance correction on each fold of training data individually. {len(data.folds)} folds in total.")
         for i in range(len(data.folds)):
@@ -136,12 +138,12 @@ def main(cfg: DictConfig):
                     X_train,
                     y_train,
                     _
-                ) = data_augmentation_pipeline.run_data_augmentation(
-                    X_train, y_train, data.groups_train, augment_config, logger
+                ) = data_augmentation_pipeline.run_data_augmentation( 
+                    X_train, y_train, data.groups_train, augment_config, logger # ! Remove need to pass in groups... that is deprecated
                 )
                 
                 if i == 0:
-                    logger.info("Training fold shape after data augmentation: ", X_train.shape)
+                    logger.info(f"Training fold shape after data augmentation:  {X_train.shape}")
             
             # Class Imbalance Correction
             if imb_config:
@@ -154,7 +156,7 @@ def main(cfg: DictConfig):
                 )
                 
                 if i == 0:
-                    logger.info("Training fold shape after class imbalance correction: ", X_train.shape)
+                    logger.info(f"Training fold shape after class imbalance correction: {X_train.shape}")
             
             new_folds.append((X_train, y_train, X_val, y_val))
         
@@ -188,6 +190,8 @@ def main(cfg: DictConfig):
         if evaluation_config["model_type"] == "skorch":
             raise NotImplementedError("SkorchModel is not fully implemented yet.")
             # model_class = SkorchModel(model_class)
+        if model_class is None:
+            raise ValueError(f"Model class {model_name} was not found. This is typically due to an import error in a model module script...")
 
     # Hyperparameter Tuning and/or Model Training
     # Note: If hyperparameter_optimization field 'search_library' is not specified,
@@ -223,7 +227,42 @@ def main(cfg: DictConfig):
             # Reinitialize WandB
             logging_setup.wandb_setup(config["setup"], config["setup"]["wandb"])
 
-        # Train model on entire training set, then test model on test (i.e. hold-out) set and log results
+        # Train model on entire training set, then test model on test (i.e. hold-out) set and log results.
+        # Note, that data augmentation where run on each fold individually, to avoid data leakage into the validation sets of each fold.
+        # Now, we are training the model on the entire training set, so we need to run data augmentation on the entire training set, then test on the test set.
+        if (augment_config is not None) or (imb_config is not None):
+            X_train, y_train = data.get_training_data()
+            logger.info(f"Original training set shape: {X_train.shape}")
+            
+            # Data Augmentation
+            if augment_config:
+                (
+                    X_train,
+                    y_train,
+                    _
+                ) = data_augmentation_pipeline.run_data_augmentation( 
+                    X_train, y_train, data.groups_train, augment_config, logger # ! Remove need to pass in groups... that is deprecated
+                )
+                
+                if i == 0:
+                    logger.info(f"Training set shape after data augmentation:  {X_train.shape}")
+            
+            # Class Imbalance Correction
+            if imb_config:
+                (
+                    X_train,
+                    y_train,
+                    _,
+                ) = class_imbalance_pipeline.run_class_imbalance_correction(
+                    X_train, y_train, data.groups_train, imb_config, logger
+                )
+                
+                if i == 0:
+                    logger.info(f"Training set shape after class imbalance correction: {X_train.shape}")
+            
+            data.X_train, data.y_train = X_train, y_train
+            
+        # Train model on entire training set, then test model on test (i.e. hold-out) set and log results.
         test_model_pipeline.test_model(
             model_class, eval, data, config, test_model_config, logger
         )

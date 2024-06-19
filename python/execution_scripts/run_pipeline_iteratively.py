@@ -7,6 +7,12 @@ import sys
 # PYTHON_PATH = 'path/to/your/python/executable' 
 
 CSV_PATH = '/home/claysmyth/code/configs/csvs/pipeline_run_settings.csv'
+# CSV_PATH = '/home/claysmyth/code/configs/csvs/pipeline_run_settings_by_region.csv'
+# CSV_PATH = '/home/claysmyth/code/configs/csvs/pipeline_run_settings_6_second_epochs.csv'
+# CSV_PATH = '/home/claysmyth/code/configs/csvs/pipeline_run_settings_03_debug.csv'
+# CSV_PATH = '/home/claysmyth/code/configs/csvs/BG_reruns.csv'
+# CSV_PATH = '/home/claysmyth/code/configs/csvs/pipeline_run_settings_by_FTG.csv'
+# CSV_PATH = '/home/claysmyth/code/configs/csvs/pipeline_run_training_debug.csv'
 
 def execute_commands_from_csv(csv_path):
     # Load the CSV file

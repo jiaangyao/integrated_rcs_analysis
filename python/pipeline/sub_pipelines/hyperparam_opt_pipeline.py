@@ -81,7 +81,7 @@ def run_hyperparameter_search(config, model_class, data, eval, logger):
     if hyperparam_config["search_library"] is None:
         # If not, train and evaluate model with default hyperparameters
         ho.train_and_eval_no_search(config)
-        return None, None
+        return None, None, None
 
     # Run hyperparameter search using WandB sweeps
     elif hyperparam_config["search_library"].lower() == "wandb":

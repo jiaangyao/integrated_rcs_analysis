@@ -105,6 +105,11 @@ class BaseTorchTrainer:
         # initialize the model fields
         self.model = model
         self.n_class = n_class
+        
+        if self.n_class == 2:
+            self.task = 'binary'
+        else:
+            self.task = 'multiclass'
 
         # initialize the loss function
         self.str_loss = str_loss
@@ -205,6 +210,7 @@ class BaseTorchTrainer:
             transform=self.transform,
             target_transform=self.target_transform,
         )
+        # TODO: Pass random seed here for reproducibility
         train_dataloader = DataLoader(
             train_dataset, batch_size=self.batch_size, shuffle=self.bool_shuffle
         )
@@ -222,10 +228,12 @@ class BaseTorchTrainer:
         # train the model
         assert self.model is not None, "Make sure you have initialized the model"
         vec_avg_loss = []
+        vec_avg_acc = []
         vec_avg_valid_loss = []
         for epoch in range(self.n_epoch):
             # initialize the loss and the model
             vec_loss = []
+            vec_acc = []
             if self.early_stopping:
                 vec_scores = {k: [] for k in self.early_stopping.scorers}
             self.model.train()
@@ -257,9 +265,11 @@ class BaseTorchTrainer:
                 # compute the accuracy
                 # noinspection PyTypeChecker
                 # TODO: Call custom_scorer_torch() with metrics list
-                # acc = torchmetrics.functional.accuracy(
-                #     torch.argmax(y_pred, dim=1), torch.argmax(y, dim=1), task=str_task, num_classes=self.n_class
-                # )
+                acc = torchmetrics.functional.accuracy(
+                    torch.argmax(y_pred, dim=-1), torch.argmax(y, dim=-1), task=self.task, num_classes=self.n_class
+                )
+                vec_acc.append(acc.item())
+                
                 if self.early_stopping:
                     [
                         vec_scores[k].append(v)
@@ -271,6 +281,10 @@ class BaseTorchTrainer:
             # obtain the average loss
             loss = np.mean(np.stack(vec_loss, axis=0))
             vec_avg_loss.append(loss)
+            
+            acc_avg = np.mean(np.stack(vec_acc, axis=0))
+            vec_avg_acc.append(acc_avg)
+            
             if self.early_stopping:
                 {
                     train_scores[k].append(np.mean(np.stack(v, axis=0)))
@@ -363,12 +377,17 @@ class BaseTorchTrainer:
                 # load the last checkpoint with the best model
                 # self.model = self.early_stopping.load_model(self.model)
             
+            # TODO: Double check line doesn't impare training....
             torch.cuda.empty_cache()
 
         # Convert scores to numpy arrays
         vec_avg_loss = np.stack(vec_avg_loss, axis=0)
+        
         if self.early_stopping:
             train_scores = {k: np.stack(v, axis=0) for k, v in train_scores.items()}
+        else:
+            train_scores = {'Accuracy': np.array(vec_avg_acc)}
+            
         if bool_run_validation:
             vec_avg_valid_loss = np.stack(vec_avg_valid_loss, axis=0)
             if self.early_stopping:

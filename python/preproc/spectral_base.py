@@ -376,6 +376,7 @@ def get_spectrograms(X, win_size=500, win_type='hamming', win_params={}, hop=250
     win = signal.get_window(win_type, win_size, **win_params)
     sft = ShortTimeFFT(win=win, hop=hop, fs=fs, scale_to=scale_to)
     Sxx = sft.spectrogram(X, axis=axis)
+    Sxx = np.clip(Sxx, 1e-10, None)  # Clip to avoid log(0) errors
     
     if log:
         Sxx = np.log(Sxx)
@@ -393,3 +394,22 @@ def get_spectrograms(X, win_size=500, win_type='hamming', win_params={}, hop=250
         
     return Sxx
     
+    
+def normalize_images(images):
+    """
+    Normalize a batch of images by subtracting the mean and dividing by the standard deviation for each channel. Assumes channel dim is first dim.
+
+    Args:
+        images (ndarray): A numpy array of shape (batch_size, channels, height, width) representing the batch of images.
+
+    Returns:
+        ndarray: A numpy array of shape (batch_size, channels, height, width) representing the normalized images.
+    """
+    # Compute the mean and standard deviation for each color channel. Assumes channel dim is first dim.
+    mean = np.mean(images, axis=(0, 2, 3))
+    std = np.std(images, axis=(0, 2, 3))
+    
+    # Normalize the images by subtracting the mean and dividing by the standard deviation
+    normalized_images = (images - mean[:, np.newaxis, np.newaxis]) / std[:, np.newaxis, np.newaxis]
+    
+    return normalized_images

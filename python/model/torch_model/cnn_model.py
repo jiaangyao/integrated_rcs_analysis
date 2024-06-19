@@ -3,7 +3,7 @@ import typing as tp
 import ray
 import numpy.typing as npt
 import torch.nn as nn
-from .torch_utils import init_gpu
+from ..torch_utils import init_gpu
 import torchmetrics
 import torch
 import model.torch_model.torch_utils as ptu
@@ -13,7 +13,7 @@ import model.torch_model.torch_utils as ptu
 from dataset.torch_dataset import NeuralDataset, NeuralDatasetTest
 from torch.utils.data import DataLoader
 
-from .base import BaseTorchTrainer, BaseTorchModel, BaseTorchClassifier
+from ..base import BaseTorchTrainer, BaseTorchModel, BaseTorchClassifier
 
 
 class TorchCNNClassifier(nn.Module, BaseTorchClassifier):

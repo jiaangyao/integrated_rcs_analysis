@@ -9,6 +9,7 @@ from dataset.torch_dataset import NeuralDataset, NeuralDatasetTest
 from torch.utils.data import DataLoader
 import torch
 import numpy.typing as npt
+import itertools
 
 
 class EnsembleTrainer:
@@ -40,9 +41,12 @@ class EnsembleTrainer:
             vec_avg_valid_loss.append(items[2])
             valid_scores.append(items[3])
 
-        # return np.mean(vec_avg_loss), np.mean(train_scores), np.mean(vec_avg_valid_loss), np.mean(valid_scores)
-        # TODO: Kluge fix for now... need to figure out how to return the scores for each channel
-        return np.mean(vec_avg_loss, axis=0), {}, np.array([]), {}
+        train_scores = [{f'Channel_{i} {k}': v for k, v in scores.items()} for i, scores in enumerate(train_scores)]
+        train_scores = dict(itertools.chain.from_iterable(d.items() for d in train_scores))
+        valid_scores = [{f'Channel_{i} {k}': v for k, v in scores.items()} for i, scores in enumerate(valid_scores)]
+        valid_scores = dict(itertools.chain.from_iterable(d.items() for d in valid_scores))
+        
+        return np.mean(vec_avg_loss, axis=0), train_scores, np.mean(vec_avg_valid_loss, axis=0), valid_scores
 
     def _train_single_trainer(self, trainer, X, y, one_hot_encoded):
         return trainer.train(X, y, one_hot_encoded)
@@ -113,7 +117,7 @@ class AttnSleepEnsembleModel(BaseTorchModel):
         ) = self.split_kwargs_into_model_and_trainer(locals())
 
         # initialize the model
-        self.model = AttnSleepEnsemble(num_models, self.model_kwargs)
+        self.model = AttnSleepEnsemble(self.num_models, self.model_kwargs)
 
         [self.model.model_ensemble[i].to(self.device) for i in range(self.num_models)]
 
@@ -129,6 +133,28 @@ class AttnSleepEnsembleModel(BaseTorchModel):
             self.early_stopping,
             self.model_kwargs,
             self.trainer_kwargs,
+        )
+    
+    def override_model(self, kwargs: dict) -> None:
+        model_kwargs, trainer_kwargs = self.split_kwargs_into_model_and_trainer(kwargs)
+        self.model_kwargs.update(model_kwargs)
+        self.trainer_kwargs.update(trainer_kwargs)
+        self.model = AttnSleepEnsemble(self.num_models, self.model_kwargs)
+        [self.model.model_ensemble[i].to(self.device) for i in range(self.num_models)]
+        if self.early_stopping is not None:
+            self.early_stopping.reset()
+        self.trainer = EnsembleTrainer(
+            self.model.model_ensemble, self.early_stopping, **self.trainer_kwargs
+        )
+
+    def reset_model(self) -> None:
+        # self.override_model(self.model_kwargs | self.trainer_kwargs)
+        self.model = AttnSleepEnsemble(self.num_models, self.model_kwargs)
+        [self.model.model_ensemble[i].to(self.device) for i in range(self.num_models)]
+        if self.early_stopping is not None:
+            self.early_stopping.reset()
+        self.trainer = EnsembleTrainer(
+            self.model.model_ensemble, self.early_stopping, **self.trainer_kwargs
         )
 
     def _predict_single_model(self, data: npt.NDArray, model) -> npt.NDArray:

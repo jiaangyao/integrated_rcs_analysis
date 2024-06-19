@@ -157,21 +157,23 @@ class EEGNet(nn.Module):
             nn.Dropout(p=dropout),
         )
 
-        self.lin = nn.Linear(linear_input_size, self.n_class, bias=False)
+        #self.lin = nn.Linear(linear_input_size, self.n_class, bias=False)
+        self.lin = nn.Linear(self.feature_dim, self.n_class, bias=False)
 
     @property
     def feature_dim(self):
         with torch.no_grad():
-            mock_eeg = torch.zeros(
-                1, self.in_channels, self.num_electrodes, self.chunk_size
-            )
+            # mock_eeg = torch.zeros(
+            #     self.num_electrodes, self.in_channels, self.chunk_size
+            # )
             # mock_eeg = torch.zeros(1, 1, self.num_electrodes, self.chunk_size)
+            mock_eeg = torch.zeros(1, 1, self.num_electrodes, self.chunk_size)
 
             mock_eeg = self.block1(mock_eeg)
             mock_eeg = self.block2(mock_eeg)
             mock_eeg = self.block3(mock_eeg)
 
-        return mock_eeg.shape[3]
+        return mock_eeg.flatten(start_dim=1).shape[1]
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         r"""
@@ -181,9 +183,9 @@ class EEGNet(nn.Module):
         Returns:
             torch.Tensor[number of sample, number of classes]: the predicted probability that the samples belong to the classes.
         """
-        # TODO: Fix this hacky solution for dimensionality...
+        # # TODO: Fix this hacky solution for dimensionality...
         if len(x.shape) == 3:
-            x = x.unsqueeze(2)
+            x = x.unsqueeze(1)
 
         x = self.block1(x)
         x = self.block2(x)
@@ -309,8 +311,8 @@ class EEGNetModel(BaseTorchModel):
 
     def override_model(self, kwargs: dict) -> None:
         model_kwargs, trainer_kwargs = self.split_kwargs_into_model_and_trainer(kwargs)
-        self.model_kwargs = model_kwargs
-        self.trainer_kwargs = trainer_kwargs
+        self.model_kwargs.update(model_kwargs)
+        self.trainer_kwargs.update(trainer_kwargs)
         self.model = EEGNet(**self.model_kwargs)
         self.model.to(self.device)
         if self.early_stopping is not None:

@@ -12,7 +12,7 @@ FLOAT_INT_EXPR = Union[int, float, pl.Expr]
 INT_EXPR = Union[int, pl.Expr]
 
 
-def process_signal(data, downsample_factor, method="decimate"):
+def process_signal(data, downsample_factor, method="decimate", envelope=False):
     """
     Apply a Hilbert transform to the input data and then downsample it using the specified method.
 
@@ -29,7 +29,10 @@ def process_signal(data, downsample_factor, method="decimate"):
         return np.array(np.nan)
 
     # Apply the Hilbert transform
-    transformed_data = np.abs(hilbert(data))
+    if envelope:
+        transformed_data = np.abs(hilbert(data))
+    else:
+        transformed_data = data
 
     # Downsample the data using the specified method
     if method == "decimate":
@@ -81,11 +84,25 @@ def _bandpass_envelope_downsample(
     return x.map_elements(
         lambda series: pl.Series(
             process_signal(
-                butterworth_bandpass_np(series.to_numpy(), N, Wn, fs), downsampling
+                butterworth_bandpass_np(series.to_numpy(), N, Wn, fs), downsampling, envelope=True
             )
         )
     )
 
+
+def _bandpass_downsample(
+    x: TIME_SERIES_T, N: int, Wn: list, fs: int, downsampling: int
+) -> TIME_SERIES_T:
+    # NOTE: Using map_elements is necessary when working within an aggregation() call,
+    # otherwise, when calling on entire column, need to call map_batches() instead.
+    return x.map_elements(
+        lambda series: pl.Series(
+            process_signal(
+                butterworth_bandpass_np(series.to_numpy(), N, Wn, fs), downsampling, envelope=False
+            )
+        )
+    )
+    
 
 def butterworth_lowpass_np(x: npt.NDArray, N, Wn, fs) -> pl.Series:
     sos = butter(N, Wn, "lowpass", fs=fs, output="sos")
@@ -121,7 +138,10 @@ class TimeDomainFiltering:
 
     def bandpass_envelope_downsample(self, N, Wn, fs, downsample) -> pl.Expr:
         return _bandpass_envelope_downsample(self._expr, N, Wn, fs, downsample)
-
+    
+    def bandpass_downsample(self, N, Wn, fs, downsample) -> pl.Expr:
+        return _bandpass_downsample(self._expr, N, Wn, fs, downsample)
+    
     def butterworth_hp(self, N, Wn, fs) -> pl.Expr:
         return butterworth_lowpass(self._expr)
 

@@ -117,7 +117,7 @@ def select_columns(
         df = df.select(*cols_to_keep)
 
     # Columns to exclude
-    if exclude:
+    if exclude is not None:
         df = df.select(pl.all().exclude(exclude))
     else:
         raise ValueError(

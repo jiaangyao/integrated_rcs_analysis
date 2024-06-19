@@ -133,7 +133,6 @@ class MLData(DanticBaseModel):
         return self.folds[fold_num]
     
 
-
     def get_training_folds_by_index(self):
         """
         Returns the training data for all folds.

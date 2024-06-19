@@ -25,10 +25,11 @@ class UniversalCompose:
                     elif callable(t):  # Check if the transformation is a custom function
                         data = t(data)  # Assume the custom function modifies the data in-place or returns a modified version
             elif 'signal' in data:
+                sr = data['sample_rate']
                 data = data['signal']
                 for t in self.transforms:
                     if isinstance(t, (audio.core.transforms_interface.BaseWaveformTransform, audio.Compose)):
-                        data = t(samples=data['signal'], sample_rate=data['sample_rate'])
+                        data = t(samples=data, sample_rate=sr)
                     elif callable(t):  # Check if the transformation is a custom function
                         data = t(data)  # Assume the custom function modifies the data in-place or returns a modified version
         else:

@@ -27,8 +27,7 @@ def run_data_augmentation(X_train, y_train, groups_train, augment_conf, logger):
     
     # First, need to verify that channel dim is first dim. If not, need to transpose. Not necessary for images, as channel information is important for samples
     channel_dim = augment_conf.get("channel_dim")
-    aug_dtype_conf = augment_conf.get("data_type")
-    dtype = aug_dtype_conf.get("data_type")
+    dtype = augment_conf.get("data_type")
     
     if channel_dim != 0 and dtype != "image":
         transpose_order = np.arange(X_train.ndim)
@@ -41,7 +40,7 @@ def run_data_augmentation(X_train, y_train, groups_train, augment_conf, logger):
     X_train_aug = []
     y_train_aug = []
     groups_train_aug = []
-    for i, function_group in enumerate(aug_dtype_conf.get("augment_groupings")):
+    for i, function_group in enumerate(augment_conf.get("augment_groupings")):
         augment_funcs= function_group
         augment_funcs = {key: value if value else {} for key, value in augment_funcs.items()}
         
@@ -71,7 +70,7 @@ def run_data_augmentation(X_train, y_train, groups_train, augment_conf, logger):
         if dtype == "image":
             X_train_dict = {dtype: X_train}
         elif dtype == "signal":
-            X_train_dict = {dtype: X_train, "sample_rate": aug_dtype_conf.get("sample_rate")}
+            X_train_dict = {dtype: X_train, "sample_rate": augment_conf.get("sample_rate")}
         
         # Run pipe
         X_train_aug_tmp = transform_pipeline(X_train_dict)
