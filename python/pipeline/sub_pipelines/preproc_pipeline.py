@@ -3,7 +3,6 @@ This function contains general wrapper functions for preprocessing data.
 """
 from utils.pipeline_utils import *
 import numpy as np
-import numpy as np
 import polars as pl
 
 
@@ -11,6 +10,9 @@ import polars as pl
 import preproc.time_domain_base as tdb
 import preproc.spectral_base as sb
 import preproc.polars_manipulations as pm
+import preproc.reject_artifact as ra
+import preproc.feature_transforms as ft
+import preproc.label_base as lb
 from utils.polars_utils import extract_polars_column_as_ndarray
 
 # Libraries for preprocessing and feature selection
@@ -25,12 +27,15 @@ POTENTIAL_FEATURE_LIBRARIES = [
     pm,
     tdb,
     sb,
+    ft,
     np,
     skpp,
     skd,
     skfs,
     scisig,
     scistats,
+    ra,
+    lb,
 ]
 
 # TODO: Update with most recent preprocessing subpipeline
@@ -140,7 +145,7 @@ def process_labels(data_df, label_config, logger):
     if label_config["label_remapping"]:
         logger.info(f"Remapping labels with {label_config['label_remapping']}")
         data_df = data_df.with_columns(
-            pl.col(label_config["label_column"]).map_dict(
+            pl.col(label_config["label_column"]).replace_strict(
                 label_config["label_remapping"]
             )
         )

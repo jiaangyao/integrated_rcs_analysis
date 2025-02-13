@@ -1,9 +1,10 @@
 import wandb
-import subprocess
+import time
 
 # Libraries for hyperparameter tuning
 from training_eval.hyperparameter_optimization import HyperparameterOptimization
 from utils.file_utils import copy_file_to_matching_subdirs
+import subprocess
 
 
 def wandb_sweep_setup(eval, hyperparam_obj, data_class, config, logger):
@@ -62,13 +63,32 @@ def run_wandb_sweep(hyperparam_obj, sweep_method, num_runs, sweep_id):
 
     # Run sweep
     if sweep_method == "grid":
-        wandb.agent(sweep_id, function=hyperparam_obj.wandb_sweep)
+        try:
+            wandb.agent(sweep_id, function=hyperparam_obj.wandb_sweep)
+        except wandb.sdk.wandb_manager.ManagerConnectionRefusedError as e:
+            print(f"Connection error: {e} when trying to run WandB sweep")
+            print("Sleeping for 3 min and trying again...")
+
+            time.sleep(180)
+            wandb.agent(sweep_id, function=hyperparam_obj.wandb_sweep)
+            
     else:
-        wandb.agent(
-            sweep_id,
-            function=hyperparam_obj.wandb_sweep,
-            count=num_runs,
-        )
+        try:
+            wandb.agent(
+                sweep_id,
+                function=hyperparam_obj.wandb_sweep,
+                count=num_runs,
+            )
+        except wandb.sdk.wandb_manager.ManagerConnectionRefusedError as e:
+            print(f"Connection error: {e} when trying to run WandB sweep")
+            print("Sleeping for 3 min and trying again...")
+
+            time.sleep(180)
+            wandb.agent(
+                sweep_id,
+                function=hyperparam_obj.wandb_sweep,
+                count=num_runs,
+            )
 
 
 def run_hyperparameter_search(config, model_class, data, eval, logger):
@@ -96,7 +116,7 @@ def run_hyperparameter_search(config, model_class, data, eval, logger):
             ho, sweep_config["method"], hyperparam_config["num_runs"], sweep_id
         )
 
-        # Initialize the W&B API
+        # Initialize the W&B API. Need to access API to access the best run from the sweep, using the sweep address
         api = wandb.Api()
         sweep = api.sweep(sweep_address)
 
@@ -107,7 +127,7 @@ def run_hyperparameter_search(config, model_class, data, eval, logger):
         best_run_config = best_run.config
 
         # Finish sweep. As of 2024-01-11, need to use CLI
-        # subprocess.run(["wandb", "sweep", "--stop", sweep_address])
+        # subprocess.run(["wandb", "sweep", "--cancel", sweep_address])
 
         return sweep_url, sweep_id, best_run_config
 

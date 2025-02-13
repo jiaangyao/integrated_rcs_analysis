@@ -113,5 +113,5 @@ def combine_struct_by_field_list(
 def combine_struct_by_field(
     vec_struct: list | tuple,
     str_field: str,
-) -> npt.NDArray[np.float_]:
+) -> npt.NDArray[np.float64]:
     return np.stack(combine_struct_by_field_list(vec_struct, str_field), axis=0)

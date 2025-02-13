@@ -52,7 +52,7 @@ def test_model(model_class, eval, data, config, test_model_conf, logger):
     # TODO: Create a logging class to handle this, so that users can pick different logging options/dashboards outside of W&B
     if eval.model_type == "torch":
         process_and_log_eval_results_torch(
-            results, config["setup"]["path_run"], epoch_metrics
+            results, config["setup"]["path_run"], epoch_metrics, test=True
         )
     elif eval.model_type == "sklearn":
-        process_and_log_eval_results_sklearn(results, config["setup"]["path_run"])
+        process_and_log_eval_results_sklearn(results, config["setup"]["path_run"], test=True)

@@ -4,6 +4,7 @@ This function contains base functionalities for preprocessing data labels. (Prev
 from itertools import product
 
 import numpy as np
+import polars as pl
 
 
 def binarize_label(label):
@@ -51,3 +52,22 @@ def create_hashmap(
             hashmap[(i, j)] = i * len(np.unique(label2)) + j
 
     return hashmap
+
+
+def create_labels_from_threshold(df, feature_column, threshold=0.5, out_column_name='Label', invert=False):
+    """
+    Create a label from a threshold value based on percentile.
+    
+    Args:
+        df: polars DataFrame
+        feature_column: column name to threshold
+        threshold: fractional value between 0 and 1
+        out_column_name: name for the new label column
+        invert: if True, invert the label (i.e. below threshold -> 1, above threshold -> 0)
+    """
+    value = df.select(pl.col(feature_column).quantile(threshold, interpolation="midpoint")).item()
+    if not invert:
+        df = df.with_columns(pl.when(pl.col(feature_column) > value).then(1).otherwise(0).alias(out_column_name))
+    else:
+        df = df.with_columns(pl.when(pl.col(feature_column) < value).then(1).otherwise(0).alias(out_column_name))
+    return df

@@ -14,23 +14,56 @@ from visualization.wandb_funcs import WandB_line_plots
 # TODO: Clean this up, moving plotly functions to relevant file
 
 
-def process_and_plot_confusion_matrices(conf_mat):
+def process_and_plot_confusion_matrices(conf_mat, test=False):
 
     if isinstance(conf_mat, list):
         conf_mat = np.stack(conf_mat, axis=0)
 
     labels = {"x": "Predicted Class", "y": "True Class"}
     # Plot average confusion matrix across folds
-    title = "Average Across Folds"
-    matrix = np.mean(conf_mat, axis=0)
-    mat_plot = px.imshow(matrix, title=title, labels=labels, text_auto=True)
-    wandb.log({f"Confusion Matrices/{title}": mat_plot})
+    
+    if not test and conf_mat.shape[0] > 1:
+        title = "Average Across Folds"
+        ave_matrix = np.mean(conf_mat, axis=0)
+        mat_plot = px.imshow(ave_matrix, title=title, labels=labels, text_auto=True)
+        wandb.log({f"Confusion Matrices/{title}": mat_plot})
 
     # Plot each confusion matrix individually
-    for idx, matrix in enumerate(conf_mat):
-        title = f"Fold {idx + 1}"
-        mat_plot = px.imshow(matrix, title=title, labels=labels, text_auto=True)
+    if test:
+        title = "Test"
+        mat_plot = px.imshow(conf_mat.squeeze(), title=title, labels=labels, text_auto=True)
         wandb.log({f"Confusion Matrices/{title}": mat_plot})
+    else:
+        # Plot each confusion matrix individually
+        for idx, matrix in enumerate(conf_mat):
+            title = f"Fold {idx + 1}"
+            mat_plot = px.imshow(matrix, title=title, labels=labels, text_auto=True)
+            wandb.log({f"Confusion Matrices/{title}": mat_plot})
+
+def process_and_plot_label_distribution_matrices(dist_mat, test=False):
+    # For each fold, plot the label distribution per cluster
+    if isinstance(dist_mat, list):
+        dist_mat = np.stack(dist_mat, axis=0)
+
+    labels = {"x": "Class", "y": "Cluster"}
+    
+    # Plot average confusion matrix across folds
+    if not test and dist_mat.shape[0] > 1:
+        title = "Average Across Folds"
+        ave_matrix = np.mean(dist_mat, axis=0)
+        mat_plot = px.imshow(ave_matrix, title=title, labels=labels, text_auto=True)
+        wandb.log({f"Label Distributions/{title}": mat_plot})
+
+    if test:
+        title = "Test"
+        mat_plot = px.imshow(dist_mat, title=title, labels=labels, text_auto=True)
+        wandb.log({f"Label Distributions/{title}": mat_plot})
+    else:
+        # Plot each confusion matrix individually
+        for idx, matrix in enumerate(dist_mat):
+            title = f"Fold {idx + 1}"
+            mat_plot = px.imshow(matrix, title=title, labels=labels, text_auto=True)
+            wandb.log({f"Label Distributions/{title}": mat_plot})
 
     # Create a dataframe to hold all confusion matrices with an identifier
     # all_matrices = pd.DataFrame()
@@ -65,7 +98,7 @@ def process_and_log_scalar_scores(scores_df, run_dir):
     # Process scores individually for logging.
     # First, log all scalar scores across folds as mean and std
     scores_agg = scores_df.drop("Fold").select(
-        [cs.numeric().mean().suffix("_mean"), cs.numeric().std().suffix("_std")]
+        [cs.numeric().mean().name.suffix("_mean"), cs.numeric().std().name.suffix("_std")]
     )
     wandb.log({k: v[0] for k, v in scores_agg.to_dict(as_series=False).items()})
     scores_agg.write_parquet(Path(f"{run_dir}/scalar_scores_agg.parquet"))
@@ -85,7 +118,7 @@ def process_and_plot_losses(scores_df, run_dir):
     folds = [f"Fold {i}" for i in range(scores_df.shape[0])]
     # Average losses of each Epoch across folds
     loss_df = (
-        scores_df.select("Epoch_Losses")
+        scores_df.select(pl.col("Epoch_Losses").cast(pl.List(pl.Float64)))
         .transpose(column_names=folds)
         .explode(folds)
         .with_row_count(name="Epoch")
@@ -128,7 +161,7 @@ def process_and_plot_epoch_metrics(scores_df, run_dir):
     for col in scores_df.columns:
         name = col[col.find("Epoch") + len("Epoch") + 1 :] if "Epoch" in col else col
         metric_df = (
-            scores_df.select(col)
+            scores_df.select(pl.col(col).cast(pl.List(pl.Float64)))
             .transpose(column_names=folds)
             .explode(folds)
             .with_row_count(name="Epoch")
@@ -172,7 +205,7 @@ def process_and_plot_pr_curve(scores_df, run_dir):
     raise NotImplementedError
 
 
-def process_and_log_eval_results_torch(scores, run_dir, epoch_metrics):
+def process_and_log_eval_results_torch(scores, run_dir, epoch_metrics, test=False):
 
     # Drop prefixes (if necessary)
     scores = {
@@ -228,10 +261,10 @@ def process_and_log_eval_results_torch(scores, run_dir, epoch_metrics):
 
     # Last, log confusion matrices
     if conf_mat is not None:
-        process_and_plot_confusion_matrices(conf_mat)
+        process_and_plot_confusion_matrices(conf_mat, test)
 
 
-def process_and_log_eval_results_sklearn(scores, run_dir):
+def process_and_log_eval_results_sklearn(scores, run_dir, test=False):
     # Drop prefixes (if necessary)
     scores = {k: v for k, v in scores.items() if "time" not in k}
     scores = {
@@ -243,15 +276,34 @@ def process_and_log_eval_results_sklearn(scores, run_dir):
     if "confusion_matrix" in scores.keys():
         conf_mat = scores.pop("confusion_matrix")
         if isinstance(conf_mat, list):
-            conf_mat = np.stack(conf_mat, axis=0)
+            if len(conf_mat) > 1:
+                conf_mat = np.stack(conf_mat, axis=0)
+            else:
+                conf_mat = np.array(conf_mat[0])
     else:
         conf_mat = None
+        
+    # Polars doesn't like multi-dimensional arrays as row elements,
+    # Handle confusion matrices separately
+    if "label_dist_per_cluster" in scores.keys():
+        dist_mat = scores.pop("label_dist_per_cluster")
+        if isinstance(dist_mat, list):
+            if len(dist_mat) > 1:
+                dist_mat = np.stack(dist_mat, axis=0)
+            else:
+                dist_mat = np.array(dist_mat[0])
+    else:
+        dist_mat = None
 
     scores_df = pl.DataFrame(scores).with_row_count(name="Fold")
 
     # First, log all scalar scores across folds
     process_and_log_scalar_scores(scores_df, run_dir)
 
-    # Last, log confusion matrices
+    # log confusion matrices
     if conf_mat is not None:
-        process_and_plot_confusion_matrices(conf_mat)
+        process_and_plot_confusion_matrices(conf_mat, test)
+    
+    # log label distribution matrices
+    if dist_mat is not None:
+        process_and_plot_label_distribution_matrices(dist_mat, test)

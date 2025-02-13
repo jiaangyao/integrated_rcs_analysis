@@ -325,14 +325,14 @@ def get_psd(
     sampling_frequency=500,
     window_size=1024,
     noverlap=512,
-    log=True,
+    log=False,
 ):
     """
     Calculate the power spectral density of a matrix of time series data.
     Each row should be an array of time series observations.
     """
     # Handle frequency ranges edge cases. Ensure freq_ranges is a 2D array where each row is a frequency range band to keep.
-    if ~isinstance(freq_ranges, np.ndarray):
+    if ~isinstance(freq_ranges, np.ndarray) and freq_ranges is not None:
         freq_ranges = np.array(freq_ranges)
     if freq_ranges.ndim == 1:
         freq_ranges = freq_ranges.reshape(1, -1)
@@ -342,18 +342,53 @@ def get_psd(
     )
 
     # Concatenate PSDs for each desired frequency range into single matrix
-    pxx = np.concatenate(
-        [
-            pxx[:, np.where((f >= freq_range[0]) & (f <= freq_range[1]))[0]]
-            for freq_range in freq_ranges
-        ],
-        axis=-1,
-    )
+    if freq_ranges is not None:
+        pxx = np.concatenate(
+            [
+                pxx[..., np.where((f >= freq_range[0]) & (f <= freq_range[1]))[0]]
+                for freq_range in freq_ranges
+            ],
+            axis=-1,
+        )
 
     if log:
         pxx = np.log(pxx)
 
     return pxx
+
+
+def get_powerbands(
+    X: npt.NDArray[np.float64],
+    powerbands=[[0.5, 4], [4, 8], [8, 12], [12, 30], [30, 100]],
+    sampling_frequency=500,
+    window_size=1024,
+    noverlap=512,
+    log=False,
+):
+    """
+    Calculate the power spectral density of a matrix of time series data.
+    Each row should be an array of time series observations.
+    """
+    # Handle frequency ranges edge cases. Ensure powerbands is a 2D array where each row is a frequency range band to keep.
+    if ~isinstance(powerbands, np.ndarray):
+        powerbands = np.array(powerbands)
+    if powerbands.ndim == 1:
+        powerbands = powerbands.reshape(1, -1)
+
+    f, pxx = signal.welch(
+        X, fs=sampling_frequency, nperseg=window_size, noverlap=noverlap, axis=-1
+    )
+    
+    # Assuming X and pxx have the same dimensions except for the last one
+    pbs = np.zeros((*X.shape[:-1], len(powerbands)))
+    for i, powerband in enumerate(powerbands):
+        # Summing over the last dimension where frequency is within the powerband
+        pbs[..., i] = np.sum(pxx[..., np.where((f >= powerband[0]) & (f <= powerband[1]))[0]], axis=-1)
+
+    if log:
+        pbs = np.log(pbs)
+        
+    return pbs
 
 
 def get_spectrograms(X, win_size=500, win_type='hamming', win_params={}, hop=250, fs=500, scale_to='psd', axis=-1, log=True, freq_ranges=[[0.5, 100]]):

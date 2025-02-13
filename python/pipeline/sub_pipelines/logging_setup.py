@@ -12,7 +12,7 @@ from utils.file_utils import (
 
 def wandb_setup(config, wandb_setup_conf):
 
-    wandb.config = config
+    # wandb.config = config
     
     tags = wandb_setup_conf.get("tags")
     for ele in tags:
@@ -29,7 +29,10 @@ def wandb_setup(config, wandb_setup_conf):
         tags=tags,
         notes=wandb_setup_conf.get("notes"),
         dir=config.get("path_run"),
+        id=wandb_setup_conf.get("id")
     )
+    wandb.config = config
+
     logger.info("WandB run url: {}".format(run.url))
     logger.info("WandB project: {}".format(run.project))
     logger.info("WandB entity: {}".format(run.entity))
@@ -37,8 +40,9 @@ def wandb_setup(config, wandb_setup_conf):
     logger.info("WandB run id: {}".format(run.id))
     logger.info("Local Directory Path: {}".format(config["path_run"]))
     wandb.log({"metadata/local_dir": config.get("path_run")})
+    # wandb.log({"log_file", config.get("file_log")})
     # Set the WANDB_DIR environment variable to your desired directory
-    os.environ["WANDB_DIR"] = os.path.abspath(config.get("path_run"))
+    os.environ["WANDB_DIR"] = os.path.abspath(config.get("path_run") + '/')
 
 
 def setup(config: dict, WandB_hyperopt=False):

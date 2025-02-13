@@ -42,7 +42,7 @@ def plot_feature_distributions(
         print(row_order)
         partitioned_data_long = [
             part.with_columns(
-                pl.col("Variable").map_dict(row_order).alias("order_col")
+                pl.col("Variable").replace_strict(row_order).alias("order_col")
             ).sort("order_col")
             for part in partitioned_data_long
         ]

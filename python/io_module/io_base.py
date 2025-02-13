@@ -34,6 +34,7 @@ def load_data(config):
     elif config["source"] == "parquet":
         df = load_parquet_pl(
             path_data=config["data_path"],
+            kwargs=config.get("kwargs", {}),
         )
     else:
         raise ValueError("Data type not recognized or not implemented.")

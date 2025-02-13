@@ -144,9 +144,13 @@ def run_class_imbalance_correction(X, y, groups, imb_config, logger):
                 
             X, y_tmp = imb_strategy.fit_resample(X, y)
             if groups is not None:
-                if groups.ndim == 1:
-                    groups = groups.reshape(-1, 1)
-                groups, y_group = imb_strategy.fit_resample(groups, y)
+                groups_mapping = dict(zip(np.unique(groups), np.arange(len(np.unique(groups)))))
+                groups_mapped = np.array([groups_mapping[g] for g in groups])
+                if groups_mapped.ndim == 1:
+                    groups_mapped = groups_mapped.reshape(-1, 1)
+                groups_mapped, y_group = imb_strategy.fit_resample(groups_mapped, y)
+                groups_unmapping = {v: k for k, v in groups_mapping.items()}
+                groups = np.array([groups_unmapping[g] for g in groups_mapped.flatten()])
                 assert np.array_equal(
                     y_tmp, y_group
                 ), "Imbalance applied to group labels did not match data labels."

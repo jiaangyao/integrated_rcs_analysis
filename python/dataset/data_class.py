@@ -21,6 +21,7 @@ class MLData(DanticBaseModel):
     X_train: npt.NDArray | None = None
     y_train: npt.NDArray | None = None
     groups_train: npt.NDArray | list | tuple | None = None
+    groups_folds: npt.NDArray | list | tuple | None = None
     one_hot_encoded: bool = False
 
     X_test: npt.NDArray | None = None
@@ -40,6 +41,7 @@ class MLData(DanticBaseModel):
     # This is useful if the training data needs to be class imbalance corrected or augmented, and the folds need to be updated. 
     # Running class imbalance correction or data augmentation on the training data will turn this flag to False.
     get_fold_by_index_bool: bool = True
+    get_groups_fold_by_index_bool: bool = True
     metadata: dict | None = None
 
     def __init__(self, **data):
@@ -56,6 +58,7 @@ class MLData(DanticBaseModel):
     # This is to allow numpy arrays to be passed in as dataclass fields
     class Config:
         arbitrary_types_allowed = True
+
 
     def train_test_split(self, train_inds, test_inds):
         """
@@ -75,13 +78,16 @@ class MLData(DanticBaseModel):
         if self.groups is not None:
             self.groups_train = self.groups[train_inds]
             self.groups_test = self.groups[test_inds]
+            self.groups_folds = None
 
     # TODO: Define the following 'get_...' funcs as @property methods?
     def get_training_data(self):
         return self.X_train, self.y_train
 
+
     def get_testing_data(self):
         return self.X_test, self.y_test
+    
     
     def get_fold(self, fold_num):
         """
@@ -91,6 +97,17 @@ class MLData(DanticBaseModel):
             return self.get_fold_by_index(fold_num)
         else:
             return self.get_fold_by_explicit(fold_num)
+    
+    
+    def get_groups_fold(self, fold_num):
+        """
+        Returns the group data for the fold specified by fold_ind.
+        """
+        if self.get_fold_by_index_bool:
+            return self.get_groups_fold_by_index(fold_num)
+        else:
+            return self.get_groups_fold_by_explicit(fold_num)
+    
     
     def get_training_folds(self):
         """
@@ -124,6 +141,18 @@ class MLData(DanticBaseModel):
             self.X_train[val_inds],
             self.y_train[val_inds],
         )
+    
+    
+    def get_groups_fold_by_index(self, fold_num):
+        """
+        Returns the group data for the fold specified by fold_ind.
+        """
+        train_inds = self.folds[fold_num]["train"]
+        val_inds = self.folds[fold_num]["val"]
+        return (
+            self.groups_train[train_inds],
+            self.groups_train[val_inds],
+        )
 
 
     def get_fold_by_explicit(self, fold_num):
@@ -131,6 +160,13 @@ class MLData(DanticBaseModel):
         Returns the training and testing data for the fold number specified by fold_ind.
         """
         return self.folds[fold_num]
+
+
+    def get_groups_fold_by_explicit(self, fold_num):
+        """
+        Returns the group data in form of (groups_train, groups_val) for the fold number specified by fold_ind.
+        """
+        return self.groups_folds[fold_num]
     
 
     def get_training_folds_by_index(self):
@@ -141,6 +177,7 @@ class MLData(DanticBaseModel):
             (self.X_train[fold["train"]], self.y_train[fold["train"]])
             for fold in self.folds
         ]
+    
     
     def get_training_folds_by_explicit(self):
         """
@@ -161,6 +198,7 @@ class MLData(DanticBaseModel):
             for fold in self.folds
         ]
     
+    
     def get_validation_folds_by_explicit(self):
         """
         Returns the training data for all folds.
@@ -171,12 +209,12 @@ class MLData(DanticBaseModel):
         ]
 
 
-
     def assign_train_val_test_indices(self, train_inds=[], val_inds=[], test_inds=[]):
         """
         Assigns the training, validation, and testing indicies to the dataclass fields.
         """
         self.train_val_test_indicies = (train_inds, val_inds, test_inds)
+    
     
     
     def override_folds(self, folds: list):
@@ -186,3 +224,12 @@ class MLData(DanticBaseModel):
         assert len(folds) == len(self.folds), "The number of folds provided does not match the number of folds in the data."
         self.folds = folds
         self.get_fold_by_index_bool = False
+        
+    
+    def override_groups_folds(self, groups_folds: list):
+        """
+        If training data needs to be class imbalance corrected or augmented, the groups corresponding to training folds need to be updated.
+        """
+        assert len(groups_folds) == len(self.folds), "The number of group folds provided does not match the number of folds in the data."
+        self.groups_folds = groups_folds
+        self.get_groups_fold_by_index_bool = False

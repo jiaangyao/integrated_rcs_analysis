@@ -34,6 +34,7 @@ def load_database_pl(
 
 def load_parquet_pl(
     path_data: str,
+    kwargs: dict = {},
 ) -> pl.DataFrame:
     """Load a parquet file into a polars dataframe
 
@@ -44,6 +45,6 @@ def load_parquet_pl(
         pl.DataFrame: output dataframe
     """
     # load the csv data and specify the header as first row
-    df = pl.read_parquet(path_data)
+    df = pl.read_parquet(path_data, **kwargs)
 
     return df

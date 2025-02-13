@@ -2,17 +2,25 @@ import subprocess
 import pandas as pd
 import runpy
 import sys
+import time
+import wandb
 
 # CSV_PATH = 'path/to/your/csv/file.csv'
 # PYTHON_PATH = 'path/to/your/python/executable' 
 
-CSV_PATH = '/home/claysmyth/code/configs/csvs/pipeline_run_settings.csv'
+#CSV_PATH = '/home/claysmyth/code/configs/csvs/pipeline_run_settings.csv'
 # CSV_PATH = '/home/claysmyth/code/configs/csvs/pipeline_run_settings_by_region.csv'
 # CSV_PATH = '/home/claysmyth/code/configs/csvs/pipeline_run_settings_6_second_epochs.csv'
 # CSV_PATH = '/home/claysmyth/code/configs/csvs/pipeline_run_settings_03_debug.csv'
 # CSV_PATH = '/home/claysmyth/code/configs/csvs/BG_reruns.csv'
 # CSV_PATH = '/home/claysmyth/code/configs/csvs/pipeline_run_settings_by_FTG.csv'
 # CSV_PATH = '/home/claysmyth/code/configs/csvs/pipeline_run_training_debug.csv'
+# CSV_PATH = '/home/claysmyth/code/configs/csvs/pipeline_run_settings_by_region_3_class.csv'
+# CSV_PATH = '/home/claysmyth/code/configs/csvs/pipeline_run_settings_by_region_unsupervised.csv'
+# CSV_PATH = '/home/claysmyth/code/configs/csvs/pipeline_run_settings_by_region_2_class_for_embedded_analysis.csv'
+# CSV_PATH = '/home/claysmyth/code/configs/Sleep_aDBS/pipeline_unsupervised_class_with_sleep_labels.csv'
+CSV_PATH = '/home/claysmyth/code/configs/Sleep_aDBS/pipeline_sleep_adbs_unsupervised_model_dev.csv'
+# CSV_PATH = '/home/claysmyth/code/configs/csvs/pipeline_run_settings_AttnSleep_downsampled.csv'
 
 def execute_commands_from_csv(csv_path):
     # Load the CSV file
@@ -65,14 +73,26 @@ def execute_commands_from_csv(csv_path):
         #     print("Moving on...")
         # print("Done!")
         
-        try:
+        # try:
             # Hydra sometimes doens't like the way quotes are saved in CSVs, so we need to replace them
-            command = [s.replace('“', '"').replace('”', '"') for s in command]
-            sys.argv = command
-            runpy.run_path(command[0], run_name='__main__')
-        except subprocess.CalledProcessError as e:
-            print(f"Error executing command for row {index}")
-            print("Moving on...")
+        command = [s.replace('“', '"').replace('”', '"') for s in command]
+        sys.argv = command
+        runpy.run_path(command[0], run_name='__main__')
+        # except wandb.sdk.wandb_manager.ManagerConnectionRefusedError as e:
+        #     print(f"Connection error: {e}")
+        #     print(f"Sleeping for 3 min and trying again... (also removing parallelization of problematic call)")
+            
+        #     if '--multirun' in command:
+        #         command.remove('--multirun')
+        #     if 'hydra/launcher=joblib' in command:
+        #         command.remove('hydra/launcher=joblib')
+                
+        #     time.sleep(180)
+        #     runpy.run_path(command[0], run_name='__main__')
+        # except Exception as e:
+        #     print(f"Error executing command for row {index}: {e}")
+        #     print("Moving on...")
+            
         print("Done!")
             
 

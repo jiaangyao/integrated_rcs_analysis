@@ -104,6 +104,7 @@ multirun/
 /data
 wandb/
 scratch/
+python/wandb
 
 
 ################################################################
@@ -134,3 +135,6 @@ MANIFEST
 python/analysis_*/
 python/analysis_CS/
 python/nohup.out
+*.out
+.vscode/tasks.json
+.vscode/tasks.json

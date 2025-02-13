@@ -198,12 +198,16 @@ def custom_scorer_sklearn(clf, X_val, y_true, scoring):
         scores["matthews_corrcoef"] = matthews_corrcoef(y_true, y_pred)
     if "confusion_matrix" in scoring:
         scores["confusion_matrix"] = confusion_matrix(y_true, y_pred)
+    if "label_dist_per_cluster" in scoring: # For clustering classification
+        scores["label_dist_per_cluster"] = clf.label_dist_per_cluster().tolist()
+    if "cluster_entropy" in scoring: # For clustering classification. Average entropy of label distribution entropy per cluster
+        scores["cluster_entropy"] = np.mean(clf.cluster_entropy()) #.tolist()
 
     # Confidence/Probability based metrics
     if "roc_auc" in scoring or "auc" in scoring or "AUC" in scoring:
         scores["roc_auc"] = roc_auc_score(
             y_true,
-            y_pred_proba,
+            y_pred_proba[:, 1], # Need to pass the probability of the positive class
         )
     if (
         "roc_auc_ovr" in scoring

@@ -184,8 +184,8 @@ def epoch_df_by_timesegment(
             )
             .agg(
                 [pl.col(td_col) for td_col in td_columns]
-                + [pl.col(td_col).count().suffix("_TD_count") for td_col in td_columns]
-                + [pl.col(col).suffix("_vec") for col in vector_cols]
+                + [pl.col(td_col).count().name.suffix("_TD_count") for td_col in td_columns]
+                + [pl.col(col).name.suffix("_vec") for col in vector_cols]
                 + [pl.col(col).drop_nulls().last() for col in scalar_cols]
             )
             .select(pl.all().shrink_dtype())
@@ -197,7 +197,7 @@ def epoch_df_by_timesegment(
                     pl.col(td_col)
                     .list.eval(pl.element().is_not_null())
                     .list.all()
-                    .suffix("_contains_no_null")
+                    .name.suffix("_contains_no_null")
                     for td_col in td_columns
                 ]
                 # Remove rows where the TD data is null, or where the TD data is not the correct length
@@ -256,7 +256,7 @@ def remove_null_sections(df: pl.DataFrame, columns: List[str]) -> pl.DataFrame:
                 * pl.col("row_nr")
             )
             # Fill 0's with previous row number to get a unique identifier for each null/non-null segment
-            .cumsum().alias("non_null_seg_nr")
+            .cum_sum().alias("non_null_seg_nr")
             # Drop Null Rows, i.e. where columns are null (usually due to disconnects)
         )
         .filter(
@@ -307,9 +307,9 @@ def bandpass_filter(
     df_filt = (
         df_parsed.group_by(group_by + ["non_null_seg_nr"]).agg(
             [
-                pl.col(col).filt.butterworth_bp(N, Wn, fs).suffix(f"_{key}")
+                pl.col(col).filt.butterworth_bp(N, Wn, fs).name.suffix(f"_{key}")
                 # Note: can also use map_elements on the numpy array directly
-                # pl.col(col).map_elements(lambda x: butterworth_bandpass_np(x.to_numpy(), N, Wn, fs)).suffix(f'_{key}')
+                # pl.col(col).map_elements(lambda x: butterworth_bandpass_np(x.to_numpy(), N, Wn, fs)).name.suffix(f'_{key}')
                 for key, (N, Wn, fs) in filt_args.items()
                 for col in columns
             ]
@@ -331,7 +331,7 @@ def bandpass_filter(
     return (
         df.with_row_count()
         .join(df_filt, on="row_nr", how="left")
-        .drop(["row_nr", "non_null_seg_nr"])
+        .drop(["row_nr"])
     )
 
 
@@ -385,9 +385,9 @@ def bandpass_envelope_downsample(
             [
                 pl.col(col)
                 .filt.bandpass_envelope_downsample(N, Wn, fs, downsample_factor)
-                .suffix(f"_{key}_downsampled")
+                .name.suffix(f"_{key}_downsampled")
                 # Note: can also use map_elements on the numpy array directly
-                # pl.col(col).map_elements(lambda x: butterworth_bandpass_np(x.to_numpy(), N, Wn, fs)).suffix(f'_{key}')
+                # pl.col(col).map_elements(lambda x: butterworth_bandpass_np(x.to_numpy(), N, Wn, fs)).name.suffix(f'_{key}')
                 for key, (N, Wn, fs) in filt_args.items()
                 for col in columns
             ]
@@ -419,7 +419,7 @@ def bandpass_envelope_downsample(
     return (
         df.with_row_count()
         .join(df_filt, on="row_nr", how="left")
-        .drop(["row_nr", "non_null_seg_nr"])
+        .drop(["row_nr"])
     )
 
 
@@ -472,9 +472,9 @@ def bandpass_downsample(
             [
                 pl.col(col)
                 .filt.bandpass_downsample(N, Wn, fs, downsample_factor)
-                .suffix(f"_{key}_downsampled")
+                .name.suffix(f"_{key}_downsampled")
                 # Note: can also use map_elements on the numpy array directly
-                # pl.col(col).map_elements(lambda x: butterworth_bandpass_np(x.to_numpy(), N, Wn, fs)).suffix(f'_{key}')
+                # pl.col(col).map_elements(lambda x: butterworth_bandpass_np(x.to_numpy(), N, Wn, fs)).name.suffix(f'_{key}')
                 for key, (N, Wn, fs) in filt_args.items()
                 for col in columns
             ]
@@ -506,6 +506,106 @@ def bandpass_downsample(
     return (
         df.with_row_count()
         .join(df_filt, on="row_nr", how="left")
-        .drop(["row_nr", "non_null_seg_nr"])
+        .drop(["row_nr"])
     )
-# TODO: Implement functime feature extraction
+
+
+def downsample(
+    df: pl.DataFrame,
+    columns: List[str],
+    downsample_factor: int,
+    method: str = "decimate",
+    group_by=[],
+) -> pl.DataFrame:
+    """
+    Apply a downsample to the specified columns in a DataFrame.
+    params:
+    - df (polars.DataFrame): The DataFrame to be filtered.
+    - columns (List[str]): A list of column names to apply the filter.
+    - downsample_factor (int): Factor by which the data is downsampled. All filtered data is downsampled by the same factor.
+    - method (str): Method to use for downsampling. Default is "decimate".
+    - group_by (List[str]): A list of columns to group by. Default is []. (E.g. group_by=['SessionIdentity'] or group_by=['SessionDate'])
+
+    returns:
+    - polars.DataFrame: A new DataFrame with the specified columns filtered as new columns, with suffix. The Suffix is the key from the filt_args dictionary.
+    """
+    # First, label sections of non-null and null values,
+    # to avoid introducing artifacts at the boundaries of null values.
+    df_parsed = remove_null_sections(df, columns)
+    new_col_names = [f"{col}_downsampled" for col in columns]
+    pl_cols = cs.by_name(*new_col_names)
+
+    # Call the filtering function on each desired column and time segment, avoiding sections with discontinuities
+    df_filt = (
+        df_parsed.group_by(group_by + ["non_null_seg_nr"]).agg(
+            [
+                pl.col(col)
+                .filt.downsample(downsample_factor, method)
+                .name.suffix(f"_downsampled")
+                for col in columns
+            ]
+            # Also downsample the index column
+            + [
+                pl.col("row_nr").map_elements(
+                    lambda x: x.gather_every(downsample_factor)
+                )
+            ]
+        )
+        # Remove rows where the filter returned null
+        .filter(pl.all_horizontal(pl_cols.list.first().is_not_null()) &  pl.all_horizontal(pl_cols.list.first().is_not_nan()))
+        # Remove unnecessary columns
+        .drop(group_by + ["non_null_seg_nr"])
+    )
+    
+    # Convert back to long format
+    if method == "decimate":
+        df_filt = (
+            df_filt.explode(
+                ["row_nr"]
+                + [
+                    f"{col}_downsampled"
+                    for col in columns
+                ]
+            )
+            # Sort back into chronological order
+            .sort("row_nr")
+        )
+    else:
+        df_filt = (
+            df_filt.with_columns(
+                # Need to ensure that the row_nr is the same length as the downsampled data
+                pl.col('row_nr').list.slice(0, pl.col(new_col_names[0]).list.len())
+            )
+            .explode(
+                ["row_nr"]
+                + [
+                    f"{col}_downsampled"
+                    for col in columns
+                ]
+            )
+            # Sort back into chronological order
+            .sort("row_nr")
+        )   
+    # Join as new columns into original DataFrame, and remove unnecessary columns used for indexing
+    return (
+        df.with_row_count()
+        .join(df_filt, on="row_nr", how="left")
+        .drop(["row_nr"])
+    )
+
+
+def average_over_time_segments(df: pl.DataFrame, time_column: str, columns_to_average: List[str], interval: str, period: str, group_by: List[str] = []) -> pl.DataFrame:
+    """
+    Average over time segments.
+    """
+    cols = cs.by_name(*columns_to_average)
+    df_averaged = (
+        df.sort(time_column)
+        .group_by_dynamic(
+            time_column, every=interval, period=period, by=group_by
+        )
+        .agg(
+            cols.mean()
+        )
+    )
+    return df_averaged

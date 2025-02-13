@@ -90,6 +90,20 @@ def _bandpass_envelope_downsample(
     )
 
 
+def _downsample(
+    x: TIME_SERIES_T, downsampling: int, method: str = "decimate"
+) -> TIME_SERIES_T:
+    # NOTE: Using map_elements is necessary when working within an aggregation() call,
+    # otherwise, when calling on entire column, need to call map_batches() instead.
+    return x.map_elements(
+        lambda series: pl.Series(
+            process_signal(
+                series.to_numpy(), downsampling, method, envelope=False
+            )
+        )
+    )
+
+
 def _bandpass_downsample(
     x: TIME_SERIES_T, N: int, Wn: list, fs: int, downsampling: int
 ) -> TIME_SERIES_T:
@@ -147,3 +161,6 @@ class TimeDomainFiltering:
 
     def butterworth_lp(self, N, Wn, fs) -> pl.Expr:
         return butterworth_highpass(self._expr)
+    
+    def downsample(self, downsampling: int, method: str = "decimate") -> pl.Expr:
+        return _downsample(self._expr, downsampling, method, )
