@@ -19,8 +19,10 @@ import wandb
 # CSV_PATH = '/home/claysmyth/code/configs/csvs/pipeline_run_settings_by_region_unsupervised.csv'
 # CSV_PATH = '/home/claysmyth/code/configs/csvs/pipeline_run_settings_by_region_2_class_for_embedded_analysis.csv'
 # CSV_PATH = '/home/claysmyth/code/configs/Sleep_aDBS/pipeline_unsupervised_class_with_sleep_labels.csv'
-CSV_PATH = '/home/claysmyth/code/configs/Sleep_aDBS/pipeline_sleep_adbs_unsupervised_model_dev.csv'
+#CSV_PATH = '/home/claysmyth/code/configs/Sleep_aDBS/pipeline_sleep_adbs_unsupervised_model_dev.csv'
 # CSV_PATH = '/home/claysmyth/code/configs/csvs/pipeline_run_settings_AttnSleep_downsampled.csv'
+CSV_PATH = '/home/claysmyth/code/configs/Sleep_aDBS/pipeline_sleep_adbs_lognormal_unsupervised_model_dev.csv'
+# CSV_PATH = '/home/claysmyth/code/configs/Sleep_aDBS/pipeline_sleep_adbs_unsupervised_model_dev_reproducibility_check.csv'
 
 def execute_commands_from_csv(csv_path):
     # Load the CSV file

@@ -1,10 +1,15 @@
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.cluster import AgglomerativeClustering, KMeans, DBSCAN
 from sklearn.mixture import GaussianMixture
+from sklearn.preprocessing import StandardScaler
 # from sklearn_extra.cluster import KMedoids
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from pomegranate.gmm import GeneralMixtureModel
+from pomegranate.distributions import LogNormal, Normal
 from sklearn.linear_model import LogisticRegression
+
 import numpy as np
+import torch
 
 from model.base import BaseModel
 from scipy.stats import entropy
@@ -20,10 +25,14 @@ class CustomClusteringClassifier(BaseEstimator, ClassifierMixin):
             self.cluster_model = KMeans(n_clusters=n_clusters, n_init='auto', random_state=random_state)
         elif self.clustering_algorithm == 'agglomerative':
             self.cluster_model = AgglomerativeClustering(n_clusters=n_clusters)
-        elif self.clustering_algorithm == 'gmm':
+        elif self.clustering_algorithm == 'gmm' or self.clustering_algorithm == 'loggmm':
+            self.scaler = StandardScaler()
             self.cluster_model = GaussianMixture(n_components=n_clusters, random_state=random_state)
         elif self.clustering_algorithm == 'dbscan':
             self.cluster_model = DBSCAN(eps=eps)
+        elif self.clustering_algorithm == 'loggmm_pomegranate':
+            # Defer initialization until fit is called
+            self.cluster_model = None
         # elif self.clustering_algorithm == 'kmedoids':
         #     self.cluster_model = KMedoids(n_clusters=n_clusters, random_state=random_state)
         else:
@@ -74,14 +83,46 @@ class CustomClusteringClassifier(BaseEstimator, ClassifierMixin):
         
         
     def fit(self, X, y):
-        
         # Perform clustering
         self.class_labels = y
-        self.cluster_model.fit(X)
-        if self.clustering_algorithm == 'gmm':
-            self.cluster_labels =  self.cluster_model.predict(X)
+        
+        if self.clustering_algorithm == 'loggmm_pomegranate':
+            # Convert to torch tensor if not already
+            # TODO: This throws often does not find multiple distributions...
+            # TODO: Therefore, does not work very well...
+            if not isinstance(X, torch.Tensor):
+                X_torch = torch.from_numpy(X).float()
+            else:
+                X_torch = X.float()
+                
+            # Initialize the model now that we know the dimensions
+            if self.cluster_model is None:
+                d = X.shape[1]  # Get number of features
+                np.random.seed(self.random_state)
+                dists = [LogNormal(
+                    means=torch.ones(d),  
+                    covs=torch.eye(d),  # Use identity matrix for covariance: (d, d)
+                    covariance_type='full'  # Specify full covariance type
+                ) for _ in range(self.n_clusters)]
+                self.cluster_model = GeneralMixtureModel(
+                    distributions=dists,
+                    priors=torch.ones(self.n_clusters)/self.n_clusters
+                )
+                
+            self.cluster_model.fit(X_torch)
+            self.cluster_labels = self.cluster_model.predict(X_torch)
         else:
-            self.cluster_labels = self.cluster_model.labels_
+            self.cluster_model.fit(X)
+            if self.clustering_algorithm == 'gmm':
+                self.cluster_labels = self.cluster_model.predict(X)
+            elif self.clustering_algorithm == 'loggmm':
+                X_scaled = self.scaler.fit_transform(X)
+                # Shift to ensure positivity
+                min_vals = np.min(X_scaled, axis=0, keepdims=True)
+                X_shifted = X_scaled - min_vals + 1.0
+                self.cluster_labels = self.cluster_model.predict(np.log(X_shifted))
+            else:
+                self.cluster_labels = self.cluster_model.labels_
 
         # Determine the cluster means
         cluster_centers = np.array([X[self.cluster_labels == i].mean(axis=0) for i in range(self.n_clusters)])
