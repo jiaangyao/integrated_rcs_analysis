@@ -1,0 +1,20 @@
+main:
+  source: file
+  user: ${oc.env:USER}
+  random_seed: Null
+
+defaults:
+  - _self_
+  # - meta: med_RNN_auc_default
+  - setup: med_step3
+  - data_source: csv_step3
+  - label: med_level
+  - meta: med_MLP_auc_default
+  - patient: RCS02R
+  - logging: wandb_med
+  - preproc: ur1_5s
+  - feature_selection: sfs_settings_default
+  - parallel: home_ray_cpu
+  # - parallel: no_ray
+
+exp_type: "ModelID_debug"

@@ -1,0 +1,2 @@
+model_instantiation: reset # Options: reset (or default), load, from_WandB_sweep
+reinit_wandb: True # True will reinitialize setup. False will load setup from previous run.

@@ -9,9 +9,14 @@
             "type": "python",
             "request": "launch",
             "program": "${file}",
+            "autoReload": {
+                "enable": true
+            },
             "console": "integratedTerminal",
-            "justMyCode": true,
-            
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {"PYTHONPATH": "${workspaceFolder}${pathSeparator}${env:PYTHONPATH}"},
+            "args": []
         }
     ]
 }

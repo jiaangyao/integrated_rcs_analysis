@@ -1,0 +1,3 @@
+source: mat_file
+# Asterisk imports all parquet files in the directory
+data_path: /some/directory/with/parquet/files/*.mat

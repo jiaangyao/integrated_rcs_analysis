@@ -8,6 +8,14 @@ import pandas as pd
 _MAX_NUMEBER_OF_FINAL_PB = 5
 
 
+def wandb_log(dict_log: dict):
+    # use wandb for logging
+    if wandb.run is not None:
+        wandb.log(dict_log)
+    else:
+        print("Wandb is not initialized, cannot log {}".format(dict_log))
+
+
 def create_dyna_dataframe(output_dyna, n_rep, n_pb, n_dynamics, str_PB="sfsPB"):
     vec_n_dyna = np.ones((n_rep * n_pb,)) * n_dynamics
     vec_avg_acc = []

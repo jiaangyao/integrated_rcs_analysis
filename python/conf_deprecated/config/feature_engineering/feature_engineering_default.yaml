@@ -1,0 +1,30 @@
+functions:
+  preproc.time_domain_base.identity:
+
+
+channel_options: # Logic for handling feature engineering and final data aggregations on 3D feature matrices, which arises when multiple, epoched time domain channels are used as features.
+
+    # pipe_on_dim_0 applies the feature engineering steps to each element along the 0th axis, rather than to the entire feature vector.
+    # This is potentially useful for 3D feature matrices.
+    # E.g., if you chose to stack channels or group channel rows, then the feature engineering steps will be applied to each channel, or row grouping, individually
+    # If False, the feature engineering steps will be applied to the entire feature matrix (or dimensions specified in feature_engineering.yaml functions)
+    pipe_on_dim_0: True
+
+
+    # Only one of the following options should be True, and will only execute if pipe_by_channel is True
+
+    # If concat_channel_features is True, then channels will be concatenated into a single feature vector after feature engineering steps are applied.
+    # Resulting feature vector will be n x (m*f), i.e. the features in each row will be concatenated, across columns, into a single feature vector.
+    concat_channel_features: False
+
+    # If average_channel_features is True, then channels will be averaged into a single feature vector after feature engineering steps are applied.
+    # Resulting feature vector will me n x f, i.e. the features in each row will be averaged, across columns, into a single feature vector.
+    average_channel_features: False
+
+    # If stack_channel_features is True, then channels will be stacked into multivariate feature matrix, after feature engineering steps are applied.
+    # Resulting feature vector will be m x n x f, m is the number of channel columns, where n is the number of rows (i.e. data points), and f is the number of features (i.e. elements) per channel column row.
+    stack_channel_features: False
+
+    # If group_channel_features_by_row_after_pipe is True, then channels will be grouped by row, i.e. the first row of the first channel will be grouped with the first row of the second channel, and so on.
+    # Resulting feature vector will be n x m x f
+    group_channel_features_by_row_after_pipe: False

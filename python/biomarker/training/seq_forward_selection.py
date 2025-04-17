@@ -12,21 +12,20 @@ from omegaconf import DictConfig
 import wandb
 import pandas as pd
 
-from biomarker.training.model_initialize import get_model_params
-from biomarker.training.correct_data_dim import (
-    correct_sfs_feature_dim,
+from model.pipeline import get_model_params
+from biomarker.PBgen.base import (
+    correct_pb_feature_dim,
     group_pb_cross_asym,
 )
-from biomarker.training.kfold_cv_training import (
+from training_eval.pipeline import (
     kfold_cv_training,
     kfold_cv_training_ray,
     kfold_cv_training_ray_batch,
 )
-from utils.combine_struct import combine_struct_by_field
-from utils.combine_hist import combine_hist
+from dataset.struct_dataset import combine_struct_by_field
 from utils.wandb_utils import wandb_logging_sfs_inner
 
-_MAX_NUMEBER_OF_FINAL_PB = 5
+_MAX_NUMBER_OF_FINAL_PB = 5
 
 
 def sfs_feature_sweep(
@@ -44,7 +43,7 @@ def sfs_feature_sweep(
     wandb_table: wandb.Table | None = None,
     bool_use_lightweight_wandb: bool = False,
     bool_verbose: bool = True,
-) -> list[dict]:
+) -> tp.Tuple[list[dict], wandb.Table | None]:
     """Set up SFS feature sweeping not using parallelization
     Args:
         vec_features_sub (list[npt.NDArray]): list of organized features for training
@@ -92,7 +91,11 @@ def sfs_feature_sweep(
         vec_output.append(output_curr)
 
         # incrementally update wandb table if already initialized
-        if bool_use_wandb and not bool_use_lightweight_wandb and wandb_table is not None:
+        if (
+            bool_use_wandb
+            and not bool_use_lightweight_wandb
+            and wandb_table is not None
+        ):
             wandb_table.add_data(
                 idx_feature + 1,
                 output_curr["avg_acc"],
@@ -100,7 +103,7 @@ def sfs_feature_sweep(
                 output_curr["avg_auc"],
                 n_iter,
             )
-            
+
         # # otherwise if use lightweight wandb, then log the simple output
         # elif bool_use_lightweight_wandb:
         #     log_dict = {
@@ -142,7 +145,7 @@ def sfs_feature_sweep_ray(
     n_iter: int,
     wandb_table: wandb.Table | None = None,
     bool_use_lightweight_wandb: bool = False,
-) -> list[dict]:
+) -> tp.Tuple[list[dict], wandb.Table | None]:
     """Set up SFS feature sweeping using Ray for parallelization
 
     Args:
@@ -212,7 +215,7 @@ def sfs_feature_sweep_ray(
         ]
 
     # incorporate ray.wait() especially for the result function
-    vec_output = [None] * len(vec_features_sub)
+    vec_output = [dict()] * len(vec_features_sub)
     while len(feature_handle) > 0:
         done_id, feature_handle = ray.wait(feature_handle, num_returns=1)
         if bool_use_batch:
@@ -296,7 +299,7 @@ def sfs_pb_sweep(
                 output_curr["avg_auc"],
                 n_iter,
             )
-            
+
         # # otherwise if use lightweight wandb, then log the simple output
         # elif bool_use_lightweight_wandb:
         #     log_dict = {
@@ -412,7 +415,6 @@ def sfs_pb_sweep_ray(
         bool_use_wandb=bool_use_wandb,
         bool_use_lightweight_wandb=bool_use_lightweight_wandb,
         bool_use_ray=True,
-        
     )
 
     return vec_output_sfs, wandb_table
@@ -529,7 +531,7 @@ def seq_forward_selection(
         # loop through the features
         # first form the features vector
         vec_features_sub = [
-            correct_sfs_feature_dim(features, idx_feature, idx_used, n_iter)
+            correct_pb_feature_dim(features, idx_feature, idx_used, n_iter)
             for idx_feature in range(features.shape[1])
         ]
 
@@ -606,19 +608,16 @@ def seq_forward_selection(
         vec_pb_full, vec_idx_peak_pb = group_pb_cross_asym(
             vec_output,
             features,
-            y_class,
-            y_stim,
             idx_used,
             idx_break,
             str_metric=str_metric_sfs,
             max_width=max_width,
             width=width,
             top_k=n_candidate_peak,
-            labels_cell=labels_cell,
+            # labels_cell=labels_cell,
         )
         vec_features_pb_sub = [
-            correct_sfs_feature_dim(features, pb, idx_used, n_iter)
-            for pb in vec_pb_full
+            correct_pb_feature_dim(features, pb, idx_used, n_iter) for pb in vec_pb_full
         ]
 
         # run parallelized version of feature combination sweep
@@ -643,7 +642,7 @@ def seq_forward_selection(
                 bool_use_lightweight_wandb=bool_use_lightweight_wandb,
             )
 
-        # run serial version of feature combinationsweep
+        # run serial version of feature combination sweep
         else:
             vec_output_sfs_sweep, wandb_table_sfs2 = sfs_pb_sweep(
                 vec_features_pb_sub,
@@ -750,7 +749,7 @@ def seq_forward_selection(
     # obtain the final power bands
     # form the SFS power bands first
     output_fin["sfsPB"] = []
-    for i in range(min([_MAX_NUMEBER_OF_FINAL_PB, len(output_fin["vec_pb_ord"])])):
+    for i in range(min([_MAX_NUMBER_OF_FINAL_PB, len(output_fin["vec_pb_ord"])])):
         # form the PB
         sfsPB_curr = [
             vec_str_ch[pb_lim[i, 0]],
@@ -764,7 +763,7 @@ def seq_forward_selection(
 
     # now form the single PB
     output_init["sinPB"] = []
-    for i in range(min([_MAX_NUMEBER_OF_FINAL_PB, len(output_init["vec_pb_ord"])])):
+    for i in range(min([_MAX_NUMBER_OF_FINAL_PB, len(output_init["vec_pb_ord"])])):
         # form the PB
         sinPB_curr = [
             vec_str_ch[pb_init_lim[i, 0]],
@@ -779,8 +778,8 @@ def seq_forward_selection(
     # append np.nan in case any search didn't find all power bands
     # proceed with SFS output first
     n_fin_pb = (
-        _MAX_NUMEBER_OF_FINAL_PB if n_fin_pb > _MAX_NUMEBER_OF_FINAL_PB else n_fin_pb
-    )  # force most to be _MAX_NUMEBER_OF_FINAL_PB
+        _MAX_NUMBER_OF_FINAL_PB if n_fin_pb > _MAX_NUMBER_OF_FINAL_PB else n_fin_pb
+    )  # force most to be _MAX_NUMBER_OF_FINAL_PB
     conf_mat = output_fin["vec_conf_mat"][0]
     if len(output_fin["vec_pb_ord"]) < n_fin_pb:
         n_missing = n_fin_pb - len(output_fin["vec_pb_ord"])

@@ -1,0 +1,16 @@
+defaults:
+  - _self_
+  - early_stopping: Null # torch_default # Can be Null (i.e. None-type)
+
+model_name: AttnSleepModel
+parameters:
+  N: 2  # number of TCE clones
+  d_model: 390  # set to be 100 for SHHS dataset
+  d_ff: 120   # dimension of feed forward
+  h: 5  # number of attention heads
+  dropout: 0.1
+  n_class: 5
+  afr_reduced_cnn_size: 30
+  n_epoch: 35
+  batch_size: 64
+  bool_use_gpu: True

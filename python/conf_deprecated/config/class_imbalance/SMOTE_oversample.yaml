@@ -1,0 +1,9 @@
+defaults:
+  - _self_
+  - channel_options: correct_by_channel # Can be Null (i.e. None-type)
+
+strategy:
+  imblearn.over_sampling.SMOTE:
+    sampling_strategy: 'auto'
+    random_state: ${random_seed}
+    k_neighbors: 5

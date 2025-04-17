@@ -1,0 +1,4 @@
+name: TrainTestSplit
+test_size: 0.1
+shuffle: True
+stratify: True

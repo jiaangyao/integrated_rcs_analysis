@@ -1,0 +1,84 @@
+# Just an example...
+functions:
+  # Can include just the function call, or the full path to the function, e.g.: scipy.stats.zscore or zscore | numpy.sum or sum (note that np.sum will not work because of custom import name)
+  standardize_df_columns:
+    cols_to_standardize: ['TD_BG', 'TD_key2', 'TD_key3']
+  epoch_df_by_timesegment:
+    interval: '30s'
+    period: '30s'
+    td_columns:
+      - TD_BG
+      - TD_key2
+      - TD_key3
+    group_by_cols:
+      - SleepStage
+      - SessionIdentity
+    # scalar_cols: 
+    #   - SleepStage
+
+# Columns to extract from the polars.Dataframe to numpy.ndarray. 
+# The resulting array will be pipelined through the feature engineering steps.
+feature_columns:
+  - TD_BG
+  - TD_key2
+  - TD_key3
+
+label_options:
+  label_column: SleepStage
+  group_column: 
+
+  # Leave empty if no remapping is desired
+  label_remapping:
+    # 1: 0
+    # 2: 1
+    # 3: 1
+    # 4: 0
+    # 5: 0
+    # 6: 0
+
+  OneHotEncode: True
+
+# If the feature columns are TD sensor channels (3 dimensional maximum), then the following allows for handling the channels individually
+channel_options:
+  # If stack channels is True, then the feature columns will be stacked into an m x n x f array, where m is the number of channel columns, n is the number of rows (i.e. data points), and f is the number of features (i.e. elements) per channel column row.
+  # Stacking channels is useful for feature engineering steps that operate on individual channels, e.g. FFT
+  # If stack channels is False, then the feature columns will be concatenated n x (m*f), i.e. the features in each row will be concatenated, across columns, into a single feature vector.
+  stack_channels: False
+
+  # If group_channel_rows is True, then the feature columns will be stacked into an n x m x f array, where n is the number of rows (i.e. data points), m is the number of channel columns, and f is the number of features (i.e. elements) per channel column row.
+  # Group_channel_rows is useful for feature engineering steps that group channels together in time
+  group_channel_rows: True
+
+  # If concatenate_channel_rows is True, then the feature columns will be stacked into an n x (m * f) array, where n is the number of rows (i.e. data points), m is the number of channel columns, and f is the number of features (i.e. elements) per channel column row.
+  # Concatenating channels is useful if the feature engineering steps operate on the entire feature vector, e.g. PCA
+  concatenate_channel_rows: False
+
+  # pipe_dim applies the feature engineering steps to each element along the spcified dimension, rather than to the entire feature vector.
+  # E.g., if pipe_dim = 1, then the feature engineering steps will be applied to each channel along the first dimension individually (indexed  from 0)
+  # Can be set to None, in which case the feature engineering steps will be applied to the entire feature matrix (or dimensions specified in feature_engineering.yaml functions)
+  # pipe_dim: 1
+
+  # pipe_on_dim_0 applies the feature engineering steps to each element along the 0th axis, rather than to the entire feature vector.
+  # This is potentially useful for 3D feature matrices.
+  # E.g., if you chose to stack channels or group channel rows, then the feature engineering steps will be applied to each channel, or row grouping, individually
+  # If False, the feature engineering steps will be applied to the entire feature matrix (or dimensions specified in feature_engineering.yaml functions)
+  pipe_on_dim_0: True
+
+  # THE FOLLOWING ARE FOR AFTER FEATURE ENGINEERING STEPS ARE APPLIED. THEY RESHAPE FINAL FEATURE MATRIX
+
+  # Only one of the following options should be True, and will only execute if pipe_by_channel is True
+  # If concat_channel_features is True, then channels will be concatenated into a single feature vector after feature engineering steps are applied.
+  # Resulting feature vector will be n x (m*f), i.e. the features in each row will be concatenated, across columns, into a single feature vector.
+  concat_channel_features: False
+
+  # If average_channel_features is True, then channels will be averaged into a single feature vector after feature engineering steps are applied.
+  # Resulting feature vector will me n x f, i.e. the features in each row will be averaged, across columns, into a single feature vector.
+  average_channel_features: False
+
+  # If stack_channel_features is True, then channels will be stacked into multivariate feature matrix, after feature engineering steps are applied.
+  # Resulting feature vector will be m x n x f, m is the number of channel columns, where n is the number of rows (i.e. data points), and f is the number of features (i.e. elements) per channel column row.
+  stack_channel_features: False
+
+  # If group_channel_features_by_row_after_pipe is True, then channels will be grouped by row, i.e. the first row of the first channel will be grouped with the first row of the second channel, and so on.
+  # Resulting feature vector will be n x m x f
+  group_channel_features_by_row_after_pipe: False

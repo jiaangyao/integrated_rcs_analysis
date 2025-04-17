@@ -1,0 +1,11 @@
+functions:
+  get_psd:
+    freq_ranges:
+    - [0.5, 60]
+    - [100, 200]
+    sampling_frequency: 500
+    window_size: 1000
+    noverlap: 500
+    log: true
+  zscore:
+    axis: 0

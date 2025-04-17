@@ -83,9 +83,9 @@ fabric.properties
 # VisualStudioCode .gitignore contents
 
 .vscode/*
-!.vscode/settings.json
+.vscode/settings.json
 !.vscode/tasks.json
-!.vscode/launch.json
+.vscode/launch.json
 !.vscode/extensions.json
 !.vscode/*.code-snippets
 
@@ -104,6 +104,7 @@ multirun/
 /data
 wandb/
 scratch/
+python/wandb
 
 
 ################################################################
@@ -128,3 +129,13 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+
+# Clay specific ignore files and dirs
+.lh/
+python/analysis_*/
+python/analysis_CS/
+python/nohup.out
+*.out
+.vscode/tasks.json
+.vscode/tasks.json
+*.log

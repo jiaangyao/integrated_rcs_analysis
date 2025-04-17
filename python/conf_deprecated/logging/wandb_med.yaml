@@ -1,0 +1,15 @@
+defaults:
+  - default_no_logging
+
+# loguru info
+bool_use_loguru: True
+
+# WandB info
+bool_use_wandb: True
+wandb_params:
+  project: ${setup.project}
+  entity: jiaangyao
+  group: ${setup.group}
+  tags: 
+    - med
+    - ${setup.device}

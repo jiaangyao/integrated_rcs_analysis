@@ -1,0 +1,23 @@
+method: bayes
+metric:
+    name: accuracy_mean
+    goal: maximize
+parameters:
+    max_depth:
+        values:
+            - 8
+            - 12
+            - 14
+    num_leaves:
+        values:
+            - 15
+            - 23
+            - 31
+    n_estimators:
+        values:
+            - 400
+            - 500
+            - 600
+            - 800
+            - 900
+            - 100

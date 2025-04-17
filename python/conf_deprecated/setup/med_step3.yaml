@@ -1,0 +1,15 @@
+# Where the data sits on the computer
+
+# Organization and Logging info
+project: ModelID_debug
+device: ${patient.str_subject}${patient.str_side}
+group: ${setup.device}
+run_name: debug
+info: Med run debugging run
+time_stamp: ${now:%Y-%m-%d}_${now:%H-%M-%S}
+path_base: "/home/jyao/local/data/starrlab/Structured_aDBS_pipeline/"
+path_subbase: ${setup.path_base}/output/biomarker_id/${setup.project}/${setup.group}
+path_run: ${setup.path_subbase}/${setup.run_name}_${setup.device}_${setup.time_stamp}
+file_log: ${setup.path_run}/${setup.device}_${label.str_label}_${setup.run_name}.log
+file_output: "${setup.device}_${label.str_label}_${meta.str_metric}_${meta.str_model}.pkl"
+run_tracking_csv: ${setup.path_base}/ml_run_tracking.csv

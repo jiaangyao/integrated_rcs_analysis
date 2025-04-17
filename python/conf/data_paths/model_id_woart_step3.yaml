@@ -1,9 +1,0 @@
-  # path variables not subject to change later
-  p_project: "/home/jyao/local/data/starrlab/Structured_aDBS_pipeline/"
-  p_output: "/home/jyao/Downloads/biomarker_id/model_id_woart/${patient.str_subject}"
-  f_output: "${patient.str_subject}_${patient.str_side}_${meta.label_type}_${meta.str_metric}_${meta.str_model}_woart.pkl"
-
-  # path variables subject to change later
-  p_data: "${data_paths.p_project}/Data/${patient.str_subject}/Step3_in_clinic_neural_recordings/old"
-  f_data: "${patient.str_subject}_${patient.str_side}_table.csv"
- 

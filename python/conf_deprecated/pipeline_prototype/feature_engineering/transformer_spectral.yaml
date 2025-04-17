@@ -1,0 +1,11 @@
+  # Can include just the function call, or the full path to the function, e.g.: scipy.stats.zscore or zscore | numpy.sum or sum (note that np.sum will not work because of custom import name)
+  # broadcast_feature_extraction_on_matrix:
+  #   sampling_frequency: 500
+  #   window_size: 1000
+  #   noverlap: 500
+functions:
+  multivariate_feature_embedding:
+    window_size: 1000
+    noverlap: 0
+    sampling_frequency: 500
+    

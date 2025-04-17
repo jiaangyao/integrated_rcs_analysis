@@ -1,0 +1,4 @@
+bool_use_loguru: False
+
+bool_use_wandb: False
+wandb_params: Null

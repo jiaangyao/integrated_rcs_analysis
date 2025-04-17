@@ -1,0 +1,12 @@
+defaults:
+  - _self_
+  - early_stopping: Null # torch_default # Can be Null (i.e. None-type)
+
+model_name: AlexNetModel
+parameters:
+    n_classes: 5
+    n_channels: 3
+    dropout: 0.25
+    n_epoch: 35
+    batch_size: 64
+    bool_use_gpu: True

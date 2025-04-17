@@ -1,0 +1,30 @@
+# Where the data sits on the computer
+
+# Organization and Logging info
+project: Sleep_Classification_Trials
+device: 02L
+group: EEGNet_debug
+run_name: EEGNet_debug
+info: EEGNet debug run. Fixing data input shape
+time_stamp: ${now:%Y-%m-%d}_${now:%H-%M-%S}
+path_base: /media/shortterm_ssd/Clay
+path_subbase: ${setup.path_base}/${setup.project}/${setup.group}
+path_run: ${setup.path_subbase}/${setup.run_name}_${setup.device}_${setup.time_stamp}
+file_log: ${setup.path_run}/${setup.run_name}.log
+run_tracking_csv: ${setup.path_base}/ml_run_tracking.csv
+
+# WandB info
+# TODO: Replace with default and options for various dashboard programs. Should be able to opt out of wandb...
+# WandB info
+# TODO: Replace with default and options for various dashboard programs. Should be able to opt out of wandb...
+wandb:
+  project: ${setup.project}
+  entity: cnsmyth
+  group: ${setup.group}
+  tags: 
+    - sleep 
+    - ${setup.device}
+    - ${setup.run_name}
+    - oversample
+    - BG
+  notes: ${setup.info}

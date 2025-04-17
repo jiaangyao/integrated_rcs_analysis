@@ -1,0 +1,7 @@
+# format of data and relevant informations
+
+# path variables subject to change later
+source: csv
+path_data: "${setup.path_base}/Data/${patient.str_subject}/Step3_in_clinic_neural_recordings/"
+file_data: "${patient.str_subject}_${patient.str_side}_table.csv"
+file_gain: "${patient.str_subject}_Step3_ampGains.mat"
